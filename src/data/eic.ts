@@ -31,12 +31,19 @@ export interface EicFrame {
 
 const cache = new Map<ExperienceId, Promise<EicFrame | null>>();
 
-export function loadEicFrame(experience: ExperienceId, fetchImpl: typeof fetch = (...a) => fetch(...a)): Promise<EicFrame | null> {
-  if (!cache.has(experience)) cache.set(experience, load(experience, fetchImpl));
+/**
+ * @param tryLive also try the SVS API directly when nothing is bundled. Off by default because SVS
+ *        currently rejects cross-origin browser requests (it would only add console errors).
+ */
+export function loadEicFrame(
+  experience: ExperienceId,
+  { tryLive = false, fetchImpl = (...a: Parameters<typeof fetch>) => fetch(...a) }: { tryLive?: boolean; fetchImpl?: typeof fetch } = {},
+): Promise<EicFrame | null> {
+  if (!cache.has(experience)) cache.set(experience, load(experience, fetchImpl, tryLive));
   return cache.get(experience)!;
 }
 
-async function load(experience: ExperienceId, fetchImpl: typeof fetch): Promise<EicFrame | null> {
+async function load(experience: ExperienceId, fetchImpl: typeof fetch, tryLive: boolean): Promise<EicFrame | null> {
   const base = `${import.meta.env?.BASE_URL ?? "/"}data/eic/`;
   try {
     const r = await fetchImpl(`${base}${experience}.json`);
@@ -52,6 +59,7 @@ async function load(experience: ExperienceId, fetchImpl: typeof fetch): Promise<
   } catch {
     /* fall through */
   }
+  if (!tryLive) return null;
   const { svsId, itemTitle } = getExperience(experience).eic;
   try {
     const r = await fetchImpl(`https://svs.gsfc.nasa.gov/api/${svsId}`, { signal: AbortSignal.timeout?.(8000) });

@@ -11,8 +11,8 @@ import { fmtDate, fmtValue } from "./format";
  *  - a table view lives in a <details> next to it (built by the caller via `renderTable`)
  */
 const W = 640;
-const H = 220;
-const M = { t: 14, r: 14, b: 26, l: 46 };
+const H = 250;
+const M = { t: 16, r: 16, b: 38, l: 92 };
 const NS = "http://www.w3.org/2000/svg";
 
 export class SeriesChart {
@@ -77,14 +77,14 @@ export class SeriesChart {
     for (const [v, lab] of [[min, "min"], [series.stats.mean, "mean"], [max, "max"]] as const) {
       const yy = this.y(v).toFixed(1);
       parts.push(`<line class="grid" x1="${M.l}" x2="${W - M.r}" y1="${yy}" y2="${yy}"/>`);
-      parts.push(`<text class="axis" x="${M.l - 6}" y="${yy}" text-anchor="end" dominant-baseline="middle">${fmtValue(v, series.unit, true)}</text>`);
-      if (lab === "mean") parts.push(`<text class="axis faint" x="${W - M.r}" y="${(+yy - 4).toFixed(1)}" text-anchor="end">mean</text>`);
+      parts.push(`<text class="axis" x="${M.l - 8}" y="${yy}" text-anchor="end" dominant-baseline="middle">${fmtValue(v, series.unit, true)}</text>`);
+      if (lab === "mean") parts.push(`<text class="axis faint" x="${W - M.r}" y="${(+yy - 6).toFixed(1)}" text-anchor="end">mean</text>`);
     }
     // x labels: first, middle, last
     const idxs = [0, Math.floor((pts.length - 1) / 2), pts.length - 1];
     idxs.forEach((i, k) => {
       const anchor = k === 0 ? "start" : k === 2 ? "end" : "middle";
-      parts.push(`<text class="axis" x="${this.xs[i].toFixed(1)}" y="${H - 6}" text-anchor="${anchor}">${fmtDate(pts[i].time, series)}</text>`);
+      parts.push(`<text class="axis" x="${this.xs[i].toFixed(1)}" y="${H - 8}" text-anchor="${anchor}">${fmtDate(pts[i].time, series)}</text>`);
     });
     parts.push(`<line class="baseline" x1="${M.l}" x2="${W - M.r}" y1="${H - M.b}" y2="${H - M.b}"/>`);
 

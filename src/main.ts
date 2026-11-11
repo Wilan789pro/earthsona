@@ -286,11 +286,11 @@ function earthySays(s: CleanSeries, r: SeriesResult) {
   const where = s.region.name.split(",")[0];
   if (s.variable === "T2M" || s.variable === "SST") {
     line = `Listen to ${where}'s seasons rise and fall: high notes are the warmest ${s.variable === "SST" ? "sea" : "air"}, low notes the coolest.`;
-    if (rel > 0.05) [mood, face, line] = ["Feeling warm", "🥵", `${line} The latest year sounds a little higher than the first.`];
+    if (rel > 0.1) [mood, face, line] = ["Feeling warm", "🥵", `${line} The latest year sounds a little higher than the first.`];
   } else if (s.variable === "NDVI") {
     line = `Each note is one 16-day satellite look at ${where}'s plants. Bright, high notes mean lush green leaves.`;
     if (s.stats.mean > 0.6) [mood, face] = ["Feeling green", "🌳"];
-    if (rel < -0.05) [mood, face, line] = ["A bit concerned", "😟", `${line} The last year sounds a little lower: less greenness than at the start.`];
+    if (rel < -0.1) [mood, face, line] = ["A bit concerned", "😟", `${line} The last year sounds a little lower: less greenness than at the start.`];
   } else if (s.variable === "PRECTOTCORR") {
     line = `Rain in ${where}! Every high note is a wet month; the big jumps make the sound wobble.`;
     [mood, face] = ["Splashy", "🌧️"];
@@ -313,7 +313,7 @@ function earthySays(s: CleanSeries, r: SeriesResult) {
 async function renderEic() {
   const id = state.experience;
   const fig = $("eic");
-  const frame = await loadEicFrame(id);
+  const frame = await loadEicFrame(id, { tryLive: settings.live });
   if (id !== state.experience) return;
   if (!frame) {
     fig.hidden = true;
@@ -322,13 +322,20 @@ async function renderEic() {
   fig.hidden = false;
   const img = $<HTMLImageElement>("eic-img");
   const off = $("eic-offline");
-  img.hidden = false;
-  off.hidden = true;
+  // Never leave the previous experience's frame on screen under the new caption.
+  img.removeAttribute("src");
+  img.hidden = true;
+  off.hidden = false;
+  off.textContent = `Loading NASA visual… ${frame.altText}`;
   img.alt = frame.altText;
+  img.onload = () => {
+    img.hidden = false;
+    off.hidden = true;
+  };
   img.onerror = () => {
     img.hidden = true;
     off.hidden = false;
-    off.textContent = `Image unavailable offline. ${frame.altText}`;
+    off.textContent = `Image unavailable (offline?). ${frame.altText}`;
   };
   img.src = frame.imageUrl;
   $("eic-title").textContent = frame.title;
