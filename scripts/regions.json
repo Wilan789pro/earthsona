@@ -1,0 +1,38 @@
+{
+  "$comment": "Single source of truth for regions and periods. Used by the app (src/data/regions.ts) and by scripts/fetch-nasa-data.mjs. Add a region here, then run `npm run fetch-data`.",
+  "regions": [
+    { "id": "port-louis", "name": "Port Louis, Mauritius", "lat": -20.1609, "lon": 57.5012, "biome": "Tropical island coast", "baseline": { "temp": 25.0, "ndvi": 0.22, "sst": 26.0 } },
+    { "id": "black-river-gorges", "name": "Black River Gorges, Mauritius", "lat": -20.4167, "lon": 57.45, "biome": "Tropical montane forest", "baseline": { "temp": 21.5, "ndvi": 0.82, "sst": 25.8 } },
+    { "id": "mauritius-waters", "name": "Indian Ocean off Mauritius", "lat": -20.5, "lon": 57.0, "biome": "Open tropical ocean", "baseline": { "temp": 25.3, "ndvi": 0.0, "sst": 25.9 } },
+    { "id": "amazon", "name": "Amazon Rainforest, Brazil", "lat": -3.4653, "lon": -62.2159, "biome": "Tropical rainforest", "baseline": { "temp": 27.5, "ndvi": 0.88, "sst": 28.0 } },
+    { "id": "sahara", "name": "Sahara Desert", "lat": 23.806, "lon": 11.2884, "biome": "Arid desert", "baseline": { "temp": 27.0, "ndvi": 0.04, "sst": 22.0 } },
+    { "id": "great-barrier-reef", "name": "Great Barrier Reef, Coral Sea", "lat": -18.2871, "lon": 147.6992, "biome": "Coral reef", "baseline": { "temp": 26.1, "ndvi": 0.0, "sst": 26.5 } },
+    { "id": "svalbard", "name": "Svalbard Archipelago, Norway", "lat": 78.2232, "lon": 15.6267, "biome": "Arctic polar tundra", "baseline": { "temp": -6.4, "ndvi": 0.12, "sst": 2.0 } }
+  ],
+  "experiences": {
+    "pulse": {
+      "regions": ["port-louis", "amazon", "sahara", "svalbard"],
+      "series": [
+        { "source": "power", "variable": "T2M", "resolution": "monthly", "start": "2015", "end": "2024", "periodKey": "2015-2024" },
+        { "source": "power", "variable": "PRECTOTCORR", "resolution": "monthly", "start": "2015", "end": "2024", "periodKey": "2015-2024" }
+      ]
+    },
+    "forest": {
+      "regions": ["black-river-gorges", "amazon", "port-louis"],
+      "series": [
+        { "source": "modis", "variable": "NDVI", "product": "MOD13Q1", "band": "250m_16_days_NDVI", "start": "2020-01-01", "end": "2024-12-31", "periodKey": "2020-2024" }
+      ]
+    },
+    "ocean": {
+      "regions": ["mauritius-waters", "great-barrier-reef"],
+      "series": [
+        { "source": "sst", "variable": "SST", "start": "2020-01-01", "end": "2024-12-31", "periodKey": "2020-2024" }
+      ]
+    }
+  },
+  "eic": {
+    "ocean": { "svsId": 40509, "itemTitle": "Sea Surface Temperature" },
+    "forest": { "svsId": 40509, "itemTitle": "True color imagery from Terra satellite" },
+    "pulse": { "svsId": 5147 }
+  }
+}
