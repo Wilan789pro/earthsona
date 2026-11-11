@@ -1,4 +1,4 @@
-import type { Adapter, EarthSeries, FetchParams } from "../types";
+import type { Adapter, EarthSeries } from "../types";
 import {
   MODIS_NDVI_BAND,
   batchModisDates,

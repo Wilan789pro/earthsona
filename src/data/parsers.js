@@ -49,6 +49,7 @@ export function makeSeriesId(source, variable, regionId, periodKey) {
 }
 
 /** Round to a sensible number of decimals so bundled JSON stays small. */
+/** @param {number} v @param {number} [dp] */
 function round(v, dp = 4) {
   const f = 10 ** dp;
   return Math.round(v * f) / f;
