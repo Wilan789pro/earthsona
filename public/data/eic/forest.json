@@ -1,0 +1,12 @@
+{
+ "svsId": 40509,
+ "title": "Earth Now Dashboard: True color imagery from Terra satellite",
+ "description": "The first cycle of the Earth Now dashboard shows a set of near real-time satellite observations, provided by NASA's Worldview team. These satellite data products are generally captured within the previous three hours and are created in an expedited manner to support forecasting and monitoring of natural hazards and disasters, to assess air quality and support agricultural needs, to facilitate improved weather prediction, and to help ensure homeland security. While the displayed NASA satellite missions were originally designed for scientific research, they have been adapted to also support time sensitive applications through NASA’s Land, Atmosphere Near real-time Capability (LANCE).",
+ "imageUrl": "https://svs.gsfc.nasa.gov/images/gallery/EarthNowDashboard/WorldView_TrueColor.png",
+ "altText": "True color imagery from Terra satellite — Worldview Satellite Observations - First Cycle, from NASA's Earth Now Dashboard.",
+ "pageUrl": "https://svs.gsfc.nasa.gov/gallery/earth-now-dashboard/",
+ "released": "2023-10-16T00:00:00-04:00",
+ "updated": "2023-10-25T00:00:00-04:00",
+ "credit": "Visualizations courtesy of NASA's Scientific Visualization Studio (SVS) and the NASA Earth Information Center.",
+ "retrievedAt": "2026-11-11T17:17:06.865Z"
+}

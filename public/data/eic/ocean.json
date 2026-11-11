@@ -1,0 +1,12 @@
+{
+ "svsId": 40509,
+ "title": "Earth Now Dashboard: Sea Surface Temperature",
+ "description": "The second cycle of the Earth Now dashboad shows a set of recent observations covering the globe, provided by NASA's Worldview.",
+ "imageUrl": "https://svs.gsfc.nasa.gov/images/gallery/EarthNowDashboard/WorldView_SST.png",
+ "altText": "Sea Surface Temperature — Worldview Satellite Observations - Second Cycle, from NASA's Earth Now Dashboard.",
+ "pageUrl": "https://svs.gsfc.nasa.gov/gallery/earth-now-dashboard/",
+ "released": "2023-10-16T00:00:00-04:00",
+ "updated": "2023-10-25T00:00:00-04:00",
+ "credit": "Visualizations courtesy of NASA's Scientific Visualization Studio (SVS) and the NASA Earth Information Center.",
+ "retrievedAt": "2026-11-11T17:17:00.417Z"
+}
