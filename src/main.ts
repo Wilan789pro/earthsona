@@ -119,8 +119,8 @@ function renderVariableSwitch() {
   const exp = getExperience(state.experience);
   const box = $("variable-switch");
   box.innerHTML = "";
-  if (exp.series.length < 2) return;
-  exp.series.forEach((def, i) => {
+  if (exp.periods[0].layers.length < 2) return;
+  exp.periods[0].layers.forEach((def, i) => {
     const b = document.createElement("button");
     b.setAttribute("role", "radio");
     b.setAttribute("aria-checked", String(i === state.variableIndex));
@@ -169,7 +169,7 @@ function cycleRegion(dir: 1 | -1) {
 async function loadSeries() {
   const token = ++state.token;
   const exp = getExperience(state.experience);
-  const def = exp.series[state.variableIndex] ?? exp.series[0];
+  const def = exp.periods[0].layers[state.variableIndex] ?? exp.periods[0].layers[0];
   $("exp-title").textContent = exp.title;
   $("exp-tagline").textContent = exp.tagline;
   $("region-name").textContent = state.region.name;

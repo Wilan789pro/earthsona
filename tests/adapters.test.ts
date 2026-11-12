@@ -10,6 +10,9 @@ import {
   parseModisSubset,
   parsePowerResponse,
   parseSvsPage,
+  parseErddapTable,
+  buildErddapUrl,
+  parseModisReliability,
 } from "../src/data/parsers.js";
 import { powerAdapter } from "../src/data/adapters/powerAdapter";
 import { modisAdapter } from "../src/data/adapters/modisAdapter";
@@ -91,7 +94,7 @@ describe("NASA POWER parsing", () => {
     const params: FetchParams = {
       experience: "pulse",
       region: portLouis,
-      def: { source: "power", variable: "T2M", resolution: "monthly", start: "2020", end: "2021", periodKey: "2020-2021" },
+      def: { source: "power", variable: "T2M", roles: ["pitch"], resolution: "monthly", start: "2020", end: "2021", periodKey: "2020-2021" },
       fetchImpl: fetch,
     };
     const s = await powerAdapter.fetchSeries(params);
@@ -139,35 +142,105 @@ describe("ORNL DAAC MODIS parsing", () => {
     expect(s.points.map((p) => p.time)).toEqual([...s.points.map((p) => p.time)].sort());
   });
 
-  it("modisAdapter requests dates first, then subsets in ≤10-date batches", async () => {
+  it("modisAdapter requests dates first, then VI + QA subsets in ≤10-date batches", async () => {
     const { fetch, calls } = stubFetch([
       ["/dates?", fx("modis_dates_port_louis.json")],
+      ["band=250m_16_days_pixel_reliability", fx("modis_reliability_amazon.json")],
       ["/subset?", fx("modis_subset_port_louis.json")],
     ]);
     const s = await modisAdapter.fetchSeries({
       experience: "forest",
       region: portLouis,
-      def: { source: "modis", variable: "NDVI", product: "MOD13Q1", start: "2024-01-01", end: "2024-12-31", periodKey: "2024" },
+      def: { source: "modis", variable: "NDVI", roles: ["pitch"], product: "MOD13Q1", start: "2024-01-01", end: "2024-12-31", periodKey: "2024" },
       fetchImpl: fetch,
     });
     expect(calls[0]).toContain("/MOD13Q1/dates?");
-    expect(calls.filter((c) => c.includes("/subset?"))).toHaveLength(3); // 23 composites → 10 + 10 + 3
+    // 23 composites → batches of 10 + 10 + 3, each for the NDVI band and the pixel_reliability band
+    expect(calls.filter((c) => c.includes("band=250m_16_days_NDVI"))).toHaveLength(3);
+    expect(calls.filter((c) => c.includes("band=250m_16_days_pixel_reliability"))).toHaveLength(3);
     expect(s.source.kind).toBe("nasa");
   });
 });
 
-describe("SST + simulated adapters", () => {
-  const def = { source: "sst" as const, variable: "SST", start: "2020-01-01", end: "2020-12-31", periodKey: "2020" };
-  it("SST adapter is still simulated and says so", async () => {
-    const s = await sstAdapter.fetchSeries({ experience: "ocean", region: portLouis, def });
+describe("MUR SST via ERDDAP", () => {
+  // Real griddap response (same server software & JSON shape as jplMURSST41), from the regional MUR copy on
+  // coastwatch.noaa.gov, because coastwatch.pfeg.noaa.gov was unreachable from the dev network.
+  it("parses a griddap table: ISO dates, °C units, values in a plausible range", () => {
+    const { points, unit } = parseErddapTable(fx("erddap_mur_monthly_eastcoast.json"), "sst");
+    expect(unit).toBe("°C");
+    expect(points).toHaveLength(6);
+    expect(points[0]).toEqual({ time: "2021-01-16", value: 23.239 });
+    for (const p of points) expect(p.value!).toBeGreaterThan(-2), expect(p.value!).toBeLessThan(35);
+  });
+
+  it("maps NaN/null to null and converts Kelvin to °C", () => {
+    const j = fx("erddap_mur_monthly_eastcoast.json");
+    j.table.rows[1][4] = null;
+    j.table.columnUnits[4] = "kelvin";
+    j.table.rows[0][4] = 300.15;
+    const { points, unit } = parseErddapTable(j, "sst");
+    expect(unit).toBe("°C");
+    expect(points[0].value).toBe(27);
+    expect(points[1].value).toBeNull();
+  });
+
+  it("builds a griddap URL with stride and point indices", () => {
+    const url = buildErddapUrl({ base: "https://example.org/erddap/", datasetId: "jplMURSST41", variable: "analysed_sst", start: "2024-01-01", end: "2024-02-01", stride: 7, lat: -20.5, lon: 57 });
+    expect(url).toBe("https://example.org/erddap/griddap/jplMURSST41.json?analysed_sst%5B(2024-01-01T09:00:00Z):7:(2024-02-01T09:00:00Z)%5D%5B(-20.5)%5D%5B(57)%5D");
+  });
+
+  it("sstAdapter returns NASA-labelled SST with the MUR citation", async () => {
+    const j = fx("erddap_mur_monthly_eastcoast.json");
+    j.table.columnNames[4] = "analysed_sst"; // jplMURSST41 names the variable analysed_sst
+    const { fetch, calls } = stubFetch([["griddap/jplMURSST41.json", j]]);
+    const s = await sstAdapter.fetchSeries({ experience: "ocean", region: portLouis, def: { source: "sst", variable: "SST", roles: ["pitch"], stride: 7, start: "2021-01-01", end: "2021-06-30", periodKey: "t" }, fetchImpl: fetch });
+    expect(calls[0]).toContain("jplMURSST41.json?analysed_sst");
+    expect(s.source.kind).toBe("nasa");
+    expect(s.source.citation).toMatch(/GHGMR-4FJ04/);
+  });
+});
+
+describe("POWER solar radiation + MODIS quality", () => {
+  it("takes units from the POWER response (AG community → MJ/m²/day)", () => {
+    const s = buildPowerSeries(fx("power_daily3_port_louis.json"), { experience: "pulse", variable: "ALLSKY_SFC_SW_DWN", region: portLouis, periodKey: "x", url: "u" });
+    expect(s.unit).toBe("MJ/m²/day");
+    expect(s.points[0]).toEqual({ time: "2024-01-01", value: 18.99 });
+  });
+
+  it("applies MOD13Q1 pixel reliability: cloudy → null, marginal kept & flagged", () => {
+    // Real Amazon responses: reliability 3 (cloudy) coincides with depressed NDVI (0.46 on 2024-04-06).
+    const s = buildModisSeries([fx("modis_ndvi_amazon.json")], {
+      experience: "forest", variable: "NDVI", product: "MOD13Q1", region: portLouis, periodKey: "x", urls: ["u"],
+      reliabilityJsons: [fx("modis_reliability_amazon.json")],
+    });
+    const byDate = Object.fromEntries(s.points.map((p) => [p.time, p]));
+    expect(byDate["2024-04-06"]).toEqual({ time: "2024-04-06", value: null, quality: "cloudy" });
+    expect(byDate["2024-01-01"]).toMatchObject({ value: 0.8822, quality: "marginal" });
+    expect(byDate["2024-01-17"]).toMatchObject({ value: 0.8248, quality: "good" });
+    expect(s.source.product).toMatch(/pixel reliability/);
+  });
+
+  it("parses reliability codes", () => {
+    const m = parseModisReliability(fx("modis_reliability_amazon.json"));
+    expect(m.get("2024-02-02")).toBe("cloudy");
+    expect(m.get("2024-01-17")).toBe("good");
+  });
+});
+
+describe("simulated adapter", () => {
+  const def = { source: "sst" as const, variable: "SST", roles: ["pitch" as const], start: "2020-01-01", end: "2020-12-31", periodKey: "2020" };
+  it("is labelled simulated on every point", async () => {
+    const s = await simulatedAdapter.fetchSeries({ experience: "ocean", region: portLouis, def });
     expect(s.source.kind).toBe("simulated");
     expect(s.source.name).toMatch(/Simulated demonstration data/);
+    expect(s.points.every((p) => p.quality === "simulated" || p.quality === "missing")).toBe(true);
   });
-  it("simulated data is deterministic per region", async () => {
+  it("is deterministic per region and supports daily resolution", async () => {
     const a = await simulatedAdapter.fetchSeries({ experience: "ocean", region: portLouis, def });
     const b = await simulatedAdapter.fetchSeries({ experience: "ocean", region: portLouis, def });
     expect(a.points).toEqual(b.points);
-    expect(a.points.length).toBeGreaterThan(50);
+    const d = await simulatedAdapter.fetchSeries({ experience: "pulse", region: portLouis, def: { source: "power", variable: "T2M", roles: ["pitch"], resolution: "daily", start: "2024-01-01", end: "2024-12-31", periodKey: "d" } });
+    expect(d.points).toHaveLength(366);
   });
 });
 

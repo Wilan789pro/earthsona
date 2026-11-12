@@ -1,0 +1,503 @@
+{
+ "id": "power-allsky-sfc-sw-dwn-port-louis-2015-2024",
+ "experience": "pulse",
+ "variable": "ALLSKY_SFC_SW_DWN",
+ "label": "Sunlight reaching the surface (all-sky)",
+ "unit": "MJ/m²/day",
+ "dataset": "NASA POWER POWER Monthly and Annual API",
+ "region": {
+  "name": "Port Louis, Mauritius",
+  "lat": -20.1609,
+  "lon": 57.5012
+ },
+ "points": [
+  {
+   "time": "2015-01-01",
+   "value": 20.64
+  },
+  {
+   "time": "2015-02-01",
+   "value": 22.97
+  },
+  {
+   "time": "2015-03-01",
+   "value": 20.35
+  },
+  {
+   "time": "2015-04-01",
+   "value": 18.71
+  },
+  {
+   "time": "2015-05-01",
+   "value": 15.29
+  },
+  {
+   "time": "2015-06-01",
+   "value": 12.86
+  },
+  {
+   "time": "2015-07-01",
+   "value": 14.1
+  },
+  {
+   "time": "2015-08-01",
+   "value": 16.12
+  },
+  {
+   "time": "2015-09-01",
+   "value": 20.39
+  },
+  {
+   "time": "2015-10-01",
+   "value": 22.3
+  },
+  {
+   "time": "2015-11-01",
+   "value": 25.25
+  },
+  {
+   "time": "2015-12-01",
+   "value": 25.73
+  },
+  {
+   "time": "2016-01-01",
+   "value": 25.16
+  },
+  {
+   "time": "2016-02-01",
+   "value": 20.47
+  },
+  {
+   "time": "2016-03-01",
+   "value": 20.41
+  },
+  {
+   "time": "2016-04-01",
+   "value": 18.49
+  },
+  {
+   "time": "2016-05-01",
+   "value": 15.39
+  },
+  {
+   "time": "2016-06-01",
+   "value": 14.02
+  },
+  {
+   "time": "2016-07-01",
+   "value": 13.91
+  },
+  {
+   "time": "2016-08-01",
+   "value": 17.03
+  },
+  {
+   "time": "2016-09-01",
+   "value": 20.02
+  },
+  {
+   "time": "2016-10-01",
+   "value": 23.99
+  },
+  {
+   "time": "2016-11-01",
+   "value": 24.78
+  },
+  {
+   "time": "2016-12-01",
+   "value": 26.47
+  },
+  {
+   "time": "2017-01-01",
+   "value": 26.75
+  },
+  {
+   "time": "2017-02-01",
+   "value": 23.33
+  },
+  {
+   "time": "2017-03-01",
+   "value": 21.12
+  },
+  {
+   "time": "2017-04-01",
+   "value": 17.55
+  },
+  {
+   "time": "2017-05-01",
+   "value": 14.41
+  },
+  {
+   "time": "2017-06-01",
+   "value": 13.91
+  },
+  {
+   "time": "2017-07-01",
+   "value": 14.11
+  },
+  {
+   "time": "2017-08-01",
+   "value": 16.78
+  },
+  {
+   "time": "2017-09-01",
+   "value": 20.02
+  },
+  {
+   "time": "2017-10-01",
+   "value": 24.34
+  },
+  {
+   "time": "2017-11-01",
+   "value": 23.68
+  },
+  {
+   "time": "2017-12-01",
+   "value": 27
+  },
+  {
+   "time": "2018-01-01",
+   "value": 22.26
+  },
+  {
+   "time": "2018-02-01",
+   "value": 21.95
+  },
+  {
+   "time": "2018-03-01",
+   "value": 19.99
+  },
+  {
+   "time": "2018-04-01",
+   "value": 17.26
+  },
+  {
+   "time": "2018-05-01",
+   "value": 16.33
+  },
+  {
+   "time": "2018-06-01",
+   "value": 13.89
+  },
+  {
+   "time": "2018-07-01",
+   "value": 14.65
+  },
+  {
+   "time": "2018-08-01",
+   "value": 18
+  },
+  {
+   "time": "2018-09-01",
+   "value": 21.03
+  },
+  {
+   "time": "2018-10-01",
+   "value": 23.4
+  },
+  {
+   "time": "2018-11-01",
+   "value": 25.46
+  },
+  {
+   "time": "2018-12-01",
+   "value": 26.06
+  },
+  {
+   "time": "2019-01-01",
+   "value": 24.52
+  },
+  {
+   "time": "2019-02-01",
+   "value": 24.32
+  },
+  {
+   "time": "2019-03-01",
+   "value": 23.56
+  },
+  {
+   "time": "2019-04-01",
+   "value": 17.87
+  },
+  {
+   "time": "2019-05-01",
+   "value": 15.04
+  },
+  {
+   "time": "2019-06-01",
+   "value": 13.26
+  },
+  {
+   "time": "2019-07-01",
+   "value": 14.12
+  },
+  {
+   "time": "2019-08-01",
+   "value": 16.96
+  },
+  {
+   "time": "2019-09-01",
+   "value": 20.85
+  },
+  {
+   "time": "2019-10-01",
+   "value": 23.61
+  },
+  {
+   "time": "2019-11-01",
+   "value": 24.4
+  },
+  {
+   "time": "2019-12-01",
+   "value": 25.14
+  },
+  {
+   "time": "2020-01-01",
+   "value": 21.21
+  },
+  {
+   "time": "2020-02-01",
+   "value": 24.32
+  },
+  {
+   "time": "2020-03-01",
+   "value": 18.08
+  },
+  {
+   "time": "2020-04-01",
+   "value": 18.64
+  },
+  {
+   "time": "2020-05-01",
+   "value": 16.13
+  },
+  {
+   "time": "2020-06-01",
+   "value": 13.6
+  },
+  {
+   "time": "2020-07-01",
+   "value": 13.81
+  },
+  {
+   "time": "2020-08-01",
+   "value": 17.72
+  },
+  {
+   "time": "2020-09-01",
+   "value": 20
+  },
+  {
+   "time": "2020-10-01",
+   "value": 24.17
+  },
+  {
+   "time": "2020-11-01",
+   "value": 26.08
+  },
+  {
+   "time": "2020-12-01",
+   "value": 25.96
+  },
+  {
+   "time": "2021-01-01",
+   "value": 26.84
+  },
+  {
+   "time": "2021-02-01",
+   "value": 24.25
+  },
+  {
+   "time": "2021-03-01",
+   "value": 22.3
+  },
+  {
+   "time": "2021-04-01",
+   "value": 15.07
+  },
+  {
+   "time": "2021-05-01",
+   "value": 16.19
+  },
+  {
+   "time": "2021-06-01",
+   "value": 13.63
+  },
+  {
+   "time": "2021-07-01",
+   "value": 14.85
+  },
+  {
+   "time": "2021-08-01",
+   "value": 17
+  },
+  {
+   "time": "2021-09-01",
+   "value": 21.04
+  },
+  {
+   "time": "2021-10-01",
+   "value": 22.71
+  },
+  {
+   "time": "2021-11-01",
+   "value": 27.42
+  },
+  {
+   "time": "2021-12-01",
+   "value": 25.8
+  },
+  {
+   "time": "2022-01-01",
+   "value": 23.42
+  },
+  {
+   "time": "2022-02-01",
+   "value": 21.62
+  },
+  {
+   "time": "2022-03-01",
+   "value": 20.63
+  },
+  {
+   "time": "2022-04-01",
+   "value": 16.96
+  },
+  {
+   "time": "2022-05-01",
+   "value": 15.94
+  },
+  {
+   "time": "2022-06-01",
+   "value": 13.78
+  },
+  {
+   "time": "2022-07-01",
+   "value": 14.52
+  },
+  {
+   "time": "2022-08-01",
+   "value": 17.52
+  },
+  {
+   "time": "2022-09-01",
+   "value": 21.13
+  },
+  {
+   "time": "2022-10-01",
+   "value": 23.69
+  },
+  {
+   "time": "2022-11-01",
+   "value": 27.3
+  },
+  {
+   "time": "2022-12-01",
+   "value": 26.44
+  },
+  {
+   "time": "2023-01-01",
+   "value": 21.82
+  },
+  {
+   "time": "2023-02-01",
+   "value": 25.25
+  },
+  {
+   "time": "2023-03-01",
+   "value": 21.49
+  },
+  {
+   "time": "2023-04-01",
+   "value": 17.85
+  },
+  {
+   "time": "2023-05-01",
+   "value": 15.51
+  },
+  {
+   "time": "2023-06-01",
+   "value": 14.35
+  },
+  {
+   "time": "2023-07-01",
+   "value": 14.83
+  },
+  {
+   "time": "2023-08-01",
+   "value": 17.39
+  },
+  {
+   "time": "2023-09-01",
+   "value": 21.25
+  },
+  {
+   "time": "2023-10-01",
+   "value": 23.61
+  },
+  {
+   "time": "2023-11-01",
+   "value": 23.21
+  },
+  {
+   "time": "2023-12-01",
+   "value": 23.9
+  },
+  {
+   "time": "2024-01-01",
+   "value": 22.32
+  },
+  {
+   "time": "2024-02-01",
+   "value": 23.57
+  },
+  {
+   "time": "2024-03-01",
+   "value": 20.36
+  },
+  {
+   "time": "2024-04-01",
+   "value": 17.18
+  },
+  {
+   "time": "2024-05-01",
+   "value": 14.73
+  },
+  {
+   "time": "2024-06-01",
+   "value": 13.01
+  },
+  {
+   "time": "2024-07-01",
+   "value": 15.64
+  },
+  {
+   "time": "2024-08-01",
+   "value": 16.61
+  },
+  {
+   "time": "2024-09-01",
+   "value": 21.05
+  },
+  {
+   "time": "2024-10-01",
+   "value": 23.7
+  },
+  {
+   "time": "2024-11-01",
+   "value": 26.5
+  },
+  {
+   "time": "2024-12-01",
+   "value": 27.04
+  }
+ ],
+ "source": {
+  "kind": "nasa",
+  "name": "NASA POWER (LaRC)",
+  "product": "POWER Monthly and Annual API v2.10.0 · SYN1DEG, MERRA2",
+  "url": "https://power.larc.nasa.gov/api/temporal/monthly/point?parameters=T2M%2CPRECTOTCORR%2CALLSKY_SFC_SW_DWN&community=AG&latitude=-20.1609&longitude=57.5012&start=2015&end=2024&format=JSON",
+  "citation": "The data was obtained from the National Aeronautics and Space Administration (NASA) Langley Research Center (LaRC) Prediction of Worldwide Energy Resources (POWER) Project funded through the NASA Earth Science Division. POWER Monthly and Annual API v2.10.0, accessed 2026-11-12.",
+  "retrievedAt": "2026-11-12T17:49:12.480Z"
+ }
+}

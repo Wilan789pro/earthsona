@@ -4,6 +4,7 @@
  "variable": "T2M",
  "label": "Air temperature at 2 m",
  "unit": "°C",
+ "dataset": "NASA POWER POWER Monthly and Annual API",
  "region": {
   "name": "Sahara Desert",
   "lat": 23.806,
@@ -494,9 +495,9 @@
  "source": {
   "kind": "nasa",
   "name": "NASA POWER (LaRC)",
-  "product": "POWER Monthly and Annual API v2.10.0 · MERRA2",
-  "url": "https://power.larc.nasa.gov/api/temporal/monthly/point?parameters=T2M%2CPRECTOTCORR&community=AG&latitude=23.8060&longitude=11.2884&start=2015&end=2024&format=JSON",
-  "citation": "The data was obtained from the National Aeronautics and Space Administration (NASA) Langley Research Center (LaRC) Prediction of Worldwide Energy Resources (POWER) Project funded through the NASA Earth Science Division. POWER Monthly and Annual API v2.10.0, accessed 2026-11-11.",
-  "retrievedAt": "2026-11-11T17:04:50.910Z"
+  "product": "POWER Monthly and Annual API v2.10.0 · SYN1DEG, MERRA2",
+  "url": "https://power.larc.nasa.gov/api/temporal/monthly/point?parameters=T2M%2CPRECTOTCORR%2CALLSKY_SFC_SW_DWN&community=AG&latitude=23.8060&longitude=11.2884&start=2015&end=2024&format=JSON",
+  "citation": "The data was obtained from the National Aeronautics and Space Administration (NASA) Langley Research Center (LaRC) Prediction of Worldwide Energy Resources (POWER) Project funded through the NASA Earth Science Division. POWER Monthly and Annual API v2.10.0, accessed 2026-11-12.",
+  "retrievedAt": "2026-11-12T17:49:23.188Z"
  }
 }

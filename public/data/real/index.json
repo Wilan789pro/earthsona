@@ -1,6 +1,39 @@
 {
- "generatedAt": "2026-11-11T17:17:13.359Z",
+ "generatedAt": "2026-11-12T18:38:10.704Z",
  "series": [
+  {
+   "id": "modis-evi-amazon-2020-2024",
+   "experience": "forest",
+   "variable": "EVI",
+   "regionId": "amazon",
+   "periodKey": "2020-2024",
+   "file": "forest/modis-evi-amazon-2020-2024.json",
+   "points": 115,
+   "sourceName": "NASA MODIS via ORNL DAAC",
+   "retrievedAt": "2026-11-12T18:03:05.998Z"
+  },
+  {
+   "id": "modis-evi-black-river-gorges-2020-2024",
+   "experience": "forest",
+   "variable": "EVI",
+   "regionId": "black-river-gorges",
+   "periodKey": "2020-2024",
+   "file": "forest/modis-evi-black-river-gorges-2020-2024.json",
+   "points": 115,
+   "sourceName": "NASA MODIS via ORNL DAAC",
+   "retrievedAt": "2026-11-12T17:52:49.619Z"
+  },
+  {
+   "id": "modis-evi-port-louis-2020-2024",
+   "experience": "forest",
+   "variable": "EVI",
+   "regionId": "port-louis",
+   "periodKey": "2020-2024",
+   "file": "forest/modis-evi-port-louis-2020-2024.json",
+   "points": 115,
+   "sourceName": "NASA MODIS via ORNL DAAC",
+   "retrievedAt": "2026-11-12T18:29:57.840Z"
+  },
   {
    "id": "modis-ndvi-amazon-2020-2024",
    "experience": "forest",
@@ -10,7 +43,7 @@
    "file": "forest/modis-ndvi-amazon-2020-2024.json",
    "points": 115,
    "sourceName": "NASA MODIS via ORNL DAAC",
-   "retrievedAt": "2026-11-11T17:15:32.226Z"
+   "retrievedAt": "2026-11-12T18:03:05.998Z"
   },
   {
    "id": "modis-ndvi-black-river-gorges-2020-2024",
@@ -21,7 +54,7 @@
    "file": "forest/modis-ndvi-black-river-gorges-2020-2024.json",
    "points": 115,
    "sourceName": "NASA MODIS via ORNL DAAC",
-   "retrievedAt": "2026-11-11T17:06:29.834Z"
+   "retrievedAt": "2026-11-12T17:52:49.619Z"
   },
   {
    "id": "modis-ndvi-port-louis-2020-2024",
@@ -32,7 +65,95 @@
    "file": "forest/modis-ndvi-port-louis-2020-2024.json",
    "points": 115,
    "sourceName": "NASA MODIS via ORNL DAAC",
-   "retrievedAt": "2026-11-11T17:16:52.600Z"
+   "retrievedAt": "2026-11-12T18:29:57.840Z"
+  },
+  {
+   "id": "power-allsky-sfc-sw-dwn-amazon-2015-2024",
+   "experience": "pulse",
+   "variable": "ALLSKY_SFC_SW_DWN",
+   "regionId": "amazon",
+   "periodKey": "2015-2024",
+   "file": "pulse/power-allsky-sfc-sw-dwn-amazon-2015-2024.json",
+   "points": 120,
+   "sourceName": "NASA POWER (LaRC)",
+   "retrievedAt": "2026-11-12T17:49:17.958Z"
+  },
+  {
+   "id": "power-allsky-sfc-sw-dwn-amazon-2024-daily",
+   "experience": "pulse",
+   "variable": "ALLSKY_SFC_SW_DWN",
+   "regionId": "amazon",
+   "periodKey": "2024-daily",
+   "file": "pulse/power-allsky-sfc-sw-dwn-amazon-2024-daily.json",
+   "points": 366,
+   "sourceName": "NASA POWER (LaRC)",
+   "retrievedAt": "2026-11-12T17:49:20.737Z"
+  },
+  {
+   "id": "power-allsky-sfc-sw-dwn-port-louis-2015-2024",
+   "experience": "pulse",
+   "variable": "ALLSKY_SFC_SW_DWN",
+   "regionId": "port-louis",
+   "periodKey": "2015-2024",
+   "file": "pulse/power-allsky-sfc-sw-dwn-port-louis-2015-2024.json",
+   "points": 120,
+   "sourceName": "NASA POWER (LaRC)",
+   "retrievedAt": "2026-11-12T17:49:12.480Z"
+  },
+  {
+   "id": "power-allsky-sfc-sw-dwn-port-louis-2024-daily",
+   "experience": "pulse",
+   "variable": "ALLSKY_SFC_SW_DWN",
+   "regionId": "port-louis",
+   "periodKey": "2024-daily",
+   "file": "pulse/power-allsky-sfc-sw-dwn-port-louis-2024-daily.json",
+   "points": 366,
+   "sourceName": "NASA POWER (LaRC)",
+   "retrievedAt": "2026-11-12T17:49:15.566Z"
+  },
+  {
+   "id": "power-allsky-sfc-sw-dwn-sahara-2015-2024",
+   "experience": "pulse",
+   "variable": "ALLSKY_SFC_SW_DWN",
+   "regionId": "sahara",
+   "periodKey": "2015-2024",
+   "file": "pulse/power-allsky-sfc-sw-dwn-sahara-2015-2024.json",
+   "points": 120,
+   "sourceName": "NASA POWER (LaRC)",
+   "retrievedAt": "2026-11-12T17:49:23.188Z"
+  },
+  {
+   "id": "power-allsky-sfc-sw-dwn-sahara-2024-daily",
+   "experience": "pulse",
+   "variable": "ALLSKY_SFC_SW_DWN",
+   "regionId": "sahara",
+   "periodKey": "2024-daily",
+   "file": "pulse/power-allsky-sfc-sw-dwn-sahara-2024-daily.json",
+   "points": 366,
+   "sourceName": "NASA POWER (LaRC)",
+   "retrievedAt": "2026-11-12T17:49:26.010Z"
+  },
+  {
+   "id": "power-allsky-sfc-sw-dwn-svalbard-2015-2024",
+   "experience": "pulse",
+   "variable": "ALLSKY_SFC_SW_DWN",
+   "regionId": "svalbard",
+   "periodKey": "2015-2024",
+   "file": "pulse/power-allsky-sfc-sw-dwn-svalbard-2015-2024.json",
+   "points": 120,
+   "sourceName": "NASA POWER (LaRC)",
+   "retrievedAt": "2026-11-12T17:49:28.414Z"
+  },
+  {
+   "id": "power-allsky-sfc-sw-dwn-svalbard-2024-daily",
+   "experience": "pulse",
+   "variable": "ALLSKY_SFC_SW_DWN",
+   "regionId": "svalbard",
+   "periodKey": "2024-daily",
+   "file": "pulse/power-allsky-sfc-sw-dwn-svalbard-2024-daily.json",
+   "points": 366,
+   "sourceName": "NASA POWER (LaRC)",
+   "retrievedAt": "2026-11-12T17:49:31.223Z"
   },
   {
    "id": "power-prectotcorr-amazon-2015-2024",
@@ -43,7 +164,18 @@
    "file": "pulse/power-prectotcorr-amazon-2015-2024.json",
    "points": 120,
    "sourceName": "NASA POWER (LaRC)",
-   "retrievedAt": "2026-11-11T17:04:48.493Z"
+   "retrievedAt": "2026-11-12T17:49:17.958Z"
+  },
+  {
+   "id": "power-prectotcorr-amazon-2024-daily",
+   "experience": "pulse",
+   "variable": "PRECTOTCORR",
+   "regionId": "amazon",
+   "periodKey": "2024-daily",
+   "file": "pulse/power-prectotcorr-amazon-2024-daily.json",
+   "points": 366,
+   "sourceName": "NASA POWER (LaRC)",
+   "retrievedAt": "2026-11-12T17:49:20.737Z"
   },
   {
    "id": "power-prectotcorr-port-louis-2015-2024",
@@ -54,7 +186,18 @@
    "file": "pulse/power-prectotcorr-port-louis-2015-2024.json",
    "points": 120,
    "sourceName": "NASA POWER (LaRC)",
-   "retrievedAt": "2026-11-11T17:04:46.023Z"
+   "retrievedAt": "2026-11-12T17:49:12.480Z"
+  },
+  {
+   "id": "power-prectotcorr-port-louis-2024-daily",
+   "experience": "pulse",
+   "variable": "PRECTOTCORR",
+   "regionId": "port-louis",
+   "periodKey": "2024-daily",
+   "file": "pulse/power-prectotcorr-port-louis-2024-daily.json",
+   "points": 366,
+   "sourceName": "NASA POWER (LaRC)",
+   "retrievedAt": "2026-11-12T17:49:15.566Z"
   },
   {
    "id": "power-prectotcorr-sahara-2015-2024",
@@ -65,7 +208,18 @@
    "file": "pulse/power-prectotcorr-sahara-2015-2024.json",
    "points": 120,
    "sourceName": "NASA POWER (LaRC)",
-   "retrievedAt": "2026-11-11T17:04:50.910Z"
+   "retrievedAt": "2026-11-12T17:49:23.188Z"
+  },
+  {
+   "id": "power-prectotcorr-sahara-2024-daily",
+   "experience": "pulse",
+   "variable": "PRECTOTCORR",
+   "regionId": "sahara",
+   "periodKey": "2024-daily",
+   "file": "pulse/power-prectotcorr-sahara-2024-daily.json",
+   "points": 366,
+   "sourceName": "NASA POWER (LaRC)",
+   "retrievedAt": "2026-11-12T17:49:26.010Z"
   },
   {
    "id": "power-prectotcorr-svalbard-2015-2024",
@@ -76,7 +230,18 @@
    "file": "pulse/power-prectotcorr-svalbard-2015-2024.json",
    "points": 120,
    "sourceName": "NASA POWER (LaRC)",
-   "retrievedAt": "2026-11-11T17:04:53.266Z"
+   "retrievedAt": "2026-11-12T17:49:28.414Z"
+  },
+  {
+   "id": "power-prectotcorr-svalbard-2024-daily",
+   "experience": "pulse",
+   "variable": "PRECTOTCORR",
+   "regionId": "svalbard",
+   "periodKey": "2024-daily",
+   "file": "pulse/power-prectotcorr-svalbard-2024-daily.json",
+   "points": 366,
+   "sourceName": "NASA POWER (LaRC)",
+   "retrievedAt": "2026-11-12T17:49:31.223Z"
   },
   {
    "id": "power-t2m-amazon-2015-2024",
@@ -87,7 +252,18 @@
    "file": "pulse/power-t2m-amazon-2015-2024.json",
    "points": 120,
    "sourceName": "NASA POWER (LaRC)",
-   "retrievedAt": "2026-11-11T17:04:48.493Z"
+   "retrievedAt": "2026-11-12T17:49:17.958Z"
+  },
+  {
+   "id": "power-t2m-amazon-2024-daily",
+   "experience": "pulse",
+   "variable": "T2M",
+   "regionId": "amazon",
+   "periodKey": "2024-daily",
+   "file": "pulse/power-t2m-amazon-2024-daily.json",
+   "points": 366,
+   "sourceName": "NASA POWER (LaRC)",
+   "retrievedAt": "2026-11-12T17:49:20.737Z"
   },
   {
    "id": "power-t2m-port-louis-2015-2024",
@@ -98,7 +274,18 @@
    "file": "pulse/power-t2m-port-louis-2015-2024.json",
    "points": 120,
    "sourceName": "NASA POWER (LaRC)",
-   "retrievedAt": "2026-11-11T17:04:46.023Z"
+   "retrievedAt": "2026-11-12T17:49:12.480Z"
+  },
+  {
+   "id": "power-t2m-port-louis-2024-daily",
+   "experience": "pulse",
+   "variable": "T2M",
+   "regionId": "port-louis",
+   "periodKey": "2024-daily",
+   "file": "pulse/power-t2m-port-louis-2024-daily.json",
+   "points": 366,
+   "sourceName": "NASA POWER (LaRC)",
+   "retrievedAt": "2026-11-12T17:49:15.566Z"
   },
   {
    "id": "power-t2m-sahara-2015-2024",
@@ -109,7 +296,18 @@
    "file": "pulse/power-t2m-sahara-2015-2024.json",
    "points": 120,
    "sourceName": "NASA POWER (LaRC)",
-   "retrievedAt": "2026-11-11T17:04:50.910Z"
+   "retrievedAt": "2026-11-12T17:49:23.188Z"
+  },
+  {
+   "id": "power-t2m-sahara-2024-daily",
+   "experience": "pulse",
+   "variable": "T2M",
+   "regionId": "sahara",
+   "periodKey": "2024-daily",
+   "file": "pulse/power-t2m-sahara-2024-daily.json",
+   "points": 366,
+   "sourceName": "NASA POWER (LaRC)",
+   "retrievedAt": "2026-11-12T17:49:26.010Z"
   },
   {
    "id": "power-t2m-svalbard-2015-2024",
@@ -120,7 +318,18 @@
    "file": "pulse/power-t2m-svalbard-2015-2024.json",
    "points": 120,
    "sourceName": "NASA POWER (LaRC)",
-   "retrievedAt": "2026-11-11T17:04:53.266Z"
+   "retrievedAt": "2026-11-12T17:49:28.414Z"
+  },
+  {
+   "id": "power-t2m-svalbard-2024-daily",
+   "experience": "pulse",
+   "variable": "T2M",
+   "regionId": "svalbard",
+   "periodKey": "2024-daily",
+   "file": "pulse/power-t2m-svalbard-2024-daily.json",
+   "points": 366,
+   "sourceName": "NASA POWER (LaRC)",
+   "retrievedAt": "2026-11-12T17:49:31.223Z"
   }
  ]
 }

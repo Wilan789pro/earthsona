@@ -13,8 +13,11 @@ import { SIMULATED_LABEL, makeSeriesId } from "../parsers.js";
 const VARIABLES: Record<string, { label: string; unit: string; experience: ExperienceId }> = {
   T2M: { label: "Air temperature at 2 m", unit: "°C", experience: "pulse" },
   PRECTOTCORR: { label: "Precipitation (bias-corrected)", unit: "mm/day", experience: "pulse" },
+  ALLSKY_SFC_SW_DWN: { label: "Sunlight reaching the surface (all-sky)", unit: "MJ/m²/day", experience: "pulse" },
   NDVI: { label: "Vegetation greenness (NDVI, 16-day)", unit: "NDVI (unitless)", experience: "forest" },
+  EVI: { label: "Enhanced vegetation index (EVI, 16-day)", unit: "EVI (unitless)", experience: "forest" },
   SST: { label: "Sea surface temperature", unit: "°C", experience: "ocean" },
+  SSTA: { label: "Sea surface temperature anomaly", unit: "°C", experience: "ocean" },
 };
 
 /** Small deterministic PRNG so the same region always "sounds" the same. */
@@ -44,11 +47,13 @@ export function estimateBaseline(lat: number) {
   };
 }
 
-function timeAxis(variable: string, start: string, end: string): string[] {
+function timeAxis(variable: string, start: string, end: string, resolution?: string): string[] {
   const out: string[] = [];
   const s = new Date(`${start.length === 4 ? `${start}-01-01` : start}T00:00:00Z`);
   const e = new Date(`${end.length === 4 ? `${end}-12-31` : end}T00:00:00Z`);
-  if (variable === "NDVI") {
+  if (resolution === "daily") {
+    for (let d = new Date(s); d <= e; d.setUTCDate(d.getUTCDate() + 1)) out.push(d.toISOString().slice(0, 10));
+  } else if (variable === "NDVI" || variable === "EVI") {
     // 16-day composites, like MOD13Q1.
     for (let y = s.getUTCFullYear(); y <= e.getUTCFullYear(); y++) {
       for (let doy = 1; doy <= 365; doy += 16) {
@@ -56,7 +61,7 @@ function timeAxis(variable: string, start: string, end: string): string[] {
         if (d >= s && d <= e) out.push(d.toISOString().slice(0, 10));
       }
     }
-  } else if (variable === "SST") {
+  } else if (variable === "SST" || variable === "SSTA") {
     // Weekly.
     for (let d = new Date(s); d <= e; d.setUTCDate(d.getUTCDate() + 7)) out.push(d.toISOString().slice(0, 10));
   } else {
@@ -73,11 +78,11 @@ export function simulateSeries(params: FetchParams): EarthSeries {
   const variable = def.variable;
   const meta = VARIABLES[variable] ?? { label: variable, unit: "", experience: params.experience };
   const base = region.baseline ?? estimateBaseline(region.lat);
-  const rand = mulberry32(hash(`${region.id}:${variable}`));
+  const rand = mulberry32(hash(`${region.id}:${variable}:${def.periodKey}`));
   const south = region.lat < 0;
   const seasonAmp = Math.min(1, Math.abs(region.lat) / 40); // stronger seasons away from the equator
 
-  const points: EarthPoint[] = timeAxis(variable, def.start, def.end).map((time, i, arr) => {
+  const points: EarthPoint[] = timeAxis(variable, def.start, def.end, def.resolution).map((time, i, arr) => {
     const d = new Date(`${time}T00:00:00Z`);
     const yearFrac = (d.getUTCMonth() + d.getUTCDate() / 31) / 12;
     // Peak in local summer.
@@ -92,18 +97,27 @@ export function simulateSeries(params: FetchParams): EarthSeries {
       case "PRECTOTCORR":
         value = Math.max(0, 3 + season * 2.5 + noise * 4 + (rand() > 0.9 ? rand() * 12 : 0));
         break;
+      case "ALLSKY_SFC_SW_DWN":
+        value = Math.max(1, 18 + season * (3 + 10 * seasonAmp) + noise * 6);
+        break;
       case "NDVI":
         value = Math.min(0.95, Math.max(-0.1, base.ndvi + season * 0.08 * (0.3 + seasonAmp) + noise * 0.06));
         break;
+      case "EVI":
+        value = Math.min(0.8, Math.max(-0.1, base.ndvi * 0.62 + season * 0.06 * (0.3 + seasonAmp) + noise * 0.05));
+        break;
       case "SST":
         value = base.sst + season * (0.8 + 4 * seasonAmp) + trend * 0.4 + noise * 0.3;
+        break;
+      case "SSTA":
+        value = trend * 0.5 - 0.1 + noise * 0.8;
         break;
       default:
         value = season + noise;
     }
     // Demonstrate gap handling: a few missing samples, like cloudy NDVI composites.
-    if (rand() < 0.02) return { time, value: null };
-    return { time, value: Math.round(value * 1000) / 1000 };
+    if (rand() < 0.02) return { time, value: null, quality: "missing" as const };
+    return { time, value: Math.round(value * 1000) / 1000, quality: "simulated" as const };
   });
 
   return {

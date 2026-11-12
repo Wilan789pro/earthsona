@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { normaliseSeries, toUnit } from "../src/data/normalise";
-import { DataRegistry, type Manifest } from "../src/data/registry";
+import { DataRegistry, getTrack, type Manifest } from "../src/data/registry";
 import type { EarthSeries, RegionDef, SeriesDef } from "../src/data/types";
 
 const base: Omit<EarthSeries, "points"> = {
@@ -32,7 +32,7 @@ describe("normaliseSeries", () => {
     expect(s.points.map((p) => p.time)).toEqual([
       "2020-02-01", "2020-03-01", "2020-04-01", "2020-05-01", "2020-06-01", "2020-07-01", "2020-08-01",
     ]);
-    expect(s.points[1]).toEqual({ time: "2020-03-01", value: 2, bridged: true });
+    expect(s.points[1]).toMatchObject({ time: "2020-03-01", value: 2, bridged: true, quality: "interpolated" });
     expect(s.points[4].value).toBeNull();
     expect(s.stats.gaps).toBe(2);
     // Stats use observations only (bridged value 2 excluded).
@@ -52,7 +52,7 @@ describe("normaliseSeries", () => {
 
 describe("DataRegistry fallback order", () => {
   const region: RegionDef = { id: "port-louis", name: "Port Louis", lat: -20.16, lon: 57.5, biome: "", baseline: { temp: 25, ndvi: 0.2, sst: 26 } };
-  const def: SeriesDef = { source: "power", variable: "T2M", resolution: "monthly", start: "2020", end: "2021", periodKey: "2020-2021" };
+  const def: SeriesDef = { source: "power", variable: "T2M", roles: ["pitch"], resolution: "monthly", start: "2020", end: "2021", periodKey: "2020-2021" };
   const realSeries: EarthSeries = { ...base, points: [{ time: "2020-01-01", value: 27 }, { time: "2020-02-01", value: 28 }] };
   const manifest: Manifest = {
     generatedAt: "x",
@@ -110,5 +110,17 @@ describe("DataRegistry fallback order", () => {
     const { reg } = make({ "index.json": manifest, "pulse/a.json": realSeries });
     const r = await reg.getSeries({ experience: "pulse", region, def, mode: "simulated", live: false });
     expect(r.origin).toBe("simulated");
+  });
+
+  it("getTrack loads every layer of a period and reports a mixed origin", async () => {
+    const { reg } = make({ "index.json": manifest, "pulse/a.json": realSeries });
+    const period = {
+      key: "2020-2021",
+      label: "x",
+      layers: [def, { ...def, variable: "PRECTOTCORR", roles: ["density" as const] }],
+    };
+    const t = await getTrack(reg, { experience: "pulse", region, period, mode: "auto", live: false });
+    expect(t.layers.map((l) => l.result.origin)).toEqual(["bundled", "simulated"]);
+    expect(t.origin).toBe("mixed");
   });
 });

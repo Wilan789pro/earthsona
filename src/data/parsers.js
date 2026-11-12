@@ -70,7 +70,18 @@ export const POWER_BASE = "https://power.larc.nasa.gov/api/temporal";
 export const POWER_PARAMS = /** @type {Record<string,{label:string, unit:string}>} */ ({
   T2M: { label: "Air temperature at 2 m", unit: "°C" },
   PRECTOTCORR: { label: "Precipitation (bias-corrected)", unit: "mm/day" },
+  // Units depend on the POWER "community": AG returns MJ/m^2/day (RE would return kW-hr/m^2/day).
+  // The unit shown in the app always comes from the response's `parameters[...].units`.
+  ALLSKY_SFC_SW_DWN: { label: "Sunlight reaching the surface (all-sky)", unit: "MJ/m²/day" },
 });
+
+/** Make API unit strings readable: "C" → "°C", "MJ/m^2/day" → "MJ/m²/day". */
+/** @param {string | undefined | null} u */
+export function prettyUnit(u) {
+  if (!u) return "";
+  if (u === "C" || u === "degree_C" || u === "degrees_C") return "°C";
+  return String(u).replace(/\^2/g, "²").replace(/\^3/g, "³");
+}
 
 /**
  * Daily:   start/end = YYYYMMDD (or YYYY-MM-DD, dashes are stripped)
@@ -146,7 +157,7 @@ export function parsePowerResponse(json, variable) {
  */
 export function buildPowerSeries(json, ctx) {
   const parsed = parsePowerResponse(json, ctx.variable);
-  const meta = POWER_PARAMS[ctx.variable] ?? { label: parsed.longname ?? ctx.variable, unit: parsed.units ?? "" };
+  const meta = POWER_PARAMS[ctx.variable] ?? { label: parsed.longname ?? ctx.variable, unit: "" };
   const retrievedAt = ctx.retrievedAt ?? new Date().toISOString();
   const version = parsed.apiVersion ? ` ${parsed.apiVersion}` : "";
   return {
@@ -154,7 +165,9 @@ export function buildPowerSeries(json, ctx) {
     experience: ctx.experience,
     variable: ctx.variable,
     label: meta.label,
-    unit: meta.unit,
+    // Units reported by the API win over our table (they depend on the POWER community).
+    unit: parsed.units ? prettyUnit(parsed.units) : meta.unit,
+    dataset: `NASA POWER ${parsed.apiName}`,
     region: { name: ctx.region.name, lat: ctx.region.lat, lon: ctx.region.lon },
     points: parsed.points,
     source: {
@@ -224,6 +237,23 @@ export function batchModisDates(dates, start, end, size = MODIS_MAX_DATES_PER_RE
   return batches;
 }
 
+export const MODIS_EVI_BAND = { ...MODIS_NDVI_BAND, band: "250m_16_days_EVI" };
+export const MODIS_RELIABILITY_BAND = "250m_16_days_pixel_reliability";
+
+/** MOD13Q1 pixel reliability (from /MOD13Q1/bands and the MOD13 user guide). */
+export const MODIS_RELIABILITY = /** @type {Record<number, import("./types").Quality>} */ ({
+  0: "good", // good data, use with confidence
+  1: "marginal", // useful, but look at other QA information
+  2: "snow", // snow / ice → not a vegetation signal
+  3: "cloudy", // cloudy → not a vegetation signal
+});
+
+/** Vegetation-index bands we support. */
+export const MODIS_VI = /** @type {Record<string, {band:string, label:string}>} */ ({
+  NDVI: { band: MODIS_NDVI_BAND.band, label: "Vegetation greenness (NDVI, 16-day)" },
+  EVI: { band: MODIS_EVI_BAND.band, label: "Enhanced vegetation index (EVI, 16-day)" },
+});
+
 /**
  * Parse one subset response. Uses `scale` from the response when present (observed "0.0001").
  * If several pixels are returned the mean of valid pixels is used.
@@ -239,35 +269,157 @@ export function parseModisSubset(json, band = MODIS_NDVI_BAND) {
       (/** @type {number} */ v) => Number.isFinite(v) && v !== band.fill && v >= band.validMin && v <= band.validMax,
     );
     const value = raw.length ? round((raw.reduce((/** @type {number} */ a, /** @type {number} */ b) => a + b, 0) / raw.length) * scale, 4) : null;
-    return { time: s.calendar_date, value };
+    return { time: s.calendar_date, value, ...(value === null ? { quality: "missing" } : {}) };
+  });
+}
+
+/**
+ * Parse a pixel_reliability subset → Map(date → quality). Multiple pixels: worst rank wins.
+ * @param {any} json
+ * @returns {Map<string, import("./types").Quality>}
+ */
+export function parseModisReliability(json) {
+  if (!json || !Array.isArray(json.subset)) throw new Error("MODIS: reliability subset missing");
+  const out = new Map();
+  for (const s of json.subset) {
+    const codes = (Array.isArray(s.data) ? s.data : []).filter((/** @type {number} */ v) => v >= 0 && v <= 3);
+    out.set(s.calendar_date, codes.length ? MODIS_RELIABILITY[Math.max(...codes)] : "missing");
+  }
+  return out;
+}
+
+/**
+ * Apply MOD13Q1 pixel reliability: snow/ice and cloudy composites are not vegetation signals, so their
+ * values become null (with the reason kept in `quality`); marginal values are kept and flagged.
+ * @param {EarthPoint[]} points
+ * @param {Map<string, import("./types").Quality>} reliability
+ * @returns {EarthPoint[]}
+ */
+export function applyModisReliability(points, reliability) {
+  return points.map((p) => {
+    const q = reliability.get(p.time);
+    if (!q || p.value === null) return p;
+    if (q === "cloudy" || q === "snow" || q === "missing") return { time: p.time, value: null, quality: q };
+    return { ...p, quality: q };
   });
 }
 
 /**
  * @param {any[]} subsetJsons one parsed JSON body per batch
- * @param {{experience: import("./types").ExperienceId, variable:string, product:string, region:{id:string,name:string,lat:number,lon:number}, periodKey:string, urls:string[], retrievedAt?:string}} ctx
+ * @param {{experience: import("./types").ExperienceId, variable:string, product:string, region:{id:string,name:string,lat:number,lon:number}, periodKey:string, urls:string[], retrievedAt?:string, reliabilityJsons?: any[]}} ctx
  * @returns {EarthSeries}
  */
 export function buildModisSeries(subsetJsons, ctx) {
   const byTime = new Map();
   for (const json of subsetJsons) for (const p of parseModisSubset(json)) byTime.set(p.time, p);
-  const points = [...byTime.values()].sort((a, b) => (a.time < b.time ? -1 : 1));
+  let points = [...byTime.values()].sort((a, b) => (a.time < b.time ? -1 : 1));
+  let qaNote = "";
+  if (ctx.reliabilityJsons?.length) {
+    const rel = new Map();
+    for (const j of ctx.reliabilityJsons) for (const [k, v] of parseModisReliability(j)) rel.set(k, v);
+    points = applyModisReliability(points, rel);
+    qaNote = " Quality: composites flagged cloudy or snow/ice by MOD13Q1 pixel reliability are treated as no data.";
+  }
   const retrievedAt = ctx.retrievedAt ?? new Date().toISOString();
   const first = ctx.urls[0] ?? "";
+  const vi = MODIS_VI[ctx.variable] ?? MODIS_VI.NDVI;
   return {
     id: makeSeriesId("modis", ctx.variable, ctx.region.id, ctx.periodKey),
     experience: ctx.experience,
     variable: ctx.variable,
-    label: "Vegetation greenness (NDVI, 16-day)",
-    unit: "NDVI (unitless)",
+    label: vi.label,
+    unit: `${ctx.variable} (unitless)`,
+    dataset: "MODIS/Terra Vegetation Indices 16-Day L3 Global 250m (MOD13Q1.061)",
     region: { name: ctx.region.name, lat: ctx.region.lat, lon: ctx.region.lon },
     points,
     source: {
       kind: "nasa",
       name: "NASA MODIS via ORNL DAAC",
-      product: `${ctx.product} (Terra MODIS, 250 m, 16-day, C6.1)`,
+      product: `${ctx.product} (Terra MODIS, 250 m, 16-day, C6.1).${qaNote}`,
       url: ctx.urls.length > 1 ? `${first}  (+${ctx.urls.length - 1} more date batches)` : first,
       citation: `${MOD13Q1_REFERENCE} Retrieved via: ${TESVIS_REFERENCE}. Accessed ${retrievedAt.slice(0, 10)}.`,
+      retrievedAt,
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// NASA/JPL MUR SST via ERDDAP griddap  (https://podaac.jpl.nasa.gov/dataset/MUR-JPL-L4-GLOB-v4.1)
+// ---------------------------------------------------------------------------
+
+/** https://podaac.jpl.nasa.gov/dataset/MUR-JPL-L4-GLOB-v4.1 (dataset citation) */
+export const MUR_REFERENCE =
+  "JPL MUR MEaSUREs Project. 2015. GHRSST Level 4 MUR Global Foundation Sea Surface Temperature Analysis (v4.1). " +
+  "PO.DAAC, CA, USA. https://doi.org/10.5067/GHGMR-4FJ04";
+
+/** Default ERDDAP server/datasets that publish MUR v4.1 globally without a login. Override with ERDDAP_BASE. */
+export const ERDDAP_DEFAULT = {
+  base: "https://coastwatch.pfeg.noaa.gov/erddap",
+  sst: { datasetId: "jplMURSST41", variable: "analysed_sst" },
+  anomaly: { datasetId: "jplMURSST41anom1day", variable: "sstAnom" },
+};
+
+/**
+ * griddap point time series. Works for 3-D [time][lat][lon] and 4-D [time][level][lat][lon] grids
+ * (pass `extraDims` like ["(0.0)"] for the level). `stride` 7 on a daily grid = weekly samples.
+ * @param {{base:string, datasetId:string, variable:string, start:string, end:string, stride?:number, lat:number, lon:number, extraDims?:string[]}} p
+ */
+export function buildErddapUrl(p) {
+  const t = (/** @type {string} */ d) => (d.length === 10 ? `${d}T09:00:00Z` : d);
+  const dims = [`(${t(p.start)}):${p.stride ?? 1}:(${t(p.end)})`, ...(p.extraDims ?? []), `(${p.lat})`, `(${p.lon})`];
+  const q = `${p.variable}${dims.map((d) => `[${d}]`).join("")}`;
+  return `${p.base.replace(/\/$/, "")}/griddap/${p.datasetId}.json?${encodeURIComponent(q).replace(/%3A/g, ":").replace(/%2C/g, ",")}`;
+}
+
+/**
+ * Parse an ERDDAP griddap/tabledap JSON table for one variable.
+ * NaN / null → null. Kelvin is converted to °C (unit taken from `columnUnits`).
+ * @param {any} json
+ * @param {string} variable
+ * @returns {{points: EarthPoint[], unit: string}}
+ */
+export function parseErddapTable(json, variable) {
+  const t = json?.table;
+  if (!t || !Array.isArray(t.columnNames) || !Array.isArray(t.rows)) throw new Error("ERDDAP: table missing");
+  const ti = t.columnNames.indexOf("time");
+  const vi = t.columnNames.indexOf(variable);
+  if (ti < 0 || vi < 0) throw new Error(`ERDDAP: column ${variable} missing`);
+  const rawUnit = (t.columnUnits?.[vi] ?? "").toString();
+  const kelvin = /^(K|kelvin|degree_K|degrees_K)$/i.test(rawUnit);
+  /** @type {EarthPoint[]} */
+  const points = t.rows.map((/** @type {any[]} */ r) => {
+    const v = r[vi];
+    const ok = typeof v === "number" && Number.isFinite(v);
+    return { time: String(r[ti]).slice(0, 10), value: ok ? round(kelvin ? v - 273.15 : v, 3) : null };
+  });
+  points.sort((a, b) => (a.time < b.time ? -1 : a.time > b.time ? 1 : 0));
+  return { points, unit: kelvin ? "°C" : prettyUnit(rawUnit) };
+}
+
+/**
+ * @param {any} json
+ * @param {{experience: import("./types").ExperienceId, variable:"SST"|"SSTA", erddapVariable:string, datasetId:string, region:{id:string,name:string,lat:number,lon:number}, periodKey:string, url:string, retrievedAt?:string, baselineNote?:string}} ctx
+ * @returns {EarthSeries}
+ */
+export function buildErddapSstSeries(json, ctx) {
+  const { points, unit } = parseErddapTable(json, ctx.erddapVariable);
+  const retrievedAt = ctx.retrievedAt ?? new Date().toISOString();
+  const anomaly = ctx.variable === "SSTA";
+  return {
+    id: makeSeriesId("mur", ctx.variable, ctx.region.id, ctx.periodKey),
+    experience: ctx.experience,
+    variable: ctx.variable,
+    label: anomaly ? "Sea surface temperature anomaly" : "Sea surface temperature",
+    unit: unit || "°C",
+    dataset: "GHRSST L4 MUR Global Foundation SST Analysis v4.1 (JPL)",
+    region: { name: ctx.region.name, lat: ctx.region.lat, lon: ctx.region.lon },
+    points,
+    source: {
+      kind: "nasa",
+      name: "NASA/JPL MUR SST via ERDDAP",
+      product: `${ctx.datasetId} (${ctx.erddapVariable})${anomaly && ctx.baselineNote ? ` · ${ctx.baselineNote}` : ""}`,
+      url: ctx.url,
+      citation: `${MUR_REFERENCE} Served by NOAA ERDDAP (${ctx.datasetId}). Accessed ${retrievedAt.slice(0, 10)}.`,
       retrievedAt,
     },
   };

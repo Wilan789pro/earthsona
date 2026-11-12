@@ -18,6 +18,8 @@ export interface NormaliseOptions {
 export interface CleanPoint extends EarthPoint {
   /** True when the value was interpolated across a short gap (not an observation). */
   bridged?: boolean;
+  /** Why the original value was missing (e.g. "cloudy"), for bridged points. */
+  bridgedFrom?: EarthPoint["quality"];
 }
 
 export function normaliseSeries(series: EarthSeries, opts: NormaliseOptions = {}): CleanSeries & { points: CleanPoint[] } {
@@ -27,9 +29,10 @@ export function normaliseSeries(series: EarthSeries, opts: NormaliseOptions = {}
   for (const p of series.points ?? []) {
     if (!p || typeof p.time !== "string" || Number.isNaN(Date.parse(p.time))) continue;
     const value = typeof p.value === "number" && Number.isFinite(p.value) ? p.value : null;
+    const quality = value === null ? (p.quality && p.quality !== "good" && p.quality !== "marginal" ? p.quality : "missing") : p.quality;
     // If a timestamp is duplicated, keep a real value over a null.
     const prev = byTime.get(p.time);
-    if (!prev || prev.value === null) byTime.set(p.time, { time: p.time, value });
+    if (!prev || prev.value === null) byTime.set(p.time, quality ? { time: p.time, value, quality } : { time: p.time, value });
   }
   let points = [...byTime.values()].sort((a, b) => (a.time < b.time ? -1 : a.time > b.time ? 1 : 0));
 
@@ -56,7 +59,7 @@ export function normaliseSeries(series: EarthSeries, opts: NormaliseOptions = {}
         const b = points[j].value as number;
         for (let k = 0; k < run; k++) {
           const t = (k + 1) / (run + 1);
-          points[i + k] = { time: points[i + k].time, value: round(a + (b - a) * t), bridged: true };
+          points[i + k] = { time: points[i + k].time, value: round(a + (b - a) * t), bridged: true, quality: "interpolated", bridgedFrom: points[i + k].quality };
         }
       }
       i = j;

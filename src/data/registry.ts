@@ -1,4 +1,4 @@
-import type { Adapter, CleanSeries, DataOrigin, EarthSeries, ExperienceId, RegionDef, SeriesDef } from "./types";
+import type { Adapter, CleanSeries, DataOrigin, EarthSeries, ExperienceId, PeriodDef, RegionDef, SeriesDef } from "./types";
 import { normaliseSeries } from "./normalise";
 import { simulatedAdapter } from "./adapters/simulatedAdapter";
 import { powerAdapter } from "./adapters/powerAdapter";
@@ -138,4 +138,42 @@ export class DataRegistry {
     const sim = await simulatedAdapter.fetchSeries(params);
     return { series: normaliseSeries(sim), origin: "simulated", notice: notices[0] };
   }
+}
+
+/** All layers of one experience period for one place, loaded together (first layer = time axis). */
+export interface TrackLayer {
+  def: SeriesDef;
+  result: SeriesResult;
+}
+
+export interface Track {
+  experience: ExperienceId;
+  region: RegionDef;
+  period: PeriodDef;
+  layers: TrackLayer[];
+  /** Origin of the primary (pitch) layer; "mixed" when layers came from different places. */
+  origin: DataOrigin | "mixed";
+  notices: string[];
+}
+
+export async function getTrack(
+  registry: DataRegistry,
+  req: { experience: ExperienceId; region: RegionDef; period: PeriodDef; mode: "auto" | "simulated"; live: boolean },
+): Promise<Track> {
+  const layers = await Promise.all(
+    req.period.layers.map(async (def) => ({
+      def,
+      result: await registry.getSeries({ experience: req.experience, region: req.region, def, mode: req.mode, live: req.live }),
+    })),
+  );
+  const origins = new Set(layers.map((l) => l.result.origin));
+  const notices = [...new Set(layers.map((l) => l.result.notice).filter((n): n is string => Boolean(n)))];
+  return {
+    experience: req.experience,
+    region: req.region,
+    period: req.period,
+    layers,
+    origin: origins.size === 1 ? layers[0].result.origin : "mixed",
+    notices,
+  };
 }

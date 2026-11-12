@@ -1,5 +1,5 @@
 import config from "../../scripts/regions.json";
-import type { ExperienceId, RegionDef, SeriesDef } from "./types";
+import type { ExperienceId, PeriodDef, RegionDef } from "./types";
 
 /** Same config file the pre-fetch script reads, so app and bundled data never drift apart. */
 export const REGIONS: RegionDef[] = config.regions as RegionDef[];
@@ -9,26 +9,37 @@ export interface ExperienceDef {
   title: string;
   tagline: string;
   regions: string[];
-  series: SeriesDef[];
+  periods: PeriodDef[];
   eic: { svsId: number; itemTitle?: string };
 }
 
 const META: Record<ExperienceId, { title: string; tagline: string }> = {
-  ocean: { title: "Ocean Symphony", tagline: "Sea surface temperature as a warm-to-cool melody" },
-  forest: { title: "Forest Voices", tagline: "Vegetation greenness (NDVI) as a breathing chord" },
-  pulse: { title: "Earth's Pulse", tagline: "Air temperature and rainfall as the planet's heartbeat" },
+  ocean: { title: "Ocean Symphony", tagline: "Sea surface temperature and its anomaly" },
+  forest: { title: "Forest Voices", tagline: "Vegetation greenness (NDVI) and EVI" },
+  pulse: { title: "Earth's Pulse", tagline: "Air temperature, rainfall and sunlight" },
 };
 
 export const EXPERIENCES: ExperienceDef[] = (["ocean", "forest", "pulse"] as ExperienceId[]).map((id) => {
-  const e = (config.experiences as Record<string, { regions: string[]; series: SeriesDef[] }>)[id];
+  const e = (config.experiences as unknown as Record<string, { regions: string[]; periods: PeriodDef[] }>)[id];
   return {
     id,
     ...META[id],
     regions: e.regions,
-    series: e.series,
+    periods: e.periods,
     eic: (config.eic as Record<string, { svsId: number; itemTitle?: string }>)[id],
   };
 });
+
+export interface ImageryDef {
+  layer: string;
+  time?: string;
+  format: string;
+  width: number;
+  height: number;
+  file: string;
+  title: string;
+}
+export const IMAGERY = config.imagery as unknown as { base: ImageryDef; night: ImageryDef; overlays: Record<ExperienceId, ImageryDef> };
 
 export function getExperience(id: ExperienceId): ExperienceDef {
   return EXPERIENCES.find((e) => e.id === id)!;
@@ -48,6 +59,7 @@ export function customRegion(lat: number, lon: number, name?: string): RegionDef
     lat: la,
     lon: lo,
     biome: "Selected point",
+    context: "A point you selected on the globe. Only data that exists for this exact point is played.",
     baseline: undefined as unknown as RegionDef["baseline"],
     custom: true,
   };

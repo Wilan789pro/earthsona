@@ -3,7 +3,9 @@
  * Pre-fetch real NASA data so the hackathon demo never depends on venue Wi-Fi.
  *
  *   npm run fetch-data                 # everything in scripts/regions.json
- *   npm run fetch-data -- --only=pulse # one experience (pulse | forest | ocean | eic)
+ *   npm run fetch-data -- --only=forest --region=port-louis   # one part and/or place
+ *   npm run fetch-data -- --only=pulse # one part: pulse | forest | ocean | eic | imagery
+ *   ERDDAP_BASE=https://host/erddap npm run fetch-data -- --only=ocean   # another ERDDAP server for MUR SST
  *
  * Writes:
  *   public/data/real/{experience}/{id}.json   one normalised EarthSeries per file
@@ -24,7 +26,11 @@ import {
   buildPowerUrl,
   parseModisDates,
   parseSvsPage,
-  MODIS_NDVI_BAND,
+  MODIS_VI,
+  MODIS_RELIABILITY_BAND,
+  ERDDAP_DEFAULT,
+  buildErddapUrl,
+  buildErddapSstSeries,
 } from "../src/data/parsers.js";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -38,6 +44,8 @@ const UA = "EARTHSONA-hackathon-prefetch/0.2 (NASA Space Apps 2026)";
 
 const only = (process.argv.find((a) => a.startsWith("--only=")) ?? "").slice(7).split(",").filter(Boolean);
 const want = (k) => only.length === 0 || only.includes(k);
+const onlyRegions = (process.argv.find((a) => a.startsWith("--region=")) ?? "").slice(9).split(",").filter(Boolean);
+const regionWanted = (id) => onlyRegions.length === 0 || onlyRegions.includes(id);
 
 const log = {
   ok: (m) => console.log(`  \x1b[32m✔\x1b[0m ${m}`),
@@ -88,7 +96,12 @@ async function writeJsonAtomic(path, data) {
 function validate(series, range) {
   const vals = series.points.map((p) => p.value).filter((v) => v !== null);
   if (series.points.length === 0 || vals.length === 0) return "no valid values";
-  if (vals.length / series.points.length < 0.5) return `only ${vals.length}/${series.points.length} valid values`;
+  // Gaps the provider itself flagged (MODIS cloudy / snow) are honest no-data, not a failed download:
+  // accept those series down to 25 % valid; anything else needs 50 %.
+  const qaGaps = series.points.filter((p) => p.value === null && (p.quality === "cloudy" || p.quality === "snow")).length;
+  const minValid = qaGaps > 0 ? 0.25 : 0.5;
+  if (vals.length / series.points.length < minValid) return `only ${vals.length}/${series.points.length} valid values`;
+  if (qaGaps > 0 && vals.length / series.points.length < 0.5) log.info(`${series.id}: ${qaGaps} composites flagged cloudy/snow by the provider; kept with ${vals.length} valid values`);
   if (range) {
     const bad = vals.filter((v) => v < range[0] || v > range[1]);
     if (bad.length) return `${bad.length} values outside plausible range [${range}]`;
@@ -96,7 +109,7 @@ function validate(series, range) {
   return null;
 }
 
-const PLAUSIBLE = { T2M: [-90, 60], PRECTOTCORR: [0, 1000], NDVI: [-0.2, 1] };
+const PLAUSIBLE = { T2M: [-90, 60], PRECTOTCORR: [0, 1000], ALLSKY_SFC_SW_DWN: [0, 45], NDVI: [-0.2, 1], EVI: [-0.2, 1], SST: [-3, 40], SSTA: [-15, 15] };
 
 function summarise(series) {
   const vals = series.points.map((p) => p.value).filter((v) => v !== null);
@@ -139,16 +152,18 @@ async function saveSeries(series, { experience, regionId, periodKey }) {
   results.ok.push(series.id);
 }
 
+const layersOf = (exp, source) => exp.periods.flatMap((p) => p.layers.filter((d) => d.source === source));
+
 // --- Earth's Pulse: NASA POWER ---------------------------------------------
 async function fetchPower(experience, exp) {
   // One request per region & period with all variables (politer than one per variable).
   const groups = new Map();
-  for (const def of exp.series.filter((d) => d.source === "power")) {
+  for (const def of layersOf(exp, "power")) {
     const k = `${def.resolution}|${def.start}|${def.end}|${def.periodKey}`;
     if (!groups.has(k)) groups.set(k, { def, variables: [] });
     groups.get(k).variables.push(def.variable);
   }
-  for (const regionId of exp.regions) {
+  for (const regionId of exp.regions.filter(regionWanted)) {
     const region = regions.get(regionId);
     for (const { def, variables } of groups.values()) {
       const url = buildPowerUrl({ resolution: def.resolution, parameters: variables, lat: region.lat, lon: region.lon, start: def.start, end: def.end });
@@ -159,7 +174,7 @@ async function fetchPower(experience, exp) {
       } catch (err) {
         for (const v of variables) {
           log.fail(`power ${v} ${regionId}: ${err.message}`);
-          results.failed.push(`power-${v}-${regionId}: ${err.message}`);
+          results.failed.push(`power-${v}-${regionId}-${def.periodKey}: ${err.message}`);
         }
         continue;
       }
@@ -170,43 +185,125 @@ async function fetchPower(experience, exp) {
           await saveSeries(s, { experience, regionId, periodKey: def.periodKey });
         } catch (err) {
           log.fail(`power ${variable} ${regionId}: ${err.message}`);
-          results.failed.push(`power-${variable}-${regionId}: ${err.message}`);
+          results.failed.push(`power-${variable}-${regionId}-${def.periodKey}: ${err.message}`);
         }
       }
     }
   }
 }
 
-// --- Forest Voices: ORNL DAAC MODIS ----------------------------------------
+// --- Forest Voices: ORNL DAAC MODIS (VI bands + pixel reliability QA) ------
 async function fetchModis(experience, exp) {
-  for (const def of exp.series.filter((d) => d.source === "modis")) {
-    const product = def.product ?? "MOD13Q1";
-    const band = def.band ?? MODIS_NDVI_BAND.band;
-    for (const regionId of exp.regions) {
-      const region = regions.get(regionId);
-      log.info(`MODIS ${product} ${region.name} ${def.start}..${def.end}`);
+  // Group VI variables sharing product & period so the reliability band is fetched once per batch.
+  const groups = new Map();
+  for (const def of layersOf(exp, "modis")) {
+    const k = `${def.product ?? "MOD13Q1"}|${def.start}|${def.end}|${def.periodKey}`;
+    if (!groups.has(k)) groups.set(k, { def, variables: [] });
+    groups.get(k).variables.push(def.variable);
+  }
+  for (const regionId of exp.regions.filter(regionWanted)) {
+    const region = regions.get(regionId);
+    for (const { def, variables } of groups.values()) {
+      const product = def.product ?? "MOD13Q1";
+      log.info(`MODIS ${product} ${region.name} ${variables.join("+")} + QA ${def.start}..${def.end}`);
       try {
         const dates = parseModisDates(await getJson(buildModisDatesUrl(product, region.lat, region.lon)));
         const batches = batchModisDates(dates, def.start, def.end);
         if (!batches.length) throw new Error("no composites in period");
-        const bodies = [];
-        const urls = [];
+        const bodies = Object.fromEntries(variables.map((v) => [v, []]));
+        const urls = Object.fromEntries(variables.map((v) => [v, []]));
+        const reliability = [];
         for (const [i, b] of batches.entries()) {
-          const url = buildModisSubsetUrl({ product, lat: region.lat, lon: region.lon, band, startDate: b.startDate, endDate: b.endDate });
           process.stdout.write(`\r    batch ${i + 1}/${batches.length} (${b.startDate}..${b.endDate})   `);
-          bodies.push(await getJson(url));
-          urls.push(url);
+          for (const v of variables) {
+            const url = buildModisSubsetUrl({ product, lat: region.lat, lon: region.lon, band: (MODIS_VI[v] ?? MODIS_VI.NDVI).band, startDate: b.startDate, endDate: b.endDate });
+            bodies[v].push(await getJson(url));
+            urls[v].push(url);
+          }
+          reliability.push(await getJson(buildModisSubsetUrl({ product, lat: region.lat, lon: region.lon, band: MODIS_RELIABILITY_BAND, startDate: b.startDate, endDate: b.endDate })));
         }
         process.stdout.write("\n");
-        const s = buildModisSeries(bodies, { experience, variable: def.variable, product, region, periodKey: def.periodKey, urls, retrievedAt: new Date().toISOString() });
-        await saveSeries(s, { experience, regionId, periodKey: def.periodKey });
+        const retrievedAt = new Date().toISOString();
+        for (const v of variables) {
+          const s = buildModisSeries(bodies[v], { experience, variable: v, product, region, periodKey: def.periodKey, urls: urls[v], retrievedAt, reliabilityJsons: reliability });
+          const flagged = s.points.filter((p) => p.quality === "cloudy" || p.quality === "snow").length;
+          if (flagged) log.info(`${v}: ${flagged} composites set to no-data (cloudy or snow per pixel reliability)`);
+          await saveSeries(s, { experience, regionId, periodKey: def.periodKey });
+        }
       } catch (err) {
         process.stdout.write("\n");
-        log.fail(`modis ${def.variable} ${regionId}: ${err.message}`);
-        results.failed.push(`modis-${def.variable}-${regionId}: ${err.message}`);
+        log.fail(`modis ${variables.join("+")} ${regionId}: ${err.message}`);
+        results.failed.push(`modis-${variables.join("+")}-${regionId}: ${err.message}`);
       }
     }
   }
+}
+
+// --- Ocean Symphony: NASA/JPL MUR SST via ERDDAP -----------------------------
+async function fetchSst(experience, exp) {
+  const base = process.env.ERDDAP_BASE || ERDDAP_DEFAULT.base;
+  let baselineNote = "";
+  try {
+    const info = await getJson(`${base}/info/${ERDDAP_DEFAULT.anomaly.datasetId}/index.json`);
+    const rows = info?.table?.rows ?? [];
+    const summary = rows.find((r) => r[1] === "NC_GLOBAL" && r[2] === "summary")?.[4] ?? "";
+    const m = summary.match(/[^.]*(climatolog|baseline|reference)[^.]*\./i);
+    baselineNote = m ? `anomaly baseline (from dataset metadata): ${m[0].trim()}` : "anomaly baseline: see dataset metadata";
+  } catch (err) {
+    log.info(`could not read anomaly metadata from ${base}: ${err.message}`);
+  }
+  for (const def of layersOf(exp, "sst")) {
+    const ds = def.variable === "SSTA" ? ERDDAP_DEFAULT.anomaly : ERDDAP_DEFAULT.sst;
+    for (const regionId of exp.regions.filter(regionWanted)) {
+      const region = regions.get(regionId);
+      const url = buildErddapUrl({ base, datasetId: ds.datasetId, variable: ds.variable, start: def.start, end: def.end, stride: def.stride ?? 7, lat: region.lat, lon: region.lon });
+      log.info(`ERDDAP ${ds.datasetId} ${region.name} ${def.periodKey}`);
+      try {
+        const s = buildErddapSstSeries(await getJson(url), { experience, variable: def.variable, erddapVariable: ds.variable, datasetId: ds.datasetId, region, periodKey: def.periodKey, url, retrievedAt: new Date().toISOString(), baselineNote });
+        await saveSeries(s, { experience, regionId, periodKey: def.periodKey });
+      } catch (err) {
+        log.fail(`sst ${def.variable} ${regionId}: ${err.message}`);
+        results.failed.push(`sst-${def.variable}-${regionId}: ${err.message} (server ${base}; set ERDDAP_BASE to try another)`);
+      }
+    }
+  }
+}
+
+// --- Globe imagery: NASA GIBS WMS snapshots -----------------------------------
+async function fetchImagery() {
+  const GIBS = "https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi";
+  const items = [["base", config.imagery.base], ["night", config.imagery.night], ...Object.entries(config.imagery.overlays)];
+  const out = join(ROOT, "public", "textures");
+  await mkdir(out, { recursive: true });
+  const meta = {};
+  for (const [key, im] of items) {
+    const q = new URLSearchParams({
+      SERVICE: "WMS", REQUEST: "GetMap", VERSION: "1.3.0", LAYERS: im.layer, CRS: "EPSG:4326", BBOX: "-90,-180,90,180",
+      WIDTH: String(im.width), HEIGHT: String(im.height), FORMAT: im.format,
+      ...(im.format === "image/png" ? { TRANSPARENT: "TRUE" } : {}),
+      ...(im.time ? { TIME: im.time } : {}),
+    });
+    const url = `${GIBS}?${q}`;
+    log.info(`GIBS ${im.layer}${im.time ? ` @ ${im.time}` : ""}`);
+    try {
+      await sleep(DELAY_MS);
+      const res = await fetch(url, { headers: { "User-Agent": UA }, signal: AbortSignal.timeout(TIMEOUT_MS) });
+      const type = res.headers.get("content-type") ?? "";
+      if (!res.ok || !type.startsWith("image/")) throw new Error(`HTTP ${res.status} ${type} ${(await res.text()).slice(0, 120)}`);
+      const buf = Buffer.from(await res.arrayBuffer());
+      if (buf.length < 20_000) throw new Error(`suspiciously small image (${buf.length} bytes); existing file kept`);
+      await writeFile(join(out, im.file), buf);
+      meta[key] = { ...im, url, retrievedAt: new Date().toISOString(), bytes: buf.length, credit: "NASA Global Imagery Browse Services (GIBS), part of NASA's Earth Science Data and Information System (ESDIS)." };
+      log.ok(`textures/${im.file} (${(buf.length / 1024).toFixed(0)} KB)`);
+      results.ok.push(`imagery-${key}`);
+    } catch (err) {
+      log.fail(`imagery ${key}: ${err.message}`);
+      results.failed.push(`imagery-${key}: ${err.message}`);
+    }
+  }
+  const metaPath = join(out, "imagery.json");
+  const old = (await readJsonIfExists(metaPath)) ?? {};
+  await writeJsonAtomic(metaPath, { ...old, ...meta });
 }
 
 // --- EIC visuals: NASA SVS --------------------------------------------------
@@ -255,12 +352,13 @@ console.log(`EARTHSONA NASA pre-fetch → ${OUT}`);
 for (const [experience, exp] of Object.entries(config.experiences)) {
   if (!want(experience)) continue;
   log.head(`${experience}`);
-  if (exp.series.some((d) => d.source === "power")) await fetchPower(experience, exp);
-  if (exp.series.some((d) => d.source === "modis")) await fetchModis(experience, exp);
-  if (exp.series.some((d) => d.source === "sst")) {
-    log.info("SST source not confirmed yet (see src/data/adapters/sstAdapter.ts TODO) — app uses simulated data");
-    results.skipped.push(`${experience}: SST (pending mentor confirmation)`);
-  }
+  if (layersOf(exp, "power").length) await fetchPower(experience, exp);
+  if (layersOf(exp, "modis").length) await fetchModis(experience, exp);
+  if (layersOf(exp, "sst").length) await fetchSst(experience, exp);
+}
+if (want("imagery")) {
+  log.head("imagery (NASA GIBS)");
+  await fetchImagery();
 }
 if (want("eic")) {
   log.head("eic (NASA SVS)");

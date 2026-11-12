@@ -1,32 +1,110 @@
 {
-  "$comment": "Single source of truth for regions and periods. Used by the app (src/data/regions.ts) and by scripts/fetch-nasa-data.mjs. Add a region here, then run `npm run fetch-data`.",
+  "$comment": "Single source of truth for places, periods and data layers. Used by the app (src/data/regions.ts) and by scripts/fetch-nasa-data.mjs. Add a place here, then run `npm run fetch-data`. Facts must cite a source.",
   "regions": [
-    { "id": "port-louis", "name": "Port Louis, Mauritius", "lat": -20.1609, "lon": 57.5012, "biome": "Tropical island coast", "baseline": { "temp": 25.0, "ndvi": 0.22, "sst": 26.0 } },
-    { "id": "black-river-gorges", "name": "Black River Gorges, Mauritius", "lat": -20.4167, "lon": 57.45, "biome": "Tropical montane forest", "baseline": { "temp": 21.5, "ndvi": 0.82, "sst": 25.8 } },
-    { "id": "mauritius-waters", "name": "Indian Ocean off Mauritius", "lat": -20.5, "lon": 57.0, "biome": "Open tropical ocean", "baseline": { "temp": 25.3, "ndvi": 0.0, "sst": 25.9 } },
-    { "id": "amazon", "name": "Amazon Rainforest, Brazil", "lat": -3.4653, "lon": -62.2159, "biome": "Tropical rainforest", "baseline": { "temp": 27.5, "ndvi": 0.88, "sst": 28.0 } },
-    { "id": "sahara", "name": "Sahara Desert", "lat": 23.806, "lon": 11.2884, "biome": "Arid desert", "baseline": { "temp": 27.0, "ndvi": 0.04, "sst": 22.0 } },
-    { "id": "great-barrier-reef", "name": "Great Barrier Reef, Coral Sea", "lat": -18.2871, "lon": 147.6992, "biome": "Coral reef", "baseline": { "temp": 26.1, "ndvi": 0.0, "sst": 26.5 } },
-    { "id": "svalbard", "name": "Svalbard Archipelago, Norway", "lat": 78.2232, "lon": 15.6267, "biome": "Arctic polar tundra", "baseline": { "temp": -6.4, "ndvi": 0.12, "sst": 2.0 } }
+    {
+      "id": "port-louis", "name": "Port Louis, Mauritius", "lat": -20.1609, "lon": 57.5012,
+      "country": "Mauritius", "biome": "Tropical island coast (urban)",
+      "context": "Capital and main port of Mauritius, on the island's north-west coast in the south-west Indian Ocean.",
+      "fact": "Aapravasi Ghat in Port Louis, the immigration depot where indentured labourers arrived from 1849, is a UNESCO World Heritage Site (inscribed 2006).",
+      "factSource": { "label": "UNESCO World Heritage Centre", "url": "https://whc.unesco.org/en/list/1227" },
+      "music": "sega",
+      "baseline": { "temp": 25.0, "ndvi": 0.22, "sst": 26.0 }
+    },
+    {
+      "id": "black-river-gorges", "name": "Black River Gorges, Mauritius", "lat": -20.4167, "lon": 57.45,
+      "country": "Mauritius", "biome": "Tropical montane forest",
+      "context": "Upland forest in south-west Mauritius, protected as the island's largest national park.",
+      "fact": "Black River Gorges National Park was established in 1994 and protects much of the island's remaining native forest.",
+      "factSource": { "label": "National Parks and Conservation Service, Mauritius", "url": "https://npcs.govmu.org/" },
+      "music": "sega",
+      "baseline": { "temp": 21.5, "ndvi": 0.82, "sst": 25.8 }
+    },
+    {
+      "id": "mauritius-waters", "name": "Indian Ocean off Mauritius", "lat": -20.5, "lon": 57.0,
+      "country": "Mauritius (territorial waters region)", "biome": "Open tropical ocean",
+      "context": "Open ocean just west of Mauritius, an island about 2,000 km off the south-east coast of Africa.",
+      "fact": "Mauritius lies in the south-west Indian Ocean, east of Madagascar.",
+      "factSource": { "label": "CIA World Factbook — Mauritius", "url": "https://www.cia.gov/the-world-factbook/countries/mauritius/" },
+      "music": "sega",
+      "baseline": { "temp": 25.3, "ndvi": 0.0, "sst": 25.9 }
+    },
+    {
+      "id": "amazon", "name": "Amazon Rainforest, Brazil", "lat": -3.4653, "lon": -62.2159,
+      "country": "Brazil (Amazonas)", "biome": "Tropical rainforest",
+      "context": "Lowland rainforest in Brazil's Amazonas state, in the basin of the world's largest river by discharge.",
+      "fact": "The Central Amazon Conservation Complex in Amazonas state is a UNESCO World Heritage Site (inscribed 2000, extended 2003).",
+      "factSource": { "label": "UNESCO World Heritage Centre", "url": "https://whc.unesco.org/en/list/998" },
+      "baseline": { "temp": 27.5, "ndvi": 0.88, "sst": 28.0 }
+    },
+    {
+      "id": "sahara", "name": "Sahara Desert", "lat": 23.806, "lon": 11.2884,
+      "country": "Algeria / Libya / Niger border region", "biome": "Arid desert",
+      "context": "Central Sahara, near the meeting point of Algeria, Libya and Niger.",
+      "fact": "The Sahara is the largest hot desert in the world.",
+      "factSource": { "label": "Encyclopaedia Britannica — Sahara", "url": "https://www.britannica.com/place/Sahara-desert-Africa" },
+      "baseline": { "temp": 27.0, "ndvi": 0.04, "sst": 22.0 }
+    },
+    {
+      "id": "great-barrier-reef", "name": "Great Barrier Reef, Coral Sea", "lat": -18.2871, "lon": 147.6992,
+      "country": "Australia", "biome": "Coral reef",
+      "context": "Coral Sea waters off Queensland, north-east Australia.",
+      "fact": "The Great Barrier Reef was inscribed as a UNESCO World Heritage Site in 1981.",
+      "factSource": { "label": "UNESCO World Heritage Centre", "url": "https://whc.unesco.org/en/list/154" },
+      "baseline": { "temp": 26.1, "ndvi": 0.0, "sst": 26.5 }
+    },
+    {
+      "id": "svalbard", "name": "Svalbard Archipelago, Norway", "lat": 78.2232, "lon": 15.6267,
+      "country": "Norway", "biome": "Arctic polar tundra",
+      "context": "High-Arctic archipelago between mainland Norway and the North Pole.",
+      "fact": "The Svalbard Global Seed Vault near Longyearbyen opened in 2008 to safeguard duplicate seed samples from genebanks worldwide.",
+      "factSource": { "label": "Svalbard Global Seed Vault (Crop Trust)", "url": "https://www.croptrust.org/work/svalbard-global-seed-vault/" },
+      "baseline": { "temp": -6.4, "ndvi": 0.12, "sst": 2.0 }
+    }
   ],
   "experiences": {
     "pulse": {
       "regions": ["port-louis", "amazon", "sahara", "svalbard"],
-      "series": [
-        { "source": "power", "variable": "T2M", "resolution": "monthly", "start": "2015", "end": "2024", "periodKey": "2015-2024" },
-        { "source": "power", "variable": "PRECTOTCORR", "resolution": "monthly", "start": "2015", "end": "2024", "periodKey": "2015-2024" }
+      "periods": [
+        {
+          "key": "2015-2024", "label": "2015–2024 · monthly",
+          "layers": [
+            { "source": "power", "variable": "T2M", "roles": ["pitch"], "resolution": "monthly", "start": "2015", "end": "2024", "periodKey": "2015-2024" },
+            { "source": "power", "variable": "PRECTOTCORR", "roles": ["density"], "resolution": "monthly", "start": "2015", "end": "2024", "periodKey": "2015-2024" },
+            { "source": "power", "variable": "ALLSKY_SFC_SW_DWN", "roles": ["brightness"], "resolution": "monthly", "start": "2015", "end": "2024", "periodKey": "2015-2024" }
+          ]
+        },
+        {
+          "key": "2024-daily", "label": "2024 · daily",
+          "layers": [
+            { "source": "power", "variable": "T2M", "roles": ["pitch"], "resolution": "daily", "start": "2024-01-01", "end": "2024-12-31", "periodKey": "2024-daily" },
+            { "source": "power", "variable": "PRECTOTCORR", "roles": ["density"], "resolution": "daily", "start": "2024-01-01", "end": "2024-12-31", "periodKey": "2024-daily" },
+            { "source": "power", "variable": "ALLSKY_SFC_SW_DWN", "roles": ["brightness"], "resolution": "daily", "start": "2024-01-01", "end": "2024-12-31", "periodKey": "2024-daily" }
+          ]
+        }
       ]
     },
     "forest": {
       "regions": ["black-river-gorges", "amazon", "port-louis"],
-      "series": [
-        { "source": "modis", "variable": "NDVI", "product": "MOD13Q1", "band": "250m_16_days_NDVI", "start": "2020-01-01", "end": "2024-12-31", "periodKey": "2020-2024" }
+      "periods": [
+        {
+          "key": "2020-2024", "label": "2020–2024 · 16-day",
+          "layers": [
+            { "source": "modis", "variable": "NDVI", "roles": ["pitch", "texture"], "product": "MOD13Q1", "start": "2020-01-01", "end": "2024-12-31", "periodKey": "2020-2024" },
+            { "source": "modis", "variable": "EVI", "roles": ["harmony"], "product": "MOD13Q1", "start": "2020-01-01", "end": "2024-12-31", "periodKey": "2020-2024" }
+          ]
+        }
       ]
     },
     "ocean": {
       "regions": ["mauritius-waters", "great-barrier-reef"],
-      "series": [
-        { "source": "sst", "variable": "SST", "start": "2020-01-01", "end": "2024-12-31", "periodKey": "2020-2024" }
+      "periods": [
+        {
+          "key": "2020-2024", "label": "2020–2024 · weekly",
+          "layers": [
+            { "source": "sst", "variable": "SST", "roles": ["pitch"], "stride": 7, "start": "2020-01-01", "end": "2024-12-31", "periodKey": "2020-2024" },
+            { "source": "sst", "variable": "SSTA", "roles": ["harmony"], "stride": 7, "start": "2020-01-01", "end": "2024-12-31", "periodKey": "2020-2024" }
+          ]
+        }
       ]
     }
   },
@@ -34,5 +112,15 @@
     "ocean": { "svsId": 40509, "itemTitle": "Sea Surface Temperature" },
     "forest": { "svsId": 40509, "itemTitle": "True color imagery from Terra satellite" },
     "pulse": { "svsId": 5147 }
+  },
+  "imagery": {
+    "$comment": "NASA GIBS WMS snapshots bundled by `npm run fetch-data -- --only=imagery`.",
+    "base": { "layer": "BlueMarble_ShadedRelief_Bathymetry", "format": "image/jpeg", "width": 4096, "height": 2048, "file": "blue-marble.jpg", "title": "Blue Marble: shaded relief and bathymetry" },
+    "night": { "layer": "VIIRS_Black_Marble", "time": "2016-01-01", "format": "image/jpeg", "width": 4096, "height": 2048, "file": "black-marble-2016.jpg", "title": "Black Marble: Earth at night (VIIRS, 2016)" },
+    "overlays": {
+      "ocean": { "layer": "GHRSST_L4_MUR_Sea_Surface_Temperature", "time": "2024-07-15", "format": "image/png", "width": 2048, "height": 1024, "file": "overlay-ocean-mur-sst-2024-07-15.png", "title": "MUR sea surface temperature, 15 Jul 2024" },
+      "forest": { "layer": "MODIS_Terra_L3_NDVI_16Day", "time": "2024-07-11", "format": "image/png", "width": 2048, "height": 1024, "file": "overlay-forest-modis-ndvi-2024-07-11.png", "title": "MODIS Terra NDVI, 16-day composite from 11 Jul 2024" },
+      "pulse": { "layer": "MERRA2_2m_Air_Temperature_Assimilated_Monthly", "time": "2024-07-01", "format": "image/png", "width": 1024, "height": 512, "file": "overlay-pulse-merra2-t2m-2024-07.png", "title": "MERRA-2 air temperature at 2 m, July 2024 monthly mean" }
+    }
   }
 }

@@ -1,0 +1,598 @@
+{
+ "id": "modis-evi-black-river-gorges-2020-2024",
+ "experience": "forest",
+ "variable": "EVI",
+ "label": "Enhanced vegetation index (EVI, 16-day)",
+ "unit": "EVI (unitless)",
+ "dataset": "MODIS/Terra Vegetation Indices 16-Day L3 Global 250m (MOD13Q1.061)",
+ "region": {
+  "name": "Black River Gorges, Mauritius",
+  "lat": -20.4167,
+  "lon": 57.45
+ },
+ "points": [
+  {
+   "time": "2020-01-01",
+   "value": null,
+   "quality": "cloudy"
+  },
+  {
+   "time": "2020-01-17",
+   "value": null,
+   "quality": "cloudy"
+  },
+  {
+   "time": "2020-02-02",
+   "value": 0.57,
+   "quality": "marginal"
+  },
+  {
+   "time": "2020-02-18",
+   "value": 0.5129,
+   "quality": "marginal"
+  },
+  {
+   "time": "2020-03-05",
+   "value": 0.5559,
+   "quality": "good"
+  },
+  {
+   "time": "2020-03-21",
+   "value": 0.6449,
+   "quality": "marginal"
+  },
+  {
+   "time": "2020-04-06",
+   "value": 0.5678,
+   "quality": "marginal"
+  },
+  {
+   "time": "2020-04-22",
+   "value": null,
+   "quality": "cloudy"
+  },
+  {
+   "time": "2020-05-08",
+   "value": 0.3126,
+   "quality": "marginal"
+  },
+  {
+   "time": "2020-05-24",
+   "value": 0.6116,
+   "quality": "good"
+  },
+  {
+   "time": "2020-06-09",
+   "value": 0.7208,
+   "quality": "marginal"
+  },
+  {
+   "time": "2020-06-25",
+   "value": 0.6907,
+   "quality": "marginal"
+  },
+  {
+   "time": "2020-07-11",
+   "value": 0.5887,
+   "quality": "marginal"
+  },
+  {
+   "time": "2020-07-27",
+   "value": 0.5155,
+   "quality": "good"
+  },
+  {
+   "time": "2020-08-12",
+   "value": 0.5576,
+   "quality": "good"
+  },
+  {
+   "time": "2020-08-28",
+   "value": null,
+   "quality": "cloudy"
+  },
+  {
+   "time": "2020-09-13",
+   "value": 0.5353,
+   "quality": "good"
+  },
+  {
+   "time": "2020-09-29",
+   "value": 0.448,
+   "quality": "marginal"
+  },
+  {
+   "time": "2020-10-15",
+   "value": 0.5853,
+   "quality": "good"
+  },
+  {
+   "time": "2020-10-31",
+   "value": 0.5818,
+   "quality": "marginal"
+  },
+  {
+   "time": "2020-11-16",
+   "value": 0.5831,
+   "quality": "marginal"
+  },
+  {
+   "time": "2020-12-02",
+   "value": 0.5819,
+   "quality": "marginal"
+  },
+  {
+   "time": "2020-12-18",
+   "value": null,
+   "quality": "cloudy"
+  },
+  {
+   "time": "2021-01-01",
+   "value": null,
+   "quality": "cloudy"
+  },
+  {
+   "time": "2021-01-17",
+   "value": 0.645,
+   "quality": "good"
+  },
+  {
+   "time": "2021-02-02",
+   "value": 0.6699,
+   "quality": "marginal"
+  },
+  {
+   "time": "2021-02-18",
+   "value": 0.5538,
+   "quality": "marginal"
+  },
+  {
+   "time": "2021-03-06",
+   "value": 0.6082,
+   "quality": "marginal"
+  },
+  {
+   "time": "2021-03-22",
+   "value": 0.6798,
+   "quality": "marginal"
+  },
+  {
+   "time": "2021-04-07",
+   "value": null,
+   "quality": "cloudy"
+  },
+  {
+   "time": "2021-04-23",
+   "value": 0.5899,
+   "quality": "marginal"
+  },
+  {
+   "time": "2021-05-09",
+   "value": 0.5705,
+   "quality": "good"
+  },
+  {
+   "time": "2021-05-25",
+   "value": 0.5568,
+   "quality": "good"
+  },
+  {
+   "time": "2021-06-10",
+   "value": 0.6121,
+   "quality": "good"
+  },
+  {
+   "time": "2021-06-26",
+   "value": 0.4834,
+   "quality": "marginal"
+  },
+  {
+   "time": "2021-07-12",
+   "value": 0.6285,
+   "quality": "good"
+  },
+  {
+   "time": "2021-07-28",
+   "value": 0.6172,
+   "quality": "marginal"
+  },
+  {
+   "time": "2021-08-13",
+   "value": 0.6004,
+   "quality": "good"
+  },
+  {
+   "time": "2021-08-29",
+   "value": 0.5753,
+   "quality": "good"
+  },
+  {
+   "time": "2021-09-14",
+   "value": 0.6101,
+   "quality": "marginal"
+  },
+  {
+   "time": "2021-09-30",
+   "value": 0.5243,
+   "quality": "good"
+  },
+  {
+   "time": "2021-10-16",
+   "value": null,
+   "quality": "cloudy"
+  },
+  {
+   "time": "2021-11-01",
+   "value": 0.5562,
+   "quality": "good"
+  },
+  {
+   "time": "2021-11-17",
+   "value": 0.4376,
+   "quality": "marginal"
+  },
+  {
+   "time": "2021-12-03",
+   "value": 0.6542,
+   "quality": "marginal"
+  },
+  {
+   "time": "2021-12-19",
+   "value": 0.6911,
+   "quality": "good"
+  },
+  {
+   "time": "2022-01-01",
+   "value": 0.6025,
+   "quality": "good"
+  },
+  {
+   "time": "2022-01-17",
+   "value": 0.5055,
+   "quality": "good"
+  },
+  {
+   "time": "2022-02-02",
+   "value": 0.6488,
+   "quality": "marginal"
+  },
+  {
+   "time": "2022-02-18",
+   "value": null,
+   "quality": "cloudy"
+  },
+  {
+   "time": "2022-03-06",
+   "value": null,
+   "quality": "cloudy"
+  },
+  {
+   "time": "2022-03-22",
+   "value": 0.6107,
+   "quality": "marginal"
+  },
+  {
+   "time": "2022-04-07",
+   "value": null,
+   "quality": "cloudy"
+  },
+  {
+   "time": "2022-04-23",
+   "value": 0.5746,
+   "quality": "marginal"
+  },
+  {
+   "time": "2022-05-09",
+   "value": 0.6815,
+   "quality": "marginal"
+  },
+  {
+   "time": "2022-05-25",
+   "value": 0.6052,
+   "quality": "good"
+  },
+  {
+   "time": "2022-06-10",
+   "value": 0.6071,
+   "quality": "good"
+  },
+  {
+   "time": "2022-06-26",
+   "value": 0.5774,
+   "quality": "marginal"
+  },
+  {
+   "time": "2022-07-12",
+   "value": 0.5426,
+   "quality": "good"
+  },
+  {
+   "time": "2022-07-28",
+   "value": 0.628,
+   "quality": "marginal"
+  },
+  {
+   "time": "2022-08-13",
+   "value": null,
+   "quality": "cloudy"
+  },
+  {
+   "time": "2022-08-29",
+   "value": 0.571,
+   "quality": "good"
+  },
+  {
+   "time": "2022-09-14",
+   "value": null,
+   "quality": "cloudy"
+  },
+  {
+   "time": "2022-09-30",
+   "value": null,
+   "quality": "cloudy"
+  },
+  {
+   "time": "2022-10-16",
+   "value": 0.6363,
+   "quality": "marginal"
+  },
+  {
+   "time": "2022-11-01",
+   "value": 0.5692,
+   "quality": "good"
+  },
+  {
+   "time": "2022-11-17",
+   "value": 0.8132,
+   "quality": "marginal"
+  },
+  {
+   "time": "2022-12-03",
+   "value": 0.5507,
+   "quality": "marginal"
+  },
+  {
+   "time": "2022-12-19",
+   "value": null,
+   "quality": "cloudy"
+  },
+  {
+   "time": "2023-01-01",
+   "value": 0.5594,
+   "quality": "marginal"
+  },
+  {
+   "time": "2023-01-17",
+   "value": 0.9009,
+   "quality": "marginal"
+  },
+  {
+   "time": "2023-02-02",
+   "value": 0.5706,
+   "quality": "good"
+  },
+  {
+   "time": "2023-02-18",
+   "value": null,
+   "quality": "cloudy"
+  },
+  {
+   "time": "2023-03-06",
+   "value": 0.6008,
+   "quality": "marginal"
+  },
+  {
+   "time": "2023-03-22",
+   "value": 0.5666,
+   "quality": "good"
+  },
+  {
+   "time": "2023-04-07",
+   "value": 0.6428,
+   "quality": "good"
+  },
+  {
+   "time": "2023-04-23",
+   "value": 0.5826,
+   "quality": "marginal"
+  },
+  {
+   "time": "2023-05-09",
+   "value": 0.5832,
+   "quality": "good"
+  },
+  {
+   "time": "2023-05-25",
+   "value": 0.6133,
+   "quality": "good"
+  },
+  {
+   "time": "2023-06-10",
+   "value": null,
+   "quality": "cloudy"
+  },
+  {
+   "time": "2023-06-26",
+   "value": 0.5866,
+   "quality": "good"
+  },
+  {
+   "time": "2023-07-12",
+   "value": null,
+   "quality": "cloudy"
+  },
+  {
+   "time": "2023-07-28",
+   "value": null,
+   "quality": "cloudy"
+  },
+  {
+   "time": "2023-08-13",
+   "value": 0.6196,
+   "quality": "good"
+  },
+  {
+   "time": "2023-08-29",
+   "value": 0.5895,
+   "quality": "good"
+  },
+  {
+   "time": "2023-09-14",
+   "value": 0.5848,
+   "quality": "marginal"
+  },
+  {
+   "time": "2023-09-30",
+   "value": 0.6333,
+   "quality": "marginal"
+  },
+  {
+   "time": "2023-10-16",
+   "value": 0.5509,
+   "quality": "marginal"
+  },
+  {
+   "time": "2023-11-01",
+   "value": 0.4865,
+   "quality": "marginal"
+  },
+  {
+   "time": "2023-11-17",
+   "value": 0.555,
+   "quality": "marginal"
+  },
+  {
+   "time": "2023-12-03",
+   "value": null,
+   "quality": "cloudy"
+  },
+  {
+   "time": "2023-12-19",
+   "value": 0.5445,
+   "quality": "marginal"
+  },
+  {
+   "time": "2024-01-01",
+   "value": null,
+   "quality": "cloudy"
+  },
+  {
+   "time": "2024-01-17",
+   "value": 0.6892,
+   "quality": "good"
+  },
+  {
+   "time": "2024-02-02",
+   "value": null,
+   "quality": "cloudy"
+  },
+  {
+   "time": "2024-02-18",
+   "value": null,
+   "quality": "cloudy"
+  },
+  {
+   "time": "2024-03-05",
+   "value": 0.5614,
+   "quality": "marginal"
+  },
+  {
+   "time": "2024-03-21",
+   "value": null,
+   "quality": "cloudy"
+  },
+  {
+   "time": "2024-04-06",
+   "value": 0.6163,
+   "quality": "good"
+  },
+  {
+   "time": "2024-04-22",
+   "value": null,
+   "quality": "cloudy"
+  },
+  {
+   "time": "2024-05-08",
+   "value": 0.6519,
+   "quality": "marginal"
+  },
+  {
+   "time": "2024-05-24",
+   "value": 0.5798,
+   "quality": "marginal"
+  },
+  {
+   "time": "2024-06-09",
+   "value": 0.4229,
+   "quality": "marginal"
+  },
+  {
+   "time": "2024-06-25",
+   "value": 0.6045,
+   "quality": "good"
+  },
+  {
+   "time": "2024-07-11",
+   "value": 0.5891,
+   "quality": "good"
+  },
+  {
+   "time": "2024-07-27",
+   "value": 0.7124,
+   "quality": "marginal"
+  },
+  {
+   "time": "2024-08-12",
+   "value": 0.6009,
+   "quality": "marginal"
+  },
+  {
+   "time": "2024-08-28",
+   "value": 0.4889,
+   "quality": "marginal"
+  },
+  {
+   "time": "2024-09-13",
+   "value": 0.5428,
+   "quality": "marginal"
+  },
+  {
+   "time": "2024-09-29",
+   "value": 0.552,
+   "quality": "marginal"
+  },
+  {
+   "time": "2024-10-15",
+   "value": 0.5543,
+   "quality": "marginal"
+  },
+  {
+   "time": "2024-10-31",
+   "value": 0.6015,
+   "quality": "good"
+  },
+  {
+   "time": "2024-11-16",
+   "value": 0.5601,
+   "quality": "marginal"
+  },
+  {
+   "time": "2024-12-02",
+   "value": 0.6515,
+   "quality": "good"
+  },
+  {
+   "time": "2024-12-18",
+   "value": 0.5742,
+   "quality": "good"
+  }
+ ],
+ "source": {
+  "kind": "nasa",
+  "name": "NASA MODIS via ORNL DAAC",
+  "product": "MOD13Q1 (Terra MODIS, 250 m, 16-day, C6.1). Quality: composites flagged cloudy or snow/ice by MOD13Q1 pixel reliability are treated as no data.",
+  "url": "https://modis.ornl.gov/rst/api/v1/MOD13Q1/subset?latitude=-20.4167&longitude=57.45&band=250m_16_days_EVI&startDate=A2020001&endDate=A2020145&kmAboveBelow=0&kmLeftRight=0  (+11 more date batches)",
+  "citation": "Didan, K. (2021). MODIS/Terra Vegetation Indices 16-Day L3 Global 250m SIN Grid V061. NASA EOSDIS Land Processes Distributed Active Archive Center. https://doi.org/10.5067/MODIS/MOD13Q1.061 Retrieved via: ORNL DAAC. 2018. Terrestrial Ecology Subsetting & Visualization Services (TESViS) RESTful Web Service. ORNL DAAC, Oak Ridge, Tennessee, USA. https://doi.org/10.3334/ORNLDAAC/1600. Accessed 2026-11-12.",
+  "retrievedAt": "2026-11-12T17:52:49.619Z"
+ }
+}
