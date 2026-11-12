@@ -2,6 +2,7 @@ import type { ExperienceId } from "../data/types";
 import type { SoundFrame } from "../sonification/frames";
 import { densityHits, harmonyIntervals, noteFrequency, noteIndex, SCALES } from "../sonification/mappings";
 import type { PaletteId } from "../sonification/palettes";
+import { Ambience, type AmbienceId } from "./ambience";
 
 /**
  * Sonification engine (Web Audio API).
@@ -10,6 +11,11 @@ import type { PaletteId } from "../sonification/palettes";
  * live player and the offline WAV export produce identical audio. It reads only SoundFrames: all the
  * data → sound rules come from src/sonification/mappings.ts; the palette only picks instruments and the
  * (data-independent) arrangement.
+ *
+ * Three buses keep the layers separate and individually switchable:
+ *   nature   — Layer 1, synthesised environmental sound (ambience.ts), carries no data
+ *   data     — Layer 2, the scientific sonification (every sound here comes from a measurement)
+ *   regional — Layer 3, the regional arrangement (Sega-inspired frame drum / wood taps), carries no data
  */
 export interface LayerToggles {
   melody: boolean;
@@ -30,7 +36,7 @@ export interface RenderOptions {
 export class StepRenderer {
   private noise: AudioBuffer;
 
-  constructor(private ctx: BaseAudioContext, private out: AudioNode) {
+  constructor(private ctx: BaseAudioContext, private out: AudioNode, private regionalOut: AudioNode = out) {
     this.noise = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.5), ctx.sampleRate);
     const ch = this.noise.getChannelData(0);
     for (let i = 0; i < ch.length; i++) ch[i] = Math.random() * 2 - 1;
@@ -54,7 +60,14 @@ export class StepRenderer {
     }
     if (o.layers.texture && f.texture !== null) this.pad(at, dur, o.experience, f.texture, pan);
     if (o.layers.rhythm && f.density !== null) this.density(at, dur, densityHits(f.density), o.palette, pan);
-    if (o.palette === "sega" && o.layers.arrangement) this.segaArrangement(f.index, at, dur, pan);
+    if (o.palette === "sega" && o.layers.arrangement) {
+      const rp = this.ctx.createStereoPanner();
+      rp.pan.value = pan.pan.value * 0.5;
+      rp.connect(this.regionalOut);
+      // Forest: subtle wooden taps; ocean and pulse: the ravann-like frame-drum groove.
+      if (o.experience === "forest") this.woodAccents(f.index, at, dur, rp);
+      else this.segaArrangement(f.index, at, dur, rp);
+    }
     if (o.palette === "sega" && o.layers.brightness && f.brightness !== null) this.triangle(at + (dur * 2) / 3, 0.02 + f.brightness * 0.1, pan);
   }
 
@@ -172,6 +185,25 @@ export class StepRenderer {
     else this.noiseHit(at + (dur * 2) / 3, 0.08, 0.06, "bandpass", 1400, 1.5, dest); // light slap on the off-beat
   }
 
+  /** Subtle wooden accents (forest): a soft knock on every other step, a lighter one in between. */
+  private woodAccents(step: number, at: number, dur: number, dest: AudioNode) {
+    const knock = (t: number, freq: number, peak: number) => {
+      const o = this.ctx.createOscillator();
+      o.type = "triangle";
+      o.frequency.setValueAtTime(freq, t);
+      o.frequency.exponentialRampToValueAtTime(freq * 0.8, t + 0.06);
+      const g = this.ctx.createGain();
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(peak, t + 0.003);
+      g.gain.exponentialRampToValueAtTime(0.0005, t + 0.12);
+      o.connect(g).connect(dest);
+      o.start(t);
+      o.stop(t + 0.14);
+    };
+    if (step % 2 === 0) knock(at, 620, 0.12);
+    knock(at + (dur * 2) / 3, 880, 0.06);
+  }
+
   private drum(at: number, peak: number, dest: AudioNode) {
     const o = this.ctx.createOscillator();
     o.type = "sine";
@@ -221,13 +253,21 @@ function buildMaster(ctx: BaseAudioContext, volume: number) {
   return { input: comp, master };
 }
 
-/** Live engine: one AudioContext, analyser for the visualiser, master volume. */
+export type Bus = "nature" | "data" | "regional";
+/** Relative bus levels: nature is the foundation; regional music never overrides it. */
+const BUS_LEVEL: Record<Bus, number> = { nature: 0.9, data: 1, regional: 0.55 };
+
+/** Live engine: one AudioContext, three buses, analyser for the visualiser, master volume, ducking for narration. */
 export class SonificationEngine {
   ctx: AudioContext | null = null;
   analyser: AnalyserNode | null = null;
   private master: GainNode | null = null;
+  private duck: GainNode | null = null;
   private renderer: StepRenderer | null = null;
+  private buses: Partial<Record<Bus, GainNode>> = {};
+  private ambience: Ambience | null = null;
   private volume = 0.7;
+  private enabled: Record<Bus, boolean> = { nature: true, data: true, regional: true };
 
   get running(): boolean {
     return this.ctx?.state === "running";
@@ -240,10 +280,19 @@ export class SonificationEngine {
       this.ctx = new AC();
       const { input, master } = buildMaster(this.ctx, this.volume);
       this.master = master;
+      this.duck = this.ctx.createGain();
+      master.connect(this.duck);
       this.analyser = this.ctx.createAnalyser();
       this.analyser.fftSize = 1024;
-      master.connect(this.analyser).connect(this.ctx.destination);
-      this.renderer = new StepRenderer(this.ctx, input);
+      this.duck.connect(this.analyser).connect(this.ctx.destination);
+      for (const b of ["nature", "data", "regional"] as Bus[]) {
+        const g = this.ctx.createGain();
+        g.gain.value = this.enabled[b] ? BUS_LEVEL[b] : 0;
+        g.connect(input);
+        this.buses[b] = g;
+      }
+      this.renderer = new StepRenderer(this.ctx, this.buses.data!, this.buses.regional!);
+      this.ambience = new Ambience(this.ctx, this.buses.nature!);
     }
     if (this.ctx.state !== "running") await this.ctx.resume();
   }
@@ -255,6 +304,35 @@ export class SonificationEngine {
   setVolume(v: number): void {
     this.volume = v;
     if (this.ctx && this.master) this.master.gain.setTargetAtTime(v, this.ctx.currentTime, 0.05);
+  }
+
+  /** Switch one layer on or off without restarting anything. */
+  setBus(bus: Bus, on: boolean): void {
+    this.enabled[bus] = on;
+    const g = this.buses[bus];
+    if (this.ctx && g) g.gain.setTargetAtTime(on ? BUS_LEVEL[bus] : 0, this.ctx.currentTime, 0.15);
+  }
+
+  busOn(bus: Bus): boolean {
+    return this.enabled[bus];
+  }
+
+  /** Lower everything while a spoken tip plays (the user started the tip, so they chose this). */
+  setDucked(ducked: boolean): void {
+    if (this.ctx && this.duck) this.duck.gain.setTargetAtTime(ducked ? 0.25 : 1, this.ctx.currentTime, 0.2);
+  }
+
+  /** Natural soundscape for the current place (cross-fades when the place changes). */
+  startNature(id: AmbienceId): void {
+    if (this.running) this.ambience?.start(id);
+  }
+
+  stopNature(): void {
+    this.ambience?.stop();
+  }
+
+  get natureId(): AmbienceId | null {
+    return this.ambience?.running ? this.ambience.current : null;
   }
 
   play(frame: SoundFrame, dur: number, o: RenderOptions): void {
@@ -269,7 +347,10 @@ export async function renderFramesToWav(frames: SoundFrame[], stepSec: number, o
   const ctx = new OfflineAudioContext(2, Math.ceil(rate * (frames.length * stepSec + 1)), rate);
   const { input, master } = buildMaster(ctx, 0.8);
   master.connect(ctx.destination);
-  const r = new StepRenderer(ctx, input);
+  const regional = ctx.createGain();
+  regional.gain.value = 0.55;
+  regional.connect(input);
+  const r = new StepRenderer(ctx, input, regional);
   frames.forEach((f, i) => r.render(f, 0.05 + i * stepSec, stepSec, o));
   return audioBufferToWav(await ctx.startRendering());
 }
