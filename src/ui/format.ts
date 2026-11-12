@@ -11,7 +11,8 @@ export function fmtDate(iso: string, series: Pick<EarthSeries, "points">, full =
 }
 
 export function fmtValue(v: number, unit: string, short = false): string {
-  if (unit.startsWith("NDVI")) return short ? v.toFixed(2) : `NDVI ${v.toFixed(2)}`;
+  const unitless = unit.match(/^(\w+) \(unitless\)$/);
+  if (unitless) return short ? v.toFixed(2) : `${unitless[1]} ${v.toFixed(2)}`;
   const dp = Math.abs(v) >= 100 ? 0 : 1;
   return `${v.toFixed(dp)} ${unit}`.trim();
 }

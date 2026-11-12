@@ -47,10 +47,12 @@ export const PALETTES: Record<PaletteId, Palette> = {
       { name: "Soft second voice", role: "harmony (data)" },
       { name: "Maravann-like shaker (synthesised noise)", role: "rhythmic density (data): more rain = more shakes" },
       { name: "Triangle-like ting (synthesised)", role: "brightness (data) when a sunlight layer exists; otherwise a quiet time-keeper" },
-      { name: "Ravann-like frame drum (synthesised)", role: "arrangement only: marks the beat, does NOT carry data" },
+      { name: "Ravann-like frame drum (synthesised; ocean and weather)", role: "arrangement only: marks the beat, does NOT carry data" },
+      { name: "Soft wooden taps (synthesised; forest, a subtler accent)", role: "arrangement only: marks the beat, does NOT carry data" },
     ],
     arrangement:
       "A ternary (compound, 6/8-style) groove: each data step is one beat divided in three; the frame drum accents the first beat of every two steps. " +
+      "In the forest the drum is replaced by soft wooden taps so the regional accent stays subtle. The regional layer is mixed below the natural soundscape. " +
       "This metre is our design choice for an original interpretation and should be reviewed with Mauritian musicians.",
     references: [
       { label: "National Heritage Fund (Mauritius) — Sega Tipik Morisien: main instruments ravan, maravan and triang", url: "https://nhf.govmu.org/nhf/?page_id=723" },

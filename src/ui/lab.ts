@@ -1,230 +1,333 @@
 import type { SonificationEngine, LayerToggles } from "../audio/engine";
 import type { Track } from "../data/registry";
-import type { ExperienceId } from "../data/types";
+import type { ExperienceId, RegionDef } from "../data/types";
 import type { CleanPoint } from "../data/normalise";
-import { labFrames } from "../sonification/frames";
+import { EXPERIENCES, getExperience, getRegion } from "../data/regions";
+import { labFrames, trackToFrames, type SoundFrame } from "../sonification/frames";
 import { ABSOLUTE_RANGE, densityHits, harmonyIntervals, noteFrequency, noteIndex, noteName } from "../sonification/mappings";
 import type { PaletteId } from "../sonification/palettes";
 import { $, announce, esc } from "./dom";
-import { fmtDate } from "./format";
+import { fmtDate, fmtValue } from "./format";
+import { KID, timeWindows, type TimeWindow } from "./kid";
 
 /**
- * Earth Sound Lab — "Try this out".
- *  Mode 1 · Real Earth data: values are an actual observation (date picker), read-only, with source.
- *  Mode 2 · Hypothetical scenario: the user moves sliders; everything is labelled SIMULATED.
- * A = the observation, B = the scenario. Each slider only changes its own sound layer — the lab never
- * implies that one variable causes another, and a scenario is not a forecast.
+ * Earth Sound Lab — "✦ TRY THIS OUT ✦".
+ *
+ *  Compare real times (default): pick a world, a place and two REAL observation periods (years, or parts of a
+ *  year for daily data). EARTHSONA plays both with the same rules and explains the difference in the numbers
+ *  and in the sound. It describes what changed; it never says why.
+ *
+ *  What if?: a separate, clearly labelled make-believe mode with sliders. Values are not measurements, each
+ *  slider only changes its own sound layer, and nothing is a forecast.
  */
 type Var = "T2M" | "PRECTOTCORR" | "ALLSKY_SFC_SW_DWN" | "NDVI" | "EVI" | "SST" | "SSTA";
 type Values = Partial<Record<Var, number>>;
 
 const SLIDERS: Record<Var, { label: string; unit: string; step: number; help: string }> = {
-  T2M: { label: "Air temperature at 2 m", unit: "°C", step: 0.1, help: "Controls the melody note (pitch)." },
-  PRECTOTCORR: { label: "Rainfall", unit: "mm/day", step: 0.1, help: "Controls rhythmic density: 0 to 4 hits per note." },
-  ALLSKY_SFC_SW_DWN: { label: "Sunlight at the surface", unit: "MJ/m²/day", step: 0.1, help: "Controls brightness (tone colour)." },
-  NDVI: { label: "Vegetation greenness (NDVI)", unit: "", step: 0.01, help: "Controls the melody note and the fullness of the background pad." },
-  EVI: { label: "Enhanced vegetation index (EVI)", unit: "", step: 0.01, help: "Controls the harmony: thin octave → open fifth → full chord." },
-  SST: { label: "Sea surface temperature", unit: "°C", step: 0.1, help: "Controls the melody note (pitch)." },
-  SSTA: { label: "Sea surface temperature anomaly", unit: "°C", step: 0.05, help: "Controls the harmony: calm near 0, more tension further from the baseline." },
+  T2M: { label: "Air temperature", unit: "°C", step: 0.5, help: "Changes the melody note." },
+  PRECTOTCORR: { label: "Rain", unit: "mm/day", step: 0.5, help: "Changes how many beats per note." },
+  ALLSKY_SFC_SW_DWN: { label: "Sunshine", unit: "MJ/m²/day", step: 0.5, help: "Changes how bright the sound is." },
+  NDVI: { label: "Greenness (NDVI)", unit: "", step: 0.01, help: "Changes the melody note and the background pad." },
+  EVI: { label: "Leafiness (EVI)", unit: "", step: 0.01, help: "Changes the harmony: thin → open → full chord." },
+  SST: { label: "Sea temperature", unit: "°C", step: 0.1, help: "Changes the melody note." },
+  SSTA: { label: "Warmer or cooler than usual", unit: "°C", step: 0.1, help: "Changes the harmony: calm near 0, tense further away." },
 };
 const PITCH_VAR: Record<ExperienceId, Var> = { pulse: "T2M", forest: "NDVI", ocean: "SST" };
 
-export interface LabContext {
-  experience: ExperienceId;
-  track: Track | null;
-  palette: PaletteId;
-  layers: LayerToggles;
+export interface LabHost {
+  state: () => { experience: ExperienceId; region: RegionDef; track: Track | null; palette: PaletteId; layers: LayerToggles };
+  selectExperience: (id: ExperienceId) => void;
+  selectRegion: (id: string) => void;
+  beforePlay: () => Promise<void>;
+  afterPlay: () => void;
 }
 
-export class SoundLab {
-  private mode: "real" | "hypo" = "real";
-  private a: Values = {};
-  private b: Values = {};
-  private vars: Var[] = [];
+export class EarthLab {
+  mode: "compare" | "whatif" = "compare";
+  private windows: TimeWindow[] = [];
+  private a = "";
+  private b = "";
   private timer: number | null = null;
-  private dateIndex = 0;
+  private wi: Values = {};
+  private real: Values = {};
 
-  constructor(
-    private engine: SonificationEngine,
-    private ctx: () => LabContext,
-    private beforePlay: () => Promise<void>,
-  ) {
-    $("lab-mode").querySelectorAll<HTMLButtonElement>("button").forEach((b) =>
-      b.addEventListener("click", () => this.setMode(b.dataset.mode as "real" | "hypo")),
+  constructor(private engine: SonificationEngine, private host: LabHost) {
+    $("lab-mode").querySelectorAll<HTMLButtonElement>("button").forEach((btn) =>
+      btn.addEventListener("click", () => this.setMode(btn.dataset.mode as "compare" | "whatif")),
     );
-    $<HTMLSelectElement>("lab-date").addEventListener("change", (e) => {
-      this.dateIndex = +(e.target as HTMLSelectElement).value;
-      this.readObservation();
-      if (this.mode === "real") this.b = { ...this.a };
-      this.render();
-    });
-    $("lab-play-a").addEventListener("click", () => this.play([["A", this.a]]));
-    $("lab-play-b").addEventListener("click", () => this.play([["B", this.b]]));
-    $("lab-play-ab").addEventListener("click", () => this.play([["A", this.a], ["B", this.b]]));
+    $<HTMLSelectElement>("lab-a").onchange = (e) => ((this.a = (e.target as HTMLSelectElement).value), this.explain());
+    $<HTMLSelectElement>("lab-b").onchange = (e) => ((this.b = (e.target as HTMLSelectElement).value), this.explain());
+    $("lab-play-a").onclick = () => this.playCompare(["A"]);
+    $("lab-play-b").onclick = () => this.playCompare(["B"]);
+    $("lab-play-ab").onclick = () => this.playCompare(["A", "B"]);
+    $("lab-stop").onclick = () => this.stop();
+    $("lab-wi-real").onclick = () => this.playValues([["Real", this.real]]);
+    $("lab-wi-play").onclick = () => this.playValues([["What if", this.wi]]);
+    $("lab-wi-ab").onclick = () => this.playValues([["Real", this.real], ["What if", this.wi]]);
   }
 
-  /** Call whenever the experience / place / period changes. */
+  /** Call whenever the world / place / data changes (and when the dialog opens). */
   refresh(): void {
-    const { track, experience } = this.ctx();
-    this.vars = (track?.layers.map((l) => l.def.variable) ?? [PITCH_VAR[experience]]).filter((v): v is Var => v in SLIDERS);
-    const sel = $<HTMLSelectElement>("lab-date");
-    sel.innerHTML = "";
-    const pts = this.axis();
-    pts.forEach((p, i) => {
-      if (p.value === null) return;
-      const o = document.createElement("option");
-      o.value = String(i);
-      o.textContent = fmtDate(p.time, { points: pts }, true);
-      sel.appendChild(o);
-    });
-    // Default: the most recent valid observation.
-    const lastValid = [...pts.keys()].reverse().find((i) => pts[i].value !== null) ?? 0;
-    this.dateIndex = lastValid;
-    sel.value = String(lastValid);
-    this.readObservation();
-    this.b = { ...this.a };
-    this.render();
+    const { experience, region, track } = this.host.state();
+    // World and place pickers.
+    $("lab-worlds").innerHTML = EXPERIENCES.map(
+      (e) => `<button class="chip" role="radio" aria-checked="${e.id === experience}" data-exp="${e.id}">${e.icon} ${esc(e.short)}</button>`,
+    ).join("");
+    $("lab-worlds").querySelectorAll<HTMLButtonElement>("button").forEach((b) => (b.onclick = () => this.host.selectExperience(b.dataset.exp as ExperienceId)));
+    $("lab-places").innerHTML = getExperience(experience)
+      .regions.map((id) => {
+        const r = getRegion(id)!;
+        return `<button class="chip" role="radio" aria-checked="${id === region.id}" data-region="${id}">${esc(r.short ?? r.name)}</button>`;
+      })
+      .join("");
+    $("lab-places").querySelectorAll<HTMLButtonElement>("button").forEach((b) => (b.onclick = () => this.host.selectRegion(b.dataset.region!)));
+
+    // Real periods to compare.
+    const axis = (track?.layers[0].result.series.points ?? []) as CleanPoint[];
+    this.windows = timeWindows(axis.map((p) => p.time)).filter((w) => w.key !== "all");
+    const keys = this.windows.map((w) => w.key);
+    if (!keys.includes(this.a)) this.a = keys[0] ?? "";
+    if (!keys.includes(this.b) || this.b === this.a) this.b = keys[keys.length - 1] ?? "";
+    const opts = (sel: string) => this.windows.map((w) => `<option value="${esc(w.key)}" ${w.key === sel ? "selected" : ""}>${esc(w.label)}</option>`).join("");
+    $<HTMLSelectElement>("lab-a").innerHTML = opts(this.a);
+    $<HTMLSelectElement>("lab-b").innerHTML = opts(this.b);
+    for (const id of ["lab-a", "lab-b", "lab-play-a", "lab-play-b", "lab-play-ab"]) ($(id) as HTMLButtonElement).disabled = !track;
+    this.explain();
+
+    // What-if starting point: the latest real measurement.
+    this.real = {};
+    if (track) {
+      for (const l of track.layers) {
+        const pts = (l.result.series.points as CleanPoint[]).filter((p) => p.value !== null && !p.bridged);
+        const last = pts[pts.length - 1];
+        if (last) this.real[l.def.variable as Var] = last.value as number;
+      }
+    }
+    this.wi = { ...this.real };
+    this.renderWhatIf();
   }
 
   stop(): void {
-    if (this.timer !== null) clearTimeout(this.timer);
-    this.timer = null;
-  }
-
-  private axis(): CleanPoint[] {
-    const t = this.ctx().track;
-    return (t?.layers[0]?.result.series.points as CleanPoint[]) ?? [];
-  }
-
-  private readObservation(): void {
-    const t = this.ctx().track;
-    const time = this.axis()[this.dateIndex]?.time;
-    this.a = {};
-    if (!t || !time) return;
-    for (const l of t.layers) {
-      const v = l.def.variable as Var;
-      const p = (l.result.series.points as CleanPoint[]).reduce<CleanPoint | null>(
-        (best, q) => (!best || Math.abs(Date.parse(q.time) - Date.parse(time)) < Math.abs(Date.parse(best.time) - Date.parse(time)) ? q : best),
-        null,
-      );
-      if (p && p.value !== null) this.a[v] = p.value;
+    if (this.timer !== null) {
+      clearTimeout(this.timer);
+      this.timer = null;
+      this.host.afterPlay();
     }
+    $("lab-now").textContent = "";
   }
 
-  private setMode(m: "real" | "hypo"): void {
+  private setMode(m: "compare" | "whatif") {
+    this.stop();
     this.mode = m;
     $("lab-mode").querySelectorAll<HTMLButtonElement>("button").forEach((b) => b.setAttribute("aria-checked", String(b.dataset.mode === m)));
-    if (m === "real") this.b = { ...this.a };
-    this.render();
-    announce(m === "real" ? "Real Earth data mode. Values are an actual observation." : "Hypothetical scenario mode. Values you set are simulated.");
+    $("lab-compare-mode").hidden = m !== "compare";
+    $("lab-whatif-mode").hidden = m !== "whatif";
+    announce(m === "compare" ? "Compare real times. Both sounds come from real measurements." : "What if mode. These values are make-believe, not measurements.");
   }
 
-  private render(): void {
-    const { track } = this.ctx();
-    const layerOrigin = track?.layers[0]?.result;
-    const realIsSimulated = layerOrigin?.series.source.kind === "simulated";
-    const time = this.axis()[this.dateIndex]?.time;
-    const banner = $("lab-banner");
-    if (this.mode === "real") {
-      banner.className = "lab-banner real";
-      banner.innerHTML = realIsSimulated
-        ? `<strong>Observation A</strong> — note: no NASA data is loaded for this place, so A is <strong>simulated demonstration data</strong>.`
-        : `<strong>Real Earth data.</strong> A is the observation for ${esc(time ? fmtDate(time, { points: this.axis() }, true) : "—")} from ${esc(layerOrigin?.series.source.name ?? "")}. Switch to mode 2 to try other values.`;
-    } else {
-      banner.className = "lab-banner hypo";
-      banner.innerHTML = `<strong>Hypothetical scenario (simulated values).</strong> Moving a slider changes only the sound. It does not change real conditions and is not a forecast.`;
-    }
-    $("lab-date-wrap").hidden = false;
+  // --- Compare two real periods --------------------------------------------
+  private framesFor(key: string): SoundFrame[] {
+    const { track } = this.host.state();
+    const w = this.windows.find((x) => x.key === key);
+    if (!track || !w) return [];
+    // Global (absolute) pitch scale so the same value is the same note in A and B.
+    const all = trackToFrames(track, "absolute").filter((f) => f.time >= w.from && f.time <= w.to);
+    return all.map((f, i) => ({ ...f, index: i, pan: all.length > 1 ? (i / (all.length - 1)) * 2 - 1 : 0 }));
+  }
 
+  private stats(key: string) {
+    const { track } = this.host.state();
+    const w = this.windows.find((x) => x.key === key);
+    const out: Record<string, { mean: number; n: number; gaps: number; unit: string; label: string; max: CleanPoint; min: CleanPoint }> = {};
+    if (!track || !w) return out;
+    for (const l of track.layers) {
+      const s = l.result.series;
+      const pts = (s.points as CleanPoint[]).filter((p) => p.time >= w.from && p.time <= w.to);
+      const ok = pts.filter((p) => p.value !== null && !p.bridged);
+      if (!ok.length) continue;
+      out[s.variable] = {
+        mean: ok.reduce((a, p) => a + (p.value as number), 0) / ok.length,
+        n: ok.length,
+        gaps: pts.length - ok.length,
+        unit: s.unit,
+        label: KID.label(s.variable),
+        max: ok.reduce((a, b) => ((b.value as number) > (a.value as number) ? b : a)),
+        min: ok.reduce((a, b) => ((b.value as number) < (a.value as number) ? b : a)),
+      };
+    }
+    return out;
+  }
+
+  private explain() {
+    const { track, experience, region } = this.host.state();
+    const box = $("lab-explain");
+    if (!track) {
+      box.innerHTML = `<p>There are no real measurements for ${esc(region.name)} to compare. Pick another place.</p>`;
+      $("lab-source").textContent = "";
+      return;
+    }
+    if (this.windows.length < 2) {
+      box.innerHTML = `<p>Only one time period is available here.</p>`;
+      return;
+    }
+    const A = this.stats(this.a);
+    const B = this.stats(this.b);
+    const la = this.windows.find((w) => w.key === this.a)!.label;
+    const lb = this.windows.find((w) => w.key === this.b)!.label;
+    const pv = PITCH_VAR[experience];
+    const rows: string[] = [];
+    for (const v of Object.keys({ ...A, ...B })) {
+      const x = A[v];
+      const y = B[v];
+      if (!x || !y) continue;
+      const diff = y.mean - x.mean;
+      const unit = x.unit.includes("unitless") ? "" : ` ${x.unit}`;
+      const fmt = (n: number) => (x.unit.includes("unitless") ? n.toFixed(2) : n.toFixed(1));
+      rows.push(`<tr><th scope="row">${esc(x.label)}</th><td>${esc(fmt(x.mean) + unit)}</td><td>${esc(fmt(y.mean) + unit)}</td><td>${diff >= 0 ? "+" : "−"}${esc(fmt(Math.abs(diff)) + unit)}</td></tr>`);
+    }
+    const p = A[pv] && B[pv] ? B[pv].mean - A[pv].mean : 0;
+    const what = { ocean: "the sea was", forest: "the forest was", pulse: "the air was" }[experience];
+    const word = { ocean: ["warmer", "cooler"], forest: ["greener", "less green"], pulse: ["warmer", "cooler"] }[experience];
+    const small = Math.abs(p) < (experience === "forest" ? 0.01 : 0.1);
+    const lines: string[] = [];
+    if (A[pv] && B[pv]) {
+      lines.push(
+        small
+          ? `On average ${what} about the same in ${esc(lb)} as in ${esc(la)}, so the melodies sit at about the same height.`
+          : `On average ${what} <strong>${esc(word[p > 0 ? 0 : 1])} in ${esc(lb)}</strong> than in ${esc(la)}, so B's melody sits a little ${p > 0 ? "higher" : "lower"}.`,
+      );
+    }
+    if (A.SSTA && B.SSTA) {
+      const hot = (k: string) => this.framesFor(k).filter((f) => f.harmony?.kind === "anomaly" && f.harmony.anomaly >= 0.5).length;
+      lines.push(`Weeks warmer than usual (tense harmony): <strong>${hot(this.a)}</strong> in ${esc(la)}, <strong>${hot(this.b)}</strong> in ${esc(lb)}.`);
+    }
+    if (A.PRECTOTCORR && B.PRECTOTCORR) {
+      const d = B.PRECTOTCORR.mean - A.PRECTOTCORR.mean;
+      if (Math.abs(d) >= 0.2) lines.push(`${esc(lb)} was ${d > 0 ? "rainier" : "drier"} on average, so you hear ${d > 0 ? "busier" : "calmer"} rain beats.`);
+    }
+    if ((A[pv]?.gaps ?? 0) + (B[pv]?.gaps ?? 0) > 0) lines.push(`Soft ticks are times without a usable measurement (${A[pv]?.gaps ?? 0} in A, ${B[pv]?.gaps ?? 0} in B).`);
+    lines.push(`<em>One period compared with another mixes weather, seasons and longer changes. This shows what was measured, not why it changed.</em>`);
+    box.innerHTML =
+      `<div class="table-scroll flat"><table class="mapping"><thead><tr><th scope="col">Average</th><th scope="col">A · ${esc(la)}</th><th scope="col">B · ${esc(lb)}</th><th scope="col">Change</th></tr></thead><tbody>${rows.join("")}</tbody></table></div>` +
+      lines.map((x) => `<p>${x}</p>`).join("");
+    const names = [...new Set(track.layers.map((l) => l.result.series.source.name))].join(" + ");
+    $("lab-source").textContent = `Both A and B are real measurements from ${names}, played with the same rules and the global pitch scale.`;
+  }
+
+  private async playCompare(which: ("A" | "B")[]) {
+    this.stop();
+    const clips = which.map((k) => ({ k, key: k === "A" ? this.a : this.b, frames: this.framesFor(k === "A" ? this.a : this.b) })).filter((c) => c.frames.length);
+    if (!clips.length) return;
+    await this.host.beforePlay();
+    const { experience, palette, layers } = this.host.state();
+    const step = Math.max(0.1, Math.min(0.4, 7 / Math.max(...clips.map((c) => c.frames.length))));
+    const label = (key: string) => this.windows.find((w) => w.key === key)?.label ?? key;
+    const seq: { f: SoundFrame; clip: (typeof clips)[number]; first: boolean }[] = [];
+    for (const c of clips) {
+      c.frames.forEach((f, i) => seq.push({ f, clip: c, first: i === 0 }));
+      // a short pause between A and B
+      if (clips.length > 1 && c !== clips[clips.length - 1]) for (let i = 0; i < 4; i++) seq.push({ f: { ...c.frames[0], pitch: null, harmony: null, density: null, brightness: null, texture: null }, clip: c, first: false });
+    }
+    const { track } = this.host.state();
+    const pitch = track?.layers.find((l) => l.def.roles.includes("pitch"))?.result.series;
+    let i = 0;
+    const tick = () => {
+      const s = seq[i];
+      if (s.first) announce(`Playing ${s.clip.k}: ${label(s.clip.key)}`);
+      if (s.f.pitch !== null || s.first) {
+        this.engine.play(s.f, step, { experience, palette, layers });
+        const v = pitch ? s.f.values[pitch.variable] : undefined;
+        $("lab-now").innerHTML = `<span class="ab-tag ${s.clip.k.toLowerCase()}">${s.clip.k}</span> ${esc(label(s.clip.key))} · ${esc(pitch ? fmtDate(s.f.time, pitch, true) : "")} · ${v?.value === null || !v ? "no data" : esc(fmtValue(v.value, pitch!.unit))}`;
+      }
+      i++;
+      if (i < seq.length) this.timer = window.setTimeout(tick, step * 1000);
+      else {
+        this.timer = window.setTimeout(() => this.stop(), 1500);
+      }
+    };
+    tick();
+  }
+
+  // --- What if? (make-believe) ---------------------------------------------
+  private renderWhatIf() {
+    const { track, experience } = this.host.state();
+    const vars = (track?.layers.map((l) => l.def.variable) ?? [PITCH_VAR[experience]]).filter((v): v is Var => v in SLIDERS);
     const box = $("lab-sliders");
     box.innerHTML = "";
-    for (const v of this.vars) {
+    for (const v of vars) {
       const s = SLIDERS[v];
       const r = ABSOLUTE_RANGE[v];
       const id = `lab-${v}`;
-      const val = this.b[v] ?? this.a[v] ?? (r.min + r.max) / 2;
+      const val = this.wi[v] ?? (r.min + r.max) / 2;
+      this.wi[v] = val;
       const wrap = document.createElement("div");
       wrap.className = "slider";
       wrap.innerHTML =
         `<label for="${id}">${esc(s.label)}${s.unit ? ` (${esc(s.unit)})` : ""}</label><output for="${id}" id="${id}-out">${val.toFixed(2)}</output>` +
-        `<input type="range" id="${id}" min="${r.min}" max="${r.max}" step="${s.step}" value="${val}" ${this.mode === "real" ? "disabled" : ""} aria-describedby="${id}-help" />` +
-        `<span class="help" id="${id}-help">${esc(s.help)} Observation A: ${this.a[v] !== undefined ? esc(this.a[v]!.toFixed(2)) : "no data"}.</span>`;
+        `<input type="range" id="${id}" min="${r.min}" max="${r.max}" step="${s.step}" value="${val}" aria-describedby="${id}-help" />` +
+        `<span class="help" id="${id}-help">${esc(s.help)} Last real measurement: ${this.real[v] !== undefined ? esc(this.real[v]!.toFixed(2)) : "none"}.</span>`;
       const input = wrap.querySelector("input")!;
       input.addEventListener("input", () => {
-        this.b[v] = +input.value;
+        this.wi[v] = +input.value;
         (wrap.querySelector("output") as HTMLOutputElement).value = (+input.value).toFixed(2);
-        input.setAttribute("aria-valuetext", `${(+input.value).toFixed(2)} ${s.unit}`);
-        this.renderCompare();
+        input.setAttribute("aria-valuetext", `${(+input.value).toFixed(2)} ${s.unit} (make-believe)`);
+        this.renderWhatIfTable(vars);
       });
       box.appendChild(wrap);
     }
-    $<HTMLButtonElement>("lab-play-b").disabled = this.mode === "real";
-    $<HTMLButtonElement>("lab-play-ab").disabled = this.mode === "real";
-    this.renderCompare();
+    for (const id of ["lab-wi-real", "lab-wi-ab"]) ($(id) as HTMLButtonElement).disabled = !Object.keys(this.real).length;
+    this.renderWhatIfTable(vars);
   }
 
   private describe(vals: Values) {
-    const exp = this.ctx().experience;
-    const pv = PITCH_VAR[exp];
+    const exp = this.host.state().experience;
     const lvl = (k: Var) => (vals[k] === undefined ? null : Math.min(1, Math.max(0, (vals[k]! - ABSOLUTE_RANGE[k].min) / (ABSOLUTE_RANGE[k].max - ABSOLUTE_RANGE[k].min))));
-    const p = lvl(pv);
+    const p = lvl(PITCH_VAR[exp]);
     const note = p === null ? null : noteIndex(p);
     const dens = lvl("PRECTOTCORR");
     const bright = lvl("ALLSKY_SFC_SW_DWN");
     const harm = vals.SSTA !== undefined ? harmonyIntervals({ kind: "anomaly", anomaly: vals.SSTA }).label : vals.EVI !== undefined ? harmonyIntervals({ kind: "chord", level01: lvl("EVI") ?? 0 }).label : null;
-    return {
-      note,
-      noteLabel: note === null ? "silent (no data)" : `${noteName(noteFrequency(exp, note))} (step ${note + 1} of 11)`,
-      hits: dens === null ? null : densityHits(dens),
-      bright: bright === null ? null : Math.round(bright * 100),
-      harm,
-    };
+    return { note, noteLabel: note === null ? "silent" : noteName(noteFrequency(exp, note)), hits: dens === null ? null : densityHits(dens), bright: bright === null ? null : Math.round(bright * 100), harm };
   }
 
-  private renderCompare(): void {
-    const A = this.describe(this.a);
-    const B = this.describe(this.b);
-    const pv = PITCH_VAR[this.ctx().experience];
-    const rows: string[] = [`<thead><tr><th scope="col"></th><th scope="col">A · Observation</th><th scope="col">B · ${this.mode === "real" ? "Same as A" : "Scenario (simulated)"}</th></tr></thead><tbody>`];
-    for (const v of this.vars) {
+  private renderWhatIfTable(vars: Var[]) {
+    const A = this.describe(this.real);
+    const B = this.describe(this.wi);
+    const rows = [`<thead><tr><th scope="col"></th><th scope="col">Real (last measurement)</th><th scope="col">What if (make-believe)</th></tr></thead><tbody>`];
+    for (const v of vars) {
       const u = SLIDERS[v].unit;
-      const f = (x: number | undefined) => (x === undefined ? "no data" : `${x.toFixed(2)}${u ? ` ${u}` : ""}`);
-      rows.push(`<tr><th scope="row">${esc(SLIDERS[v].label)}</th><td>${esc(f(this.a[v]))}</td><td>${esc(f(this.b[v]))}</td></tr>`);
+      const f = (x: number | undefined) => (x === undefined ? "none" : `${x.toFixed(2)}${u ? ` ${u}` : ""}`);
+      rows.push(`<tr><th scope="row">${esc(SLIDERS[v].label)}</th><td>${esc(f(this.real[v]))}</td><td>${esc(f(this.wi[v]))}</td></tr>`);
     }
     rows.push(`<tr><th scope="row">Melody note</th><td>${esc(A.noteLabel)}</td><td>${esc(B.noteLabel)}</td></tr>`);
-    if (A.hits !== null || B.hits !== null) rows.push(`<tr><th scope="row">Rhythm hits / note</th><td>${A.hits ?? "—"}</td><td>${B.hits ?? "—"}</td></tr>`);
+    if (A.hits !== null || B.hits !== null) rows.push(`<tr><th scope="row">Rain beats per note</th><td>${A.hits ?? "—"}</td><td>${B.hits ?? "—"}</td></tr>`);
     if (A.bright !== null || B.bright !== null) rows.push(`<tr><th scope="row">Brightness</th><td>${A.bright ?? "—"}%</td><td>${B.bright ?? "—"}%</td></tr>`);
-    if (A.harm || B.harm) rows.push(`<tr><th scope="row">Harmony</th><td>${esc(A.harm ?? "—")}</td><td>${esc(B.harm ?? "—")}</td></tr>`);
-    $("lab-compare").innerHTML = rows.join("") + "</tbody>";
-
+    if (A.harm || B.harm) rows.push(`<tr><th scope="row">Harmony</th><td>${esc(KID.harmony(A.harm ?? ""))}</td><td>${esc(KID.harmony(B.harm ?? ""))}</td></tr>`);
+    $("lab-wi-table").innerHTML = rows.join("") + "</tbody>";
     const out: string[] = [];
-    if (this.mode === "real") {
-      out.push("Switch to <strong>Hypothetical scenario</strong> to change values and compare B with this observation.");
-    } else {
-      const d = (this.b[pv] ?? 0) - (this.a[pv] ?? 0);
-      if (A.note !== null && B.note !== null && A.note !== B.note) {
-        out.push(`B's ${esc(SLIDERS[pv].label.toLowerCase())} is ${Math.abs(d).toFixed(2)} ${esc(SLIDERS[pv].unit)} ${d > 0 ? "higher" : "lower"}, so the melody moves ${Math.abs(B.note - A.note)} scale step${Math.abs(B.note - A.note) > 1 ? "s" : ""} ${B.note > A.note ? "up" : "down"}.`);
-      } else if (A.note === B.note) out.push("The melody note is the same: the change is too small to reach the next note on the scale.");
-      if (A.hits !== null && B.hits !== null && A.hits !== B.hits) out.push(`Rainfall changes the rhythm from ${A.hits} to ${B.hits} hits per note.`);
-      if (A.bright !== null && B.bright !== null && A.bright !== B.bright) out.push(`Sunlight makes B ${B.bright > A.bright ? "brighter" : "darker"} (${A.bright}% → ${B.bright}%).`);
-      if (A.harm && B.harm && A.harm !== B.harm) out.push(`Harmony changes from “${esc(A.harm)}” to “${esc(B.harm)}”.`);
-      out.push("<em>Each slider only changes its own sound layer. EARTHSONA does not model how these variables affect each other, and a scenario is not a forecast.</em>");
-    }
-    $("lab-explain").innerHTML = out.map((x) => `<p>${x}</p>`).join("");
+    if (A.note !== null && B.note !== null && A.note !== B.note) out.push(`Your “what if” melody is ${Math.abs(B.note - A.note)} step${Math.abs(B.note - A.note) > 1 ? "s" : ""} ${B.note > A.note ? "higher" : "lower"}.`);
+    if (A.hits !== null && B.hits !== null && A.hits !== B.hits) out.push(`Rain beats change from ${A.hits} to ${B.hits} per note.`);
+    if (A.bright !== null && B.bright !== null && A.bright !== B.bright) out.push(`The sound is ${B.bright > A.bright ? "brighter" : "duller"}.`);
+    out.push("<em>Make-believe values change only the sound. They are not measurements and not a prediction.</em>");
+    $("lab-wi-explain").innerHTML = out.map((x) => `<p>${x}</p>`).join("");
   }
 
-  private async play(clips: [string, Values][]): Promise<void> {
+  private async playValues(clips: [string, Values][]) {
     this.stop();
-    await this.beforePlay();
-    const { experience, palette, layers } = this.ctx();
-    const step = 0.25;
+    await this.host.beforePlay();
+    const { experience, palette, layers } = this.host.state();
+    const step = 0.3;
     const frames = clips.flatMap(([, v]) => labFrames(v, PITCH_VAR[experience], 8));
     let i = 0;
     const tick = () => {
-      if (i % 8 === 0) announce(`Playing ${clips[i / 8][0] === "A" ? "A, the observation" : "B, the simulated scenario"}`);
+      if (i % 8 === 0) {
+        const name = clips[i / 8][0];
+        announce(name === "Real" ? "Playing the real measurement" : "Playing your make-believe values");
+        $("lab-now").textContent = name === "Real" ? "▶ Real measurement" : "▶ What if (make-believe)";
+      }
       this.engine.play({ ...frames[i], index: i }, step, { experience, palette, layers });
       i++;
-      this.timer = i < frames.length ? window.setTimeout(tick, step * 1000) : null;
+      this.timer = i < frames.length ? window.setTimeout(tick, step * 1000) : window.setTimeout(() => this.stop(), 1200);
     };
     tick();
   }
