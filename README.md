@@ -2,133 +2,135 @@
 
 NASA Space Apps Challenge 2026 · **The Earth Information Jukebox**
 
-EARTHSONA turns real NASA Earth measurements into data-driven sound. You pick a place on a 3D Earth that uses real NASA imagery, read a short sourced introduction to it, and listen to its ocean temperature, vegetation, rainfall and sunlight played as music.
+EARTHSONA is an interactive, child-friendly way to explore Earth through sound. You pick a world and a place on a 3D Earth, press play, and hear three things:
 
-**Sound is the product.** The globe, panels and charts are there to support listening.
+1. the **natural soundscape** of that place,
+2. a **sound made from real environmental measurements**, and
+3. **regional music**, but only where a genuine, researched connection exists.
 
-```
-NASA dataset → processing (fill values, QA, units) → normalisation → documented mapping → music → audio
-   adapters      src/data/parsers.js + normalise.ts     sonification/frames.ts   mappings.ts   audio/engine.ts
-```
+When the measurements change, the sound changes. The sounds are artistic interpretations generated from observations. They are not recordings made by satellites.
 
-| Experience | Layers and what you hear | Dataset |
-|---|---|---|
-| 🌊 **Ocean Symphony** | SST → melody pitch · SST anomaly → harmony (calm ↔ tense) | NASA/JPL **MUR SST v4.1** (GHRSST L4, ~1 km), weekly samples, via NOAA ERDDAP |
-| 🌳 **Forest Voices** | NDVI → melody pitch and background pad · EVI → harmony (thin ↔ full chord) | **MODIS MOD13Q1.061** Terra, 250 m, 16-day, with pixel-reliability QA, via ORNL DAAC |
-| 💓 **Earth's Pulse** | T2M → melody pitch · PRECTOTCORR → rhythmic density · ALLSKY_SFC_SW_DWN → brightness | **NASA POWER** (LaRC), monthly 2015–2024 and daily 2024 |
+## The nine featured experiences
+
+| World | Place | Natural sound (Layer 1) | Regional music (Layer 3) |
+|---|---|---|---|
+| 🌊 Ocean | Indian Ocean off **Mauritius** | gentle waves, lapping water, underwater hum | **Sega-inspired**: ravann-like drum, maravann-like shaker, triangle |
+| 🌊 Ocean | Pacific off Oʻahu, **Hawaiʻi** | strong surf, rolling waves, coastal wind | not added yet: needs collaboration with Native Hawaiian musicians |
+| 🌊 Ocean | **Open Central Pacific** | deep swell, deep-water rumble, wind | none by design |
+| 🌳 Forest | **Black River Gorges**, Mauritius | wind in trees, leaves, birds, insects | subtle Sega-inspired **wooden taps** |
+| 🌳 Forest | **Amazon**, Brazil | dense insects, many birds, light rain, distant thunder | not added yet: needs Indigenous and Brazilian musicians |
+| 🌳 Forest | **Boreal forest**, Wood Buffalo, Canada | wind in needles, few birds, distant animal calls | none by design |
+| 💓 Pulse | **Port Louis**, Mauritius | tropical showers, warm wind, thunder | Sega-inspired rhythmic accents |
+| 💓 Pulse | **Kyoto**, Japan | steady rain, drops on roofs, light wind | not added yet: needs research with Japanese musicians |
+| 💓 Pulse | **Ross Island**, Antarctica | strong polar wind, whistling gusts, creaking ice | none by design |
+
+**Layer 2 (data)** is the same for every place in a world:
+
+| World | Data → sound | Dataset | Kind of data |
+|---|---|---|---|
+| 🌊 Ocean | SST → melody pitch · SST anomaly → harmony (calm ↔ tense) | NASA/JPL **MUR SST v4.1** (preferred). Fallback: **NOAA Coral Reef Watch CoralTemp v3.1** SST + anomaly | Level 4 analysis (gap-free blend of satellite and in-situ data) |
+| 🌳 Forest | NDVI → pitch and pad · EVI → harmony | **MODIS MOD13Q1.061**, 250 m, 16-day, with pixel-reliability QA | Satellite-derived index |
+| 💓 Pulse | T2M → pitch · PRECTOTCORR → rhythm density · ALLSKY_SFC_SW_DWN → brightness | **NASA POWER** daily and monthly | Model-based estimates (MERRA-2); solar is satellite-derived (CERES) |
+
+The kind of each value is shown in the app ("Science behind the sound" and the source dialog). A model value is never presented as a satellite reading.
+
+**About the ocean data in this build:** the MUR ERDDAP server (`coastwatch.pfeg.noaa.gov`) was unreachable from our network, so the fetch script automatically used NOAA Coral Reef Watch CoralTemp for **both** SST and its anomaly. The app labels this as **NOAA**, never as MUR. If you run `npm run fetch-data -- --only=ocean` where MUR is reachable (or set `ERDDAP_BASE`), MUR replaces it automatically.
 
 ## Quick start
 
 ```bash
 npm install
 npm run dev          # http://localhost:5173
-npm test             # unit tests: parsers against real saved responses, mappings, registry
+npm test             # unit tests (parsers against real saved responses, mappings, the nine experiences)
 npm run build        # static site in dist/ (relative paths; runs offline)
-npm run fetch-data   # refresh the bundled NASA data and imagery (needs internet)
+npm run fetch-data   # refresh bundled data, imagery and EIC visuals (needs internet)
 ```
 
-Node 18+ is required. No API keys or logins are needed. Copy `.env.example` to `.env` only if you want to change the ERDDAP server. **Never commit `.env`**, and never put secrets in `VITE_*` variables, because those are compiled into the public bundle.
+Node 18+ is required. No API keys or logins are needed. Copy `.env.example` to `.env` only to change the ERDDAP server. **Never commit `.env`**, and never put secrets in `VITE_*` variables (they are compiled into the public bundle).
 
 ## Using it
 
-- **Left column:** pick an experience (keys `1`/`2`/`3`), then a place (`[` / `]`), or click anywhere on the globe.
-- **Centre:** the globe uses NASA GIBS Blue Marble imagery, plus an optional NASA data overlay (MUR SST, MODIS NDVI or MERRA-2 air temperature) and an "Earth at night" view (VIIRS Black Marble).
-- **Right column, four tabs:**
-  - **Location:** context, a sourced fact, which data exists for the place, and the NASA Earth Information Center visual.
-  - **Listen:** source badge, time period, pitch scale (*relative* to this place or *global* so places can be compared), sound profile, chart and table, "now playing", the mapping table and "What you heard".
-  - **Sound Lab:** "Try this out".
-  - **Guide:** Discover → Learn → Listen → Explore → Understand. It is optional and can be skipped.
-- **Bottom player:** play/pause (`Space`), stop (`S`), replay, a seekable progress bar with date and time, speed, volume, waveform, per-layer toggles and WAV export.
+- **Left:** 1 · choose a world (🌊 🌳 💓), 2 · choose a place, 3 · press play.
+- **Centre:** the globe uses NASA GIBS imagery. "Data map" adds a NASA data overlay and "Night" shows the Black Marble. **Discovery cards** pop up when you pick a place or a time, with one fact, real values (date and unit), a mini chart and what to listen for. They can be dismissed and switched off in Settings.
+- **Right:** the place in one sentence, a big "now" readout (value, date, what you hear), **Choose a time** (all years, one year, or quarters of a daily year), **Hear a tip**, the official **NASA EIC visual** and a folded **🔬 Science behind the sound** section (data types, period, pitch scale, chart and table, mapping, the three layers, "What you heard", fine layer control, WAV export).
+- **Bottom player:** a large Play/Pause, Stop, Replay, progress with date, and **🌿 Nature / 📈 Data / 🎵 Music** toggles. Each switches a layer without restarting playback. There are also speed and volume controls.
+- **✦ TRY THIS OUT ✦** opens the **Earth Sound Lab**:
+  - **Compare real times:** pick a world, a place and two real periods (for example the Amazon in 2020 and in 2024). Listen to A, B, or A then B, and read what changed in the numbers and in the sound. The Lab describes what changed, never why.
+  - **What if?:** a separate make-believe mode with sliders, clearly labelled. It is not a measurement and not a forecast, and one slider never changes another.
 
-### Sound profiles (regional music)
+### Spoken tips
 
-A profile changes **instruments and arrangement only**. The same value always gives the same note, rhythm density, brightness and harmony in every profile (this is unit-tested). The mapping is defined in `src/sonification/mappings.ts`.
+Tips are short (5–12 s), cover one idea and always have subtitles. They **never autoplay**. While a tip plays, the soundscape is turned down because you asked for the tip, and it comes back afterwards. Pause, Stop, Replay and Esc always work. Tips use the browser's built-in voices; if none is available, the subtitle is still shown.
 
-- **Neutral scientific:** plain synthesised tones. Every sound comes from data.
-- **Mauritius, Sega-inspired:** offered only for places in Mauritius. It is an original synthesised homage, not a recording, built on the instruments named by the National Heritage Fund and UNESCO: ravann (frame drum), maravann (box rattle) and triangle.
-  - Rainfall → shaker density.
-  - Sunlight → triangle brightness.
-  - The frame drum only marks the beat and **carries no data**.
-  - The ternary (6/8-style) groove is our own design choice and **must be reviewed with Mauritian practitioners** before public use.
+## Honesty rules built into the code
 
-  References: [NHF: Sega Tipik Morisien](https://nhf.govmu.org/nhf/?page_id=723), [UNESCO multimedia archive](https://www.unesco.org/archives/multimedia/document-3665), [UNESCO ICH element 01003](https://ich.unesco.org/en/RL/traditional-mauritian-sega-01003).
-
-### Earth Sound Lab
-
-- **Mode 1, Real Earth data:** choose a date. The sliders show the actual observation (read-only) and its source.
-- **Mode 2, Hypothetical scenario:** move the sliders. Everything is labelled **simulated**.
-- **A/B:** play the observation (A), then your scenario (B). A table shows both sets of values and what changes in the sound.
-- Each slider controls only its own sound layer. The Lab does not model links between variables, and a scenario is not a forecast.
-
-## Data access and honesty
-
-| Source | Access | Notes |
-|---|---|---|
-| NASA POWER point API | open, CORS `*` | Fill value `-999` → no data; monthly `YYYY13` (annual) row dropped; units taken from the response (AG community: `MJ/m²/day` for solar) |
-| ORNL DAAC MODIS REST | open | Scale `0.0001`; fill `-3000`; valid range `-2000…10000`; ≤ 10 dates per request (batched); `pixel_reliability` 2 (snow) and 3 (cloudy) → no data, 1 → kept and flagged *marginal* |
-| MUR SST via ERDDAP | open | `jplMURSST41` (`analysed_sst`) and `jplMURSST41anom1day` (`sstAnom`). The anomaly is the dataset's own (we never compute one), and its baseline note is copied from the dataset metadata at fetch time. Server set by `ERDDAP_BASE` |
-| NASA GIBS WMS | open | Globe textures and overlays, bundled |
-| NASA SVS API | open, but no browser CORS | EIC frames pre-fetched; large images stay remote |
-
-Every data point carries a **quality** status: `good`, `marginal`, `cloudy`, `snow`, `missing`, `interpolated` or `simulated`. The source badge, the source dialog (dataset, product and QA, exact request URL, retrieval date and citation for each layer) and "What you heard" always say what is real, what is cached, what is simulated and what is hypothetical.
-
-The registry tries **bundled files → live API (only when "Use live NASA data" is on; 10 s timeout) → simulated**. Fallbacks are announced in a polite `aria-live` notice row. The demo runs fully offline.
+- **No invented data in the experience.** If a layer has no real data, it stays silent and a notice says so. With no data at all, only the nature sound plays. The registry's simulated fallback is never played (it remains only for developer tests).
+- Missing, cloudy or snowy dates are a soft "no data" tick; a single gap between two values is bridged and labelled "interpolated".
+- The natural soundscape and the regional music **carry no data**. A sound profile changes instruments and arrangement only (unit-tested).
+- **No forest-loss claims:** NDVI/EVI measure greenness, not trees.
+- **EIC visuals:** each comes from the official EIC gallery or EIC Daily Visualizations, and its caption says how it relates to the sound (same dataset? same variable? which period?).
+- **Natural sounds** are synthesised in the browser, so no recordings or licences are involved. The regional music is an original synthesised homage, not a recording.
 
 ## Fetching data and adding a place
 
 ```bash
-npm run fetch-data                          # everything
-npm run fetch-data -- --only=pulse,forest   # parts: pulse | forest | ocean | eic | imagery
+npm run fetch-data                                   # everything
+npm run fetch-data -- --only=ocean,eic               # parts: pulse | forest | ocean | eic | imagery
+npm run fetch-data -- --only=pulse --region=kyoto    # one place
 ERDDAP_BASE=https://<host>/erddap npm run fetch-data -- --only=ocean
 ```
 
-The script pauses politely between requests, retries once, validates each series (it must have values, at least 50 % of them valid, and all within a plausible range), writes files atomically, **never overwrites a good file with a failed or empty result**, and prints a summary.
+The script:
+
+- pauses politely between requests and retries once;
+- validates every series: it must have values, at least 50 % of them valid (25 % when the gaps are provider-flagged cloud or snow), and all within a plausible range;
+- writes files atomically and **never overwrites a good file with a failed one**;
+- keeps one manifest entry per place, variable and period (a new provider replaces the old one);
+- drops places that are no longer listed.
 
 **To add a place:**
-1. Add it to `regions` in `scripts/regions.json`. Include `country`, `context`, a `fact` with `factSource`, and `music` only if a regional profile has been researched for it.
-2. List its `id` under each experience that should use it.
-3. Run `npm run fetch-data`.
 
-The app and the script read the same file.
+1. Add it to `regions` in `scripts/regions.json`. Include `short`, `kidIntro`, `context`, a `fact` with `factSource`, and an `ambience` preset (`src/audio/ambience.ts`). Add `music` only if a regional profile has been researched with the community; otherwise set `musicStatus` and `musicNote`.
+2. List its id under an experience.
+3. Run `npm run fetch-data`.
 
 ## Architecture
 
 ```
-scripts/regions.json            places, periods, layers + roles, imagery (single source of truth)
+scripts/regions.json            places, periods, layers + roles, ambience, music status, EIC refs, imagery
 scripts/fetch-nasa-data.mjs     pre-fetch (Node 18+, no deps) → public/data/real, public/data/eic, public/textures
-src/data/types.ts               EarthSeries / EarthPoint (+quality) / SeriesDef (+roles) / PeriodDef
-src/data/parsers.js             all URL building + parsing (shared by browser and script)
-src/data/adapters/*             power · modis · sst (ERDDAP) · simulated
-src/data/registry.ts            bundled → live → simulated; getTrack() loads all layers of a period
-src/data/normalise.ts           sort, trim, bridge single gaps, stats on observations only
-src/sonification/mappings.ts    THE documented data → sound rules
-src/sonification/frames.ts      Track → SoundFrames (layers aligned by date)
-src/sonification/palettes.ts    neutral + Sega-inspired (instruments/arrangement + references)
-src/audio/engine.ts             Web Audio StepRenderer (live and offline WAV share it)
+src/data/parsers.js             URL building + parsing (POWER, MODIS, ERDDAP MUR/CRW, SVS) + dataTypeFor()
+src/data/registry.ts            bundled → live → (simulated, never played by the app)
+src/data/eic.ts                 EIC visuals (several per world)
+src/sonification/*              documented data → sound mapping, frames, palettes
+src/audio/ambience.ts           Layer 1: synthesised natural soundscapes, one preset per place
+src/audio/engine.ts             Layer 2 + 3: StepRenderer, buses (nature / data / regional), ducking, WAV export
 src/audio/player.ts             play / pause / stop / replay / seek
-src/globe.ts                    three.js globe with GIBS textures and overlays
-src/ui/*                        chart, lab, guide, DOM helpers
+src/ui/kid.ts                   child-friendly words, time windows, discovery cards (numbers read from data)
+src/ui/narrator.ts              short spoken tips with subtitles
+src/ui/lab.ts                   Earth Sound Lab: compare real times + "What if?"
+src/main.ts                     layout and wiring
 ```
 
-**Why three.js and not CesiumJS:** the demo must work with no internet. Cesium's default imagery and terrain need an Ion token and online tiles, and its bundle is much larger. A three.js globe textured with bundled NASA GIBS imagery is reliable offline and fast, which the brief explicitly allows.
+**Why three.js and not CesiumJS:** the demo must work with no internet. Cesium's default imagery and terrain need an Ion token and online tiles. A three.js globe textured with bundled NASA GIBS imagery is reliable offline.
 
 ## Layout and accessibility
 
-- **Layout:** one CSS grid with header, notice row, navigation, globe, panels and player. These regions never overlap; this is checked automatically at 1440, 1024 and 400 px. On narrow screens the navigation becomes a collapsible drawer and the page scrolls.
-- **Keyboard:** every action is reachable by keyboard (tabs follow the WAI-ARIA tabs pattern; shortcuts are listed in ⌨). Screen-reader announcements cover loading, playback, fallbacks and layer changes.
-- **Text and visual alternatives:** text size is adjustable with A−/A+. The chart has a data table, and "now playing" shows the values as text.
-- **Not colour alone:** source badges use text plus an icon.
-- **Volume:** a compressor keeps loudness comfortable.
+- **Layout:** one CSS grid; the regions never overlap (checked at 1440, 1024 and 400 px). The only overlay is the dismissible discovery card over the globe; on phones it sits below the globe.
+- **Keyboard:** every action works from the keyboard. Space plays, `T` plays a tip, `N`/`D`/`M` toggle layers, `1`–`3` choose a world, `[`/`]` change place, Esc closes cards and stops tips.
+- **Feedback:** live-region announcements, a visible playback state and captions for narration.
+- **Visual:** large controls, adjustable text size, and nothing conveyed by colour alone.
+- **Sonification complements** the visual information; it is not claimed to replace it.
 
 ## GitHub workflow
 
-The work is split into feature branches: `feature/nasa-data` (data layer) and `feature/sonification-ui`, which contains sonification, regional music, globe, Sound Lab and guide in separate commits. Merge them into `master` through pull requests, in that order. Never commit `.env` files or credentials.
+Feature branches are merged into `master` through pull requests: `feature/nasa-data` → `feature/sonification-ui` → `feature/earthsona-2`. Never commit `.env` files or credentials.
 
 ## Known limitations
 
-- **Ocean Symphony needs the MUR fetch to succeed.** During development the default ERDDAP server (`coastwatch.pfeg.noaa.gov`) was unreachable from our network, so ocean plays clearly labelled simulated data until `npm run fetch-data -- --only=ocean` succeeds (try another network or set `ERDDAP_BASE`).
-- **Values are for points, not areas:** POWER grid cells are about 0.5° × 0.625° (MERRA-2 based), MODIS uses one 250 m pixel, and MUR is about 1 km.
-- **NDVI and EVI measure greenness**, not tree counts or deforestation. Seasons and land use change them.
-- **Relative pitch** is per series; use **Global** pitch to compare places.
-- **The Sega-inspired profile** is an original interpretation and needs review by cultural practitioners.
-- **Live mode** applies only to places without bundled data.
+- **Ocean data** in this build comes from NOAA CoralTemp because MUR was unreachable at fetch time (see above).
+- **Points, not areas:** values are for one point or grid cell (POWER ≈ 0.5° × 0.625°, MODIS 250 m, CoralTemp 5 km, MUR ≈ 1 km).
+- **Boreal forest gaps:** about half of the boreal composites are snow- or cloud-flagged, and you hear them as ticks.
+- **Regional music:** only Mauritius has it, and the Sega-inspired profile still needs review by Mauritian practitioners. Hawaiʻi, the Amazon and Japan intentionally have none until it can be developed with musicians from those communities.
+- **EIC timing:** the near-real-time EIC visuals show recent days, while the sound plays historical years; each caption says so.
+- **Synthesised nature sounds** are naturalistic, not field recordings.
