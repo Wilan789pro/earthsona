@@ -1,100 +1,112 @@
-import type { CleanSeries } from "../data/types";
-import type { CleanPoint } from "../data/normalise";
-import { toUnit } from "../data/normalise";
-import type { SoundFrame } from "./engine";
+import type { SoundFrame } from "../sonification/frames";
 
 /**
- * Steps through a CleanSeries one point at a time and turns each point into a SoundFrame.
- * The UI (chart playhead, "now playing") and the engine both subscribe to the same step event,
- * so sound, chart and labels always change together.
+ * Steps through SoundFrames. The UI (chart playhead, progress bar, "now playing") and the engine all
+ * subscribe to the same step event, so sound, visuals and labels always change together.
  */
-export function seriesToFrames(series: CleanSeries): SoundFrame[] {
-  const pts = series.points as CleanPoint[];
-  const span = series.stats.max - series.stats.min || 1;
-  let prev: number | null = null;
-  return pts.map((p, i) => {
-    const pan = pts.length > 1 ? (i / (pts.length - 1)) * 2 - 1 : 0;
-    if (p.value === null) return { level: null, delta: 0, pan };
-    const delta = prev === null ? 0 : (p.value - prev) / span;
-    prev = p.value;
-    return { level: toUnit(p.value, series.stats), delta, pan };
-  });
-}
+export type StepListener = (index: number, frame: SoundFrame) => void;
+export type StateListener = (state: "playing" | "paused" | "stopped") => void;
 
-export type StepListener = (index: number, point: CleanPoint, frame: SoundFrame) => void;
-
-export class SeriesPlayer {
-  series: CleanSeries | null = null;
+export class FramePlayer {
   frames: SoundFrame[] = [];
   index = 0;
   /** Data points per second. */
   rate = 4;
   playing = false;
-  loop = true;
+  loop = false;
   private timer: number | null = null;
-  private listeners: StepListener[] = [];
-  private endListeners: (() => void)[] = [];
+  private stepListeners: StepListener[] = [];
+  private stateListeners: StateListener[] = [];
 
   onStep(fn: StepListener): void {
-    this.listeners.push(fn);
+    this.stepListeners.push(fn);
   }
-  onEnd(fn: () => void): void {
-    this.endListeners.push(fn);
+  onState(fn: StateListener): void {
+    this.stateListeners.push(fn);
   }
 
   get stepSec(): number {
     return 1 / this.rate;
   }
+  get durationSec(): number {
+    return this.frames.length * this.stepSec;
+  }
+  get elapsedSec(): number {
+    return this.index * this.stepSec;
+  }
 
-  load(series: CleanSeries): void {
-    this.series = series;
-    this.frames = seriesToFrames(series);
-    this.index = 0;
-    if (this.playing) this.restartTimer();
+  /** Load new frames, keeping the position (as a fraction) so changing place/period mid-play is smooth. */
+  load(frames: SoundFrame[], keepPosition = true): void {
+    const frac = this.frames.length ? this.index / this.frames.length : 0;
+    this.frames = frames;
+    this.index = keepPosition ? Math.min(frames.length - 1, Math.floor(frac * frames.length)) : 0;
   }
 
   play(): void {
-    if (!this.series || this.playing) return;
+    if (!this.frames.length || this.playing) return;
+    if (this.index >= this.frames.length) this.index = 0;
     this.playing = true;
+    this.emitState("playing");
     this.tick();
   }
 
   pause(): void {
+    if (!this.playing) return;
     this.playing = false;
-    if (this.timer !== null) clearTimeout(this.timer);
-    this.timer = null;
+    this.clear();
+    this.emitState("paused");
+  }
+
+  stop(): void {
+    this.playing = false;
+    this.clear();
+    this.index = 0;
+    this.emitState("stopped");
+  }
+
+  replay(): void {
+    this.clear();
+    this.playing = false;
+    this.index = 0;
+    this.play();
   }
 
   seek(i: number): void {
-    if (!this.series) return;
-    this.index = Math.max(0, Math.min(this.series.points.length - 1, i));
-    this.emit();
+    if (!this.frames.length) return;
+    this.index = Math.max(0, Math.min(this.frames.length - 1, i));
+    if (!this.playing) this.emit();
   }
 
   setRate(r: number): void {
     this.rate = r;
   }
 
-  private restartTimer(): void {
+  private clear() {
     if (this.timer !== null) clearTimeout(this.timer);
-    this.tick();
+    this.timer = null;
   }
 
   private emit(): void {
-    if (!this.series) return;
-    const p = this.series.points[this.index] as CleanPoint;
-    for (const fn of this.listeners) fn(this.index, p, this.frames[this.index]);
+    const f = this.frames[this.index];
+    if (f) for (const fn of this.stepListeners) fn(this.index, f);
+  }
+
+  private emitState(s: "playing" | "paused" | "stopped") {
+    for (const fn of this.stateListeners) fn(s);
   }
 
   private tick = (): void => {
-    if (!this.playing || !this.series) return;
+    if (!this.playing) return;
     this.emit();
     this.index++;
-    if (this.index >= this.series.points.length) {
-      this.index = 0;
-      if (!this.loop) {
-        this.pause();
-        for (const fn of this.endListeners) fn();
+    if (this.index >= this.frames.length) {
+      if (this.loop) this.index = 0;
+      else {
+        this.timer = window.setTimeout(() => {
+          this.playing = false;
+          this.index = this.frames.length; // at the end; next play() restarts
+          this.emitState("stopped");
+        }, this.stepSec * 1000);
         return;
       }
     }

@@ -141,6 +141,22 @@ export class SeriesChart {
     }
   }
 
+  /** Move the playhead to the point nearest to an ISO date (used when the chart shows a non-pitch layer). */
+  setPlayheadTime(time: string): void {
+    if (!this.series) return;
+    const t = Date.parse(time);
+    let best = 0;
+    this.series.points.forEach((p, i) => {
+      if (Math.abs(Date.parse(p.time) - t) < Math.abs(Date.parse(this.series!.points[best].time) - t)) best = i;
+    });
+    this.setPlayhead(best);
+  }
+
+  /** Time of the point at an index (so a click on a secondary-layer chart can seek the player). */
+  timeAt(i: number): string | null {
+    return this.series?.points[i]?.time ?? null;
+  }
+
   hidePlayhead(): void {
     this.playhead.style.display = "none";
   }

@@ -2,18 +2,19 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>EARTHSONA · Earthy, the Earth Information Jukebox</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>EARTHSONA · Hear the Earth. Understand the Change.</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8C%8D%3C/text%3E%3C/svg%3E" />
-    <meta name="description" content="Listen to NASA Earth data: sea surface temperature, vegetation and climate turned into sound." />
+    <meta name="description" content="EARTHSONA turns real NASA Earth measurements into data-driven sound. Hear the Earth. Understand the Change." />
   </head>
   <body>
-    <!-- Inline icon sprite (no icon-font CDN, so the demo works offline) -->
     <svg width="0" height="0" style="position:absolute" aria-hidden="true">
       <symbol id="i-satellite" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M13 7 9 3 5 7l4 4M17 11l4 4-4 4-4-4M8 12l4 4 6-6-4-4-6 6M16 8l3-3M9 21a6 6 0 0 0-6-6"/></symbol>
       <symbol id="i-flask" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M9 3h6M10 3v6L4.5 19a1.5 1.5 0 0 0 1.3 2h12.4a1.5 1.5 0 0 0 1.3-2L14 9V3M7 15h10"/></symbol>
       <symbol id="i-play" viewBox="0 0 24 24"><path fill="currentColor" d="M7 4.5v15a1 1 0 0 0 1.5.86l12-7.5a1 1 0 0 0 0-1.72l-12-7.5A1 1 0 0 0 7 4.5Z"/></symbol>
       <symbol id="i-pause" viewBox="0 0 24 24"><path fill="currentColor" d="M6 4h4v16H6zM14 4h4v16h-4z"/></symbol>
+      <symbol id="i-stop" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="2" fill="currentColor"/></symbol>
+      <symbol id="i-replay" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5"/></symbol>
       <symbol id="i-globe" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></g></symbol>
       <symbol id="i-gear" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></g></symbol>
       <symbol id="i-info" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 16v-5M12 8h.01"/></g></symbol>
@@ -22,110 +23,216 @@
       <symbol id="i-download" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M12 3v12m0 0-5-5m5 5 5-5M4 21h16"/></symbol>
       <symbol id="i-close" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M6 6l12 12M18 6 6 18"/></symbol>
       <symbol id="i-volume" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M11 5 6 9H3v6h3l5 4V5ZM16 9a4 4 0 0 1 0 6M19 6a8 8 0 0 1 0 12"/></symbol>
-      <symbol id="i-headphones" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M3 18v-6a9 9 0 0 1 18 0v6M21 19a2 2 0 0 1-2 2h-1v-6h3v4ZM3 19a2 2 0 0 0 2 2h1v-6H3v4Z"/></symbol>
       <symbol id="i-wifi-off" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M2 2l20 20M8.5 16.5a5 5 0 0 1 7 0M5 13a10 10 0 0 1 5.2-2.8M19 13a10 10 0 0 0-2.3-1.7M2 8.8a15 15 0 0 1 4.2-2.7M22 8.8A15 15 0 0 0 10.7 5M12 20h.01"/></symbol>
+      <symbol id="i-wave" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M2 12h2M6 8v8M10 5v14M14 9v6M18 7v10M22 12h-2"/></symbol>
+      <symbol id="i-pin" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" d="M12 22s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12Z"/><circle cx="12" cy="10" r="2.5" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
     </svg>
 
-    <a class="skip" href="#panel">Skip to the data panel</a>
-    <div id="globe" aria-hidden="true"></div>
+    <a class="skip" href="#side">Skip to the listening panel</a>
 
-    <div id="ui">
-      <header class="topbar">
-        <div class="brand glass">
+    <div class="app">
+      <!-- ============ HEADER ============ -->
+      <header class="app-header">
+        <div class="brand">
           <span class="logo" aria-hidden="true">🌍</span>
           <div>
-            <h1>EARTHSONA <span class="pill">Earth Information Jukebox</span></h1>
-            <p class="muted small">NASA Earth data you can hear</p>
+            <h1>EARTHSONA</h1>
+            <p class="tagline">Hear the Earth. Understand the Change.</p>
           </div>
         </div>
-
-        <nav class="tabs glass" role="tablist" aria-label="Experiences" id="tabs"></nav>
-
-        <div class="tools">
-          <form class="search glass" id="search-form" role="search">
-            <svg class="icon" aria-hidden="true"><use href="#i-search" /></svg>
-            <label for="search-input" class="sr-only">Search a place</label>
-            <input id="search-input" type="search" placeholder="Search a place (needs internet)…" autocomplete="off" />
-            <button type="submit" class="btn small">Fly</button>
-            <div id="search-results" class="search-results glass" hidden></div>
-          </form>
-          <button class="btn icon-btn glass" id="btn-reset" title="Reset globe (R)"><svg class="icon"><use href="#i-globe" /></svg><span class="sr-only">Reset globe</span></button>
-          <button class="btn icon-btn glass" id="btn-settings" title="Settings"><svg class="icon"><use href="#i-gear" /></svg><span class="sr-only">Settings</span></button>
-          <button class="btn icon-btn glass" id="btn-about" title="About & methodology"><svg class="icon"><use href="#i-info" /></svg><span class="sr-only">About and methodology</span></button>
-          <button class="btn icon-btn glass" id="btn-keys" title="Keyboard shortcuts"><svg class="icon"><use href="#i-keyboard" /></svg><span class="sr-only">Keyboard shortcuts</span></button>
+        <form class="search" id="search-form" role="search">
+          <svg class="icon" aria-hidden="true"><use href="#i-search" /></svg>
+          <label for="search-input" class="sr-only">Search a place</label>
+          <input id="search-input" type="search" placeholder="Search a place…" autocomplete="off" aria-describedby="search-hint" aria-controls="search-results" />
+          <span id="search-hint" class="sr-only">Listed places work offline; other places need internet.</span>
+          <button type="submit" class="btn small">Go</button>
+        </form>
+        <div class="tools" role="toolbar" aria-label="Display and help">
+          <div class="text-size" role="group" aria-label="Text size">
+            <button class="btn icon-btn" id="btn-text-down" title="Smaller text"><span aria-hidden="true">A−</span><span class="sr-only">Smaller text</span></button>
+            <button class="btn icon-btn" id="btn-text-up" title="Larger text"><span aria-hidden="true">A+</span><span class="sr-only">Larger text</span></button>
+          </div>
+          <button class="btn icon-btn" id="btn-settings" title="Settings"><svg class="icon" aria-hidden="true"><use href="#i-gear" /></svg><span class="sr-only">Settings</span></button>
+          <button class="btn icon-btn" id="btn-about" title="About, sources and method"><svg class="icon" aria-hidden="true"><use href="#i-info" /></svg><span class="sr-only">About, sources and method</span></button>
+          <button class="btn icon-btn" id="btn-keys" title="Keyboard shortcuts"><svg class="icon" aria-hidden="true"><use href="#i-keyboard" /></svg><span class="sr-only">Keyboard shortcuts</span></button>
         </div>
       </header>
+      <div id="notice" class="notice" role="status" aria-live="polite" aria-atomic="true"></div>
 
-      <section class="regions" aria-labelledby="regions-h">
-        <h2 id="regions-h" class="eyebrow">Places to listen</h2>
-        <div id="region-chips" class="chips"></div>
-        <p class="muted small">…or click anywhere on the globe.</p>
+      <!-- ============ LEFT: NAVIGATION ============ -->
+      <nav class="nav" id="nav" aria-label="Experiences and places">
+        <details class="drawer" open id="nav-drawer">
+          <summary class="drawer-summary">Experiences &amp; places</summary>
+          <section id="search-results" class="search-results" aria-label="Search results" hidden></section>
+          <section aria-labelledby="exp-h">
+            <h2 id="exp-h" class="eyebrow">Experiences</h2>
+            <div id="experience-list" class="experience-list" role="radiogroup" aria-labelledby="exp-h"></div>
+          </section>
+          <section aria-labelledby="places-h">
+            <h2 id="places-h" class="eyebrow">Places</h2>
+            <ul id="place-list" class="place-list"></ul>
+            <p class="muted small">Or click anywhere on the globe.</p>
+          </section>
+          <button class="btn ghost full" id="btn-start-guide">New here? 5-step guide</button>
+        </details>
+      </nav>
+
+      <!-- ============ CENTRE: GLOBE ============ -->
+      <section class="stage" aria-labelledby="stage-h">
+        <h2 id="stage-h" class="sr-only">Interactive globe</h2>
+        <div class="stage-toolbar">
+          <label class="ctl-inline">Map layer
+            <select id="overlay-select">
+              <option value="">NASA Blue Marble only</option>
+              <option value="exp" selected>Data layer for this experience</option>
+            </select>
+          </label>
+          <label class="ctl-inline check"><input type="checkbox" id="set-night" /> Earth at night</label>
+          <button class="btn small ghost" id="btn-reset" title="Reset view (R)"><svg class="icon" aria-hidden="true"><use href="#i-globe" /></svg> Reset view</button>
+        </div>
+        <div id="globe" class="globe-host"></div>
+        <p class="stage-caption" id="stage-caption">Imagery: NASA GIBS. Drag to rotate, scroll to zoom, click to pick a place.</p>
       </section>
 
-      <!-- Experience / data panel -->
-      <main id="panel" class="panel glass" tabindex="-1" aria-labelledby="exp-title">
-        <div class="panel-head">
-          <div>
-            <p class="eyebrow" id="exp-tagline"></p>
-            <h2 id="exp-title"></h2>
-            <p class="region-line"><span id="region-name"></span> <span class="muted mono small" id="region-coords"></span></p>
-          </div>
-          <button class="badge" id="source-badge" aria-haspopup="dialog"></button>
+      <!-- ============ RIGHT: PANELS ============ -->
+      <aside class="side" id="side" aria-label="Location, listening, lab and guide" tabindex="-1">
+        <div class="tabs" role="tablist" aria-label="Panels" id="side-tabs">
+          <button role="tab" id="tab-location" aria-controls="panel-location" aria-selected="true">Location</button>
+          <button role="tab" id="tab-listen" aria-controls="panel-listen" aria-selected="false" tabindex="-1">Listen</button>
+          <button role="tab" id="tab-lab" aria-controls="panel-lab" aria-selected="false" tabindex="-1">Sound Lab</button>
+          <button role="tab" id="tab-guide" aria-controls="panel-guide" aria-selected="false" tabindex="-1">Guide</button>
         </div>
 
-        <div class="variable-switch" id="variable-switch" role="radiogroup" aria-label="Variable"></div>
+        <!-- Location -->
+        <section role="tabpanel" id="panel-location" aria-labelledby="tab-location" class="panel" tabindex="0">
+          <p class="eyebrow" id="loc-country"></p>
+          <h2 id="loc-name" class="panel-title"></h2>
+          <p class="muted mono small" id="loc-coords"></p>
+          <p id="loc-context"></p>
+          <p id="loc-fact" class="fact"></p>
+          <h3>Data for this place</h3>
+          <ul class="availability" id="loc-availability"></ul>
+          <button class="btn primary full" id="btn-listen-here"><svg class="icon" aria-hidden="true"><use href="#i-play" /></svg> Listen to this place</button>
+          <figure class="eic" id="eic" hidden>
+            <div class="eic-img"><img id="eic-img" alt="" decoding="async" /><p class="eic-offline muted small" id="eic-offline" hidden></p></div>
+            <figcaption>
+              <span class="eyebrow">NASA Earth Information Center visual</span>
+              <strong id="eic-title"></strong>
+              <span class="muted small" id="eic-meta"></span>
+            </figcaption>
+          </figure>
+        </section>
 
-        <div id="chart-wrap">
-          <h3 class="chart-title" id="chart-title"></h3>
+        <!-- Listen -->
+        <section role="tabpanel" id="panel-listen" aria-labelledby="tab-listen" class="panel" hidden tabindex="0">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow" id="exp-tagline"></p>
+              <h2 id="exp-title" class="panel-title"></h2>
+              <p class="muted small" id="listen-place"></p>
+            </div>
+            <button class="badge" id="source-badge" aria-haspopup="dialog"></button>
+          </div>
+
+          <div class="controls-grid">
+            <label class="ctl">Time period <select id="period"></select></label>
+            <label class="ctl">Pitch scale
+              <select id="pitch-scale" aria-describedby="pitch-scale-help">
+                <option value="relative" selected>This place (relative)</option>
+                <option value="absolute">Global (compare places)</option>
+              </select>
+            </label>
+            <label class="ctl">Data
+              <select id="mode">
+                <option value="auto" selected>Real data (best available)</option>
+                <option value="simulated">Simulated (for comparison)</option>
+              </select>
+            </label>
+          </div>
+          <p id="pitch-scale-help" class="muted small">“Relative” spreads this place's own range over two octaves. “Global” uses one fixed range for everyone, so the same temperature is the same note anywhere.</p>
+
+          <fieldset class="palette" id="palette-fieldset">
+            <legend>Sound profile</legend>
+            <div id="palette-options"></div>
+            <p class="muted small" id="palette-note"></p>
+          </fieldset>
+
+          <div class="chart-head">
+            <h3 id="chart-title" class="chart-title"></h3>
+            <label class="ctl-inline small">Chart <select id="chart-layer"></select></label>
+          </div>
           <div id="chart"></div>
           <details class="table-view">
             <summary>Show data as a table</summary>
             <div id="data-table" class="table-scroll"></div>
           </details>
-        </div>
 
-        <div class="now-playing" id="now-playing" aria-hidden="false">
-          <span class="np-dot" aria-hidden="true"></span>
-          <span class="np-label">Now playing</span>
-          <span class="np-date mono" id="np-date">—</span>
-          <strong class="np-value" id="np-value">Press play</strong>
-        </div>
+          <h3>Now playing</h3>
+          <div class="now-playing" id="now-playing"></div>
 
-        <section class="understand" aria-labelledby="understand-h">
-          <h3 id="understand-h">Understand</h3>
-          <p id="understand-text"></p>
+          <h3>How the sound is made</h3>
+          <div class="table-scroll flat"><table class="mapping" id="mapping-table"></table></div>
+
+          <section class="understand" aria-labelledby="understand-h">
+            <h3 id="understand-h">What you heard</h3>
+            <div id="understand-text"></div>
+          </section>
         </section>
 
-        <figure class="eic" id="eic" hidden>
-          <div class="eic-img"><img id="eic-img" alt="" decoding="async" /><p class="eic-offline muted small" id="eic-offline" hidden></p></div>
-          <figcaption>
-            <span class="eyebrow">NASA Earth Information Center visual</span>
-            <strong id="eic-title"></strong>
-            <span class="muted small" id="eic-meta"></span>
-          </figcaption>
-        </figure>
-      </main>
-
-      <footer class="bottombar">
-        <div class="earthy glass-glow">
-          <div class="avatar" aria-hidden="true" id="earthy-avatar">🌍</div>
-          <div class="earthy-body">
-            <div class="earthy-head">
-              <span class="eyebrow">Earthy says</span>
-              <span class="mood" id="earthy-mood"></span>
-              <button class="btn ghost small" id="btn-speak" aria-pressed="false" title="Read Earthy aloud"><svg class="icon"><use href="#i-volume" /></svg><span>Voice off</span></button>
-            </div>
-            <p id="earthy-text">Welcome, explorer! Pick an experience above, choose a place, and press play to hear what NASA data sounds like.</p>
+        <!-- Earth Sound Lab -->
+        <section role="tabpanel" id="panel-lab" aria-labelledby="tab-lab" class="panel" hidden tabindex="0">
+          <h2 class="panel-title">Earth Sound Lab</h2>
+          <p class="muted">Try values and hear how the same rules turn them into sound.</p>
+          <div class="segmented" role="radiogroup" aria-label="Lab mode" id="lab-mode">
+            <button role="radio" aria-checked="true" data-mode="real">1 · Real Earth data</button>
+            <button role="radio" aria-checked="false" data-mode="hypo">2 · Hypothetical scenario</button>
           </div>
+          <div class="lab-banner" id="lab-banner"></div>
+          <label class="ctl" id="lab-date-wrap">Observation date <select id="lab-date"></select></label>
+          <div id="lab-sliders" class="lab-sliders"></div>
+          <div class="ab">
+            <button class="btn" id="lab-play-a">▶ A · Observation</button>
+            <button class="btn" id="lab-play-b">▶ B · Scenario</button>
+            <button class="btn primary" id="lab-play-ab">▶ Play A then B</button>
+          </div>
+          <div class="table-scroll flat"><table class="mapping" id="lab-compare"></table></div>
+          <div id="lab-explain" class="lab-explain"></div>
+        </section>
+
+        <!-- Guide -->
+        <section role="tabpanel" id="panel-guide" aria-labelledby="tab-guide" class="panel" hidden tabindex="0">
+          <h2 class="panel-title">Guided listening</h2>
+          <p class="muted">Five short steps. You can skip at any time and just press Play.</p>
+          <ol class="steps" id="guide-steps"></ol>
+          <div id="guide-body" class="guide-body" aria-live="polite"></div>
+          <div class="guide-nav">
+            <button class="btn ghost" id="guide-prev">Back</button>
+            <button class="btn" id="guide-do">Do it</button>
+            <button class="btn primary" id="guide-next">Next</button>
+            <button class="btn ghost" id="guide-skip">Skip guide</button>
+          </div>
+        </section>
+      </aside>
+
+      <!-- ============ BOTTOM: PLAYER ============ -->
+      <footer class="player" aria-label="Audio player">
+        <div class="transport" role="group" aria-label="Playback">
+          <button class="btn play" id="btn-play" aria-label="Play (Space)"><svg class="icon"><use href="#i-play" id="play-icon" /></svg></button>
+          <button class="btn icon-btn" id="btn-stop" title="Stop"><svg class="icon" aria-hidden="true"><use href="#i-stop" /></svg><span class="sr-only">Stop</span></button>
+          <button class="btn icon-btn" id="btn-replay" title="Replay from start"><svg class="icon" aria-hidden="true"><use href="#i-replay" /></svg><span class="sr-only">Replay from start</span></button>
         </div>
-
-        <div class="jukebox glass" aria-label="Sonification controls" role="group">
-          <button class="play" id="btn-play" aria-label="Play sonification (Space)"><svg class="icon"><use href="#i-play" id="play-icon" /></svg></button>
-          <div class="jb-status">
-            <div class="jb-row"><strong class="small upper">Sonification</strong><span class="status-pill" id="audio-status">STANDBY</span></div>
-            <canvas id="visualizer" width="176" height="36" aria-hidden="true"></canvas>
+        <div class="timeline">
+          <div class="timeline-top">
+            <span class="np-title" id="player-title">—</span>
+            <span class="mono small" id="player-time">0:00 / 0:00</span>
           </div>
-          <label class="ctl"><span class="small muted">Speed</span>
+          <label for="progress" class="sr-only">Position in time series</label>
+          <input type="range" id="progress" min="0" max="0" step="1" value="0" />
+          <div class="timeline-bottom"><span class="mono small" id="player-date">—</span><span class="status-pill" id="audio-status">STOPPED</span></div>
+        </div>
+        <canvas id="visualizer" width="200" height="44" aria-hidden="true"></canvas>
+        <div class="player-ctls">
+          <label class="ctl">Speed
             <select id="rate">
               <option value="2">Slow</option>
               <option value="4" selected>Normal</option>
@@ -133,80 +240,48 @@
               <option value="16">Very fast</option>
             </select>
           </label>
-          <label class="ctl"><span class="small muted">Data</span>
-            <select id="mode">
-              <option value="auto" selected>Best available</option>
-              <option value="simulated">Simulated (compare)</option>
-            </select>
-          </label>
-          <label class="ctl"><span class="small muted">Volume</span><input type="range" id="volume" min="0" max="1" step="0.01" value="0.7" /></label>
-          <div class="jb-buttons">
-            <button class="btn ghost small" id="btn-guide"><svg class="icon"><use href="#i-headphones" /></svg> Listen guide</button>
-            <button class="btn ghost small" id="btn-wav"><svg class="icon"><use href="#i-download" /></svg> WAV</button>
-          </div>
+          <label class="ctl">Volume <input type="range" id="volume" min="0" max="1" step="0.01" value="0.7" /></label>
         </div>
+        <fieldset class="layers" id="layer-toggles">
+          <legend>Layers</legend>
+        </fieldset>
+        <button class="btn small ghost" id="btn-wav" title="Download this sonification as a WAV file"><svg class="icon" aria-hidden="true"><use href="#i-download" /></svg> WAV</button>
       </footer>
     </div>
 
-    <!-- Polite live region for fallback notices -->
-    <div id="notice" class="notice" role="status" aria-live="polite" aria-atomic="true"></div>
     <div id="sr-status" class="sr-only" aria-live="polite" aria-atomic="true"></div>
 
-    <!-- Data source details -->
-    <dialog id="dlg-source" aria-labelledby="dlg-source-h">
-      <div class="dlg-head"><h2 id="dlg-source-h">Where this data comes from</h2><button class="btn icon-btn" data-close><svg class="icon"><use href="#i-close" /></svg><span class="sr-only">Close</span></button></div>
-      <dl class="kv" id="source-details"></dl>
+    <dialog id="dlg-source" aria-labelledby="dlg-source-h" class="wide">
+      <div class="dlg-head"><h2 id="dlg-source-h">Where this data comes from</h2><button class="btn icon-btn" data-close><svg class="icon" aria-hidden="true"><use href="#i-close" /></svg><span class="sr-only">Close</span></button></div>
+      <div id="source-details"></div>
     </dialog>
 
-    <!-- Settings -->
     <dialog id="dlg-settings" aria-labelledby="dlg-settings-h">
-      <div class="dlg-head"><h2 id="dlg-settings-h">Settings</h2><button class="btn icon-btn" data-close><svg class="icon"><use href="#i-close" /></svg><span class="sr-only">Close</span></button></div>
+      <div class="dlg-head"><h2 id="dlg-settings-h">Settings</h2><button class="btn icon-btn" data-close><svg class="icon" aria-hidden="true"><use href="#i-close" /></svg><span class="sr-only">Close</span></button></div>
       <div class="settings">
-        <label class="switch"><input type="checkbox" id="set-live" /><span><strong>Use live NASA data (requires internet)</strong><br /><span class="muted small">Used for places with no bundled data (e.g. a point you click on the globe). If a request fails or takes over 10 s, Earthy falls back to bundled or simulated data and tells you.</span></span></label>
-        <label class="switch"><input type="checkbox" id="set-clouds" checked /><span><strong>Show clouds on the globe</strong> <span class="muted small">(decorative)</span></span></label>
-        <label class="switch"><input type="checkbox" id="set-night" /><span><strong>Night-style globe</strong> <span class="muted small">(decorative)</span></span></label>
-        <label class="switch"><input type="checkbox" id="set-loop" checked /><span><strong>Loop playback</strong></span></label>
+        <label class="switch"><input type="checkbox" id="set-live" /><span><strong>Use live NASA data (requires internet)</strong><br /><span class="muted small">For places without bundled data (e.g. a point you click). If a request fails or takes over 10 s, EARTHSONA falls back to simulated data and tells you.</span></span></label>
+        <label class="switch"><input type="checkbox" id="set-loop" /><span><strong>Loop playback</strong></span></label>
+        <label class="switch"><input type="checkbox" id="set-voice" /><span><strong>Read explanations aloud</strong> <span class="muted small">(uses your browser's speech)</span></span></label>
       </div>
     </dialog>
 
-    <!-- Listen guide -->
-    <dialog id="dlg-guide" aria-labelledby="dlg-guide-h">
-      <div class="dlg-head"><h2 id="dlg-guide-h">Listen guide</h2><button class="btn icon-btn" data-close><svg class="icon"><use href="#i-close" /></svg><span class="sr-only">Close</span></button></div>
-      <div class="prose">
-        <p>Each data point becomes one note, played left to right in time (it also pans from your left ear to your right).</p>
-        <table class="mapping">
-          <thead><tr><th scope="col">You hear</th><th scope="col">It means</th></tr></thead>
-          <tbody>
-            <tr><td><strong>Higher pitch</strong></td><td>A higher value, compared with the rest of this series (notes snap to a pentatonic scale over two octaves, from the series minimum to its maximum).</td></tr>
-            <tr><td><strong>Brighter tone</strong></td><td>Also a higher value: the filter opens as the value rises.</td></tr>
-            <tr><td><strong>Faster wobble</strong></td><td>A big jump from the previous point.</td></tr>
-            <tr><td><strong>Left → right</strong></td><td>Earliest → latest date.</td></tr>
-            <tr><td><strong>Soft dull tick, almost silent</strong></td><td><strong>No data</strong> for that date (for example, a cloudy satellite pass). We don't make up a value. A single missing point between two good ones is bridged smoothly and marked “interpolated” in the chart and table.</td></tr>
-          </tbody>
-        </table>
-        <p><strong>Voices:</strong> Ocean Symphony uses warm sine waves over a deep drone; Forest Voices uses an airy pad; Earth's Pulse uses a firmer, minor-key tone.</p>
-        <p>Pitch is <em>relative</em> to each series. Compare places by reading the numbers in “Understand”, not by ear alone.</p>
-      </div>
-    </dialog>
-
-    <!-- About / methodology -->
     <dialog id="dlg-about" aria-labelledby="dlg-about-h" class="wide">
-      <div class="dlg-head"><h2 id="dlg-about-h">About &amp; methodology</h2><button class="btn icon-btn" data-close><svg class="icon"><use href="#i-close" /></svg><span class="sr-only">Close</span></button></div>
+      <div class="dlg-head"><h2 id="dlg-about-h">About, sources &amp; method</h2><button class="btn icon-btn" data-close><svg class="icon" aria-hidden="true"><use href="#i-close" /></svg><span class="sr-only">Close</span></button></div>
       <div class="prose" id="about-body"></div>
     </dialog>
 
-    <!-- Keyboard -->
     <dialog id="dlg-keys" aria-labelledby="dlg-keys-h">
-      <div class="dlg-head"><h2 id="dlg-keys-h">Keyboard shortcuts</h2><button class="btn icon-btn" data-close><svg class="icon"><use href="#i-close" /></svg><span class="sr-only">Close</span></button></div>
+      <div class="dlg-head"><h2 id="dlg-keys-h">Keyboard shortcuts</h2><button class="btn icon-btn" data-close><svg class="icon" aria-hidden="true"><use href="#i-close" /></svg><span class="sr-only">Close</span></button></div>
       <table class="keys">
         <tbody>
           <tr><td><kbd>Space</kbd></td><td>Play / pause</td></tr>
+          <tr><td><kbd>S</kbd></td><td>Stop</td></tr>
           <tr><td><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd></td><td>Ocean Symphony / Forest Voices / Earth's Pulse</td></tr>
           <tr><td><kbd>[</kbd> <kbd>]</kbd></td><td>Previous / next place</td></tr>
-          <tr><td><kbd>←</kbd> <kbd>→</kbd> on the chart</td><td>Read values point by point (Enter plays from there)</td></tr>
+          <tr><td><kbd>←</kbd> <kbd>→</kbd> on the chart or progress bar</td><td>Step through the data</td></tr>
           <tr><td>Arrow keys elsewhere</td><td>Rotate the globe</td></tr>
           <tr><td><kbd>+</kbd> / <kbd>-</kbd></td><td>Zoom in / out</td></tr>
-          <tr><td><kbd>R</kbd></td><td>Reset globe</td></tr>
+          <tr><td><kbd>R</kbd></td><td>Reset globe view</td></tr>
           <tr><td><kbd>Esc</kbd></td><td>Close dialogs</td></tr>
         </tbody>
       </table>

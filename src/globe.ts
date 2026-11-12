@@ -2,12 +2,13 @@ import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 
 /**
- * 3D globe, ported from earthy_interactive_3d_earth_jukebox.html (procedural textures, atmosphere
- * shader, clouds, starfield, fly-to camera, beacon marker, click-to-pick lat/lon).
- *
- * The surface texture is a STYLISED ILLUSTRATION, not satellite imagery — the About page says so.
- * Changes from the prototype: ES-module three.js (works offline), region markers for the current
- * experience instead of hard-coded "simulated EONET" pins, and no fake "thermal" tint layer.
+ * 3D globe (three.js), ported from earthy_interactive_3d_earth_jukebox.html and upgraded:
+ *  - real NASA imagery: GIBS Blue Marble (day) and VIIRS Black Marble 2016 (night), bundled by
+ *    `npm run fetch-data -- --only=imagery`; a plain stylised map is used only if those files are missing
+ *  - optional NASA data overlay (GIBS snapshot: MUR SST / MODIS NDVI / MERRA-2 air temperature)
+ *  - fits its own layout cell (ResizeObserver), so no UI floats over it
+ *  - selected-place label, region markers, click-to-pick lat/lon, keyboard rotate/zoom
+ * The prototype's random "clouds" were removed: over real imagery they would look like observations.
  */
 export const GLOBE_RADIUS = 5;
 
@@ -15,6 +16,7 @@ export interface GlobeMarker {
   id: string;
   lat: number;
   lon: number;
+  label?: string;
 }
 
 export class Globe {
@@ -23,85 +25,157 @@ export class Globe {
   private renderer: THREE.WebGLRenderer;
   private controls: OrbitControls;
   private earth!: THREE.Mesh;
-  private clouds!: THREE.Mesh;
+  private overlay!: THREE.Mesh;
   private beacon!: THREE.Group;
   private ring!: THREE.Mesh;
   private markers = new THREE.Group();
+  private label: THREE.Sprite | null = null;
   private target: THREE.Vector3 | null = null;
-  private lookAt = new THREE.Vector3();
-  private dayColor = new THREE.Color(0xffffff);
+  private textures: { day?: THREE.Texture; night?: THREE.Texture } = {};
+  private loader = new THREE.TextureLoader();
+  private style: "day" | "night" = "day";
+  /** True once real NASA imagery is on the globe. */
+  realImagery = false;
+  onImagery: (real: boolean) => void = () => {};
   onPick: (lat: number, lon: number) => void = () => {};
   onMarker: (id: string) => void = () => {};
 
-  constructor(container: HTMLElement) {
+  constructor(private host: HTMLElement, private textureBase = `${import.meta.env?.BASE_URL ?? "/"}textures/`) {
     this.scene.background = new THREE.Color(0x030712);
-    this.camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.1, 1000);
+    const w = Math.max(1, host.clientWidth);
+    const h = Math.max(1, host.clientHeight);
+    this.camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 1000);
     this.camera.position.set(0, 0, 15);
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
-    this.renderer.setSize(innerWidth, innerHeight);
+    this.renderer.setSize(w, h);
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.1;
     this.renderer.domElement.setAttribute("aria-hidden", "true");
-    container.appendChild(this.renderer.domElement);
+    host.appendChild(this.renderer.domElement);
 
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
-    Object.assign(this.controls, { enableDamping: true, dampingFactor: 0.05, rotateSpeed: 0.6, zoomSpeed: 0.8, minDistance: 6.2, maxDistance: 30 });
+    Object.assign(this.controls, { enableDamping: true, dampingFactor: 0.06, rotateSpeed: 0.6, zoomSpeed: 0.8, minDistance: 6.2, maxDistance: 30, enablePan: false });
 
-    // Light intensities ×π vs the r128 prototype (three ≥ r155 uses physically-based light units).
-    this.scene.add(new THREE.AmbientLight(0xffffff, 0.4 * Math.PI));
-    const sun = new THREE.DirectionalLight(0xffffff, 1.2 * Math.PI);
+    // Lighting kept soft and even so the imagery reads like a photograph, not a shaded ball.
+    this.scene.add(new THREE.AmbientLight(0xffffff, 1.6));
+    const sun = new THREE.DirectionalLight(0xffffff, 1.6);
     sun.position.set(20, 10, 20);
-    const fill = new THREE.DirectionalLight(0x38bdf8, 0.4 * Math.PI);
-    fill.position.set(-20, -10, -20);
-    this.scene.add(sun, fill);
+    this.scene.add(sun);
 
     this.buildStars();
     this.buildEarth();
     this.buildBeacon();
-    this.scene.add(this.markers);
+    this.earth.add(this.markers);
 
-    addEventListener("resize", () => this.resize());
+    new ResizeObserver(() => this.resize()).observe(host);
     this.bindPicking();
     this.animate();
   }
 
   setStyle(style: "day" | "night"): void {
-    (this.earth.material as THREE.MeshPhongMaterial).color.set(style === "night" ? 0x1e293b : this.dayColor);
+    this.style = style;
+    const m = this.earth.material as THREE.MeshPhongMaterial;
+    const tex = style === "night" ? this.textures.night : this.textures.day;
+    if (tex) {
+      m.map = tex;
+      m.emissiveMap = style === "night" ? tex : null;
+      m.emissive.set(style === "night" ? 0xffffff : 0x000000);
+      m.emissiveIntensity = style === "night" ? 0.8 : 0;
+      m.color.set(0xffffff);
+    } else {
+      m.color.set(style === "night" ? 0x334155 : 0xffffff);
+    }
+    m.needsUpdate = true;
   }
 
-  setClouds(on: boolean): void {
-    this.clouds.visible = on;
+  /** Show a NASA data overlay (transparent PNG, equirectangular) or hide it with null. */
+  setOverlay(file: string | null, onDone?: (ok: boolean) => void): void {
+    const m = this.overlay.material as THREE.MeshBasicMaterial;
+    if (!file) {
+      this.overlay.visible = false;
+      onDone?.(true);
+      return;
+    }
+    this.loader.load(
+      `${this.textureBase}${file}`,
+      (t) => {
+        t.colorSpace = THREE.SRGBColorSpace;
+        m.map?.dispose();
+        m.map = t;
+        m.needsUpdate = true;
+        this.overlay.visible = true;
+        onDone?.(true);
+      },
+      undefined,
+      () => {
+        this.overlay.visible = false;
+        onDone?.(false);
+      },
+    );
+  }
+
+  /** Name label floating above the selected place. */
+  setLabel(text: string | null, lat?: number, lon?: number): void {
+    if (this.label) {
+      this.earth.remove(this.label);
+      (this.label.material as THREE.SpriteMaterial).map?.dispose();
+      this.label = null;
+    }
+    if (!text || lat === undefined || lon === undefined) return;
+    const font = "600 40px system-ui, -apple-system, Segoe UI, sans-serif";
+    const c = document.createElement("canvas");
+    const ctx = c.getContext("2d")!;
+    ctx.font = font;
+    const w = Math.ceil(ctx.measureText(text).width) + 44;
+    c.width = w;
+    c.height = 68;
+    ctx.font = font;
+    ctx.fillStyle = "rgba(2,6,23,0.88)";
+    ctx.strokeStyle = "#22d3ee";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.roundRect(2, 2, w - 4, 64, 18);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#f1f5f9";
+    ctx.textBaseline = "middle";
+    ctx.fillText(text, 22, 36);
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
+    sprite.scale.set((0.2 * w) / 68, 0.2, 1);
+    sprite.position.copy(latLonToVector3(lat, lon, GLOBE_RADIUS * 1.1));
+    sprite.renderOrder = 10;
+    this.label = sprite;
+    this.earth.add(sprite);
   }
 
   setMarkers(markers: GlobeMarker[], color: string): void {
     this.markers.clear();
-    for (const m of markers) {
-      const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.07, 12, 12), new THREE.MeshBasicMaterial({ color }));
-      mesh.position.copy(latLonToVector3(m.lat, m.lon, GLOBE_RADIUS * 1.01));
-      mesh.userData.id = m.id;
+    for (const mk of markers) {
+      const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.075, 14, 14), new THREE.MeshBasicMaterial({ color }));
+      mesh.position.copy(latLonToVector3(mk.lat, mk.lon, GLOBE_RADIUS * 1.008));
+      mesh.userData.id = mk.id;
       this.markers.add(mesh);
     }
   }
 
-  flyTo(lat: number, lon: number, distance = 9.5): void {
+  flyTo(lat: number, lon: number, distance = 13): void {
+    this.earth.rotation.y = 0;
     const pos = latLonToVector3(lat, lon, GLOBE_RADIUS * 1.01);
     this.beacon.position.copy(pos);
     this.beacon.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), pos.clone().normalize());
     this.beacon.visible = true;
-    this.earth.rotation.y = 0;
-    this.markers.rotation.y = 0;
     this.target = latLonToVector3(lat, lon, distance);
   }
 
   reset(): void {
     this.target = new THREE.Vector3(0, 0, 15);
     this.controls.target.set(0, 0, 0);
-    this.beacon.visible = false;
   }
 
   zoom(factor: number): void {
-    this.camera.position.multiplyScalar(factor);
+    const d = Math.min(30, Math.max(6.2, this.camera.position.length() * factor));
+    this.camera.position.setLength(d);
   }
 
   rotate(dLon: number, dLat: number): void {
@@ -112,34 +186,48 @@ export class Globe {
   }
 
   private buildEarth(): void {
-    const t = proceduralTextures();
-    this.earth = new THREE.Mesh(
-      new THREE.SphereGeometry(GLOBE_RADIUS, 64, 64),
-      new THREE.MeshPhongMaterial({ map: t.day, bumpMap: t.bump, bumpScale: 0.08, shininess: 15, specular: new THREE.Color(0x22d3ee) }),
-    );
+    const mat = new THREE.MeshPhongMaterial({ map: stylisedFallback(), shininess: 6, specular: new THREE.Color(0x0b3a4a) });
+    this.earth = new THREE.Mesh(new THREE.SphereGeometry(GLOBE_RADIUS, 96, 96), mat);
     this.scene.add(this.earth);
+    const load = (file: string, cb: (tex: THREE.Texture) => void) =>
+      this.loader.load(`${this.textureBase}${file}`, (tex) => {
+        tex.colorSpace = THREE.SRGBColorSpace;
+        tex.anisotropy = this.renderer.capabilities.getMaxAnisotropy();
+        cb(tex);
+      });
+    load("blue-marble.jpg", (tex) => {
+      this.textures.day = tex;
+      this.realImagery = true;
+      this.setStyle(this.style);
+      this.onImagery(true);
+    });
+    load("black-marble-2016.jpg", (tex) => {
+      this.textures.night = tex;
+      if (this.style === "night") this.setStyle("night");
+    });
+
+    this.overlay = new THREE.Mesh(
+      new THREE.SphereGeometry(GLOBE_RADIUS * 1.003, 96, 96),
+      new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.9, depthWrite: false }),
+    );
+    this.overlay.visible = false;
+    this.earth.add(this.overlay);
 
     const atmosphere = new THREE.Mesh(
-      new THREE.SphereGeometry(GLOBE_RADIUS * 1.025, 64, 64),
+      new THREE.SphereGeometry(GLOBE_RADIUS * 1.03, 64, 64),
       new THREE.ShaderMaterial({
         vertexShader: `varying vec3 vNormal; void main(){ vNormal = normalize(normalMatrix * normal); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
-        fragmentShader: `varying vec3 vNormal; void main(){ float i = pow(0.65 - dot(vNormal, vec3(0,0,1.0)), 2.5); gl_FragColor = vec4(0.0,0.85,1.0,1.0) * i; }`,
+        fragmentShader: `varying vec3 vNormal; void main(){ float i = pow(0.62 - dot(vNormal, vec3(0,0,1.0)), 3.0); gl_FragColor = vec4(0.2,0.7,1.0,1.0) * i; }`,
         blending: THREE.AdditiveBlending,
         side: THREE.BackSide,
         transparent: true,
       }),
     );
     this.scene.add(atmosphere);
-
-    this.clouds = new THREE.Mesh(
-      new THREE.SphereGeometry(GLOBE_RADIUS * 1.015, 64, 64),
-      new THREE.MeshStandardMaterial({ map: t.clouds, transparent: true, opacity: 0.4, blending: THREE.AdditiveBlending }),
-    );
-    this.scene.add(this.clouds);
   }
 
   private buildStars(): void {
-    const n = 2000;
+    const n = 1800;
     const pos = new Float32Array(n * 3);
     for (let i = 0; i < n; i++) {
       const r = 80 + Math.random() * 100;
@@ -149,27 +237,21 @@ export class Globe {
     }
     const g = new THREE.BufferGeometry();
     g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
-    this.scene.add(new THREE.Points(g, new THREE.PointsMaterial({ size: 0.7, color: 0xdde8ff, transparent: true, opacity: 0.8 })));
+    this.scene.add(new THREE.Points(g, new THREE.PointsMaterial({ size: 0.6, color: 0xdde8ff, transparent: true, opacity: 0.7 })));
   }
 
   private buildBeacon(): void {
     const g = new THREE.Group();
-    const pin = new THREE.Mesh(new THREE.SphereGeometry(0.08, 16, 16), new THREE.MeshBasicMaterial({ color: 0x00f3ff }));
-    pin.position.y = 0.08;
-    const beam = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.01, 0.04, 0.8, 16),
-      new THREE.MeshBasicMaterial({ color: 0x00f3ff, transparent: true, opacity: 0.6 }),
-    );
-    beam.position.y = 0.4;
-    this.ring = new THREE.Mesh(
-      new THREE.RingGeometry(0.05, 0.18, 32),
-      new THREE.MeshBasicMaterial({ color: 0x00f3ff, side: THREE.DoubleSide, transparent: true, opacity: 0.8 }),
-    );
+    const pin = new THREE.Mesh(new THREE.SphereGeometry(0.07, 16, 16), new THREE.MeshBasicMaterial({ color: 0x22d3ee }));
+    pin.position.y = 0.07;
+    const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.035, 0.6, 16), new THREE.MeshBasicMaterial({ color: 0x22d3ee, transparent: true, opacity: 0.6 }));
+    beam.position.y = 0.3;
+    this.ring = new THREE.Mesh(new THREE.RingGeometry(0.05, 0.16, 32), new THREE.MeshBasicMaterial({ color: 0x22d3ee, side: THREE.DoubleSide, transparent: true, opacity: 0.8 }));
     this.ring.rotation.x = Math.PI / 2;
     g.add(pin, beam, this.ring);
     g.visible = false;
     this.beacon = g;
-    this.scene.add(g);
+    this.earth.add(g);
   }
 
   private bindPicking(): void {
@@ -178,16 +260,15 @@ export class Globe {
       const t0 = performance.now();
       const up = (e: PointerEvent) => {
         el.removeEventListener("pointerup", up);
-        if (performance.now() - t0 > 250 || Math.hypot(e.clientX - down.clientX, e.clientY - down.clientY) > 6) return; // drag
+        if (performance.now() - t0 > 300 || Math.hypot(e.clientX - down.clientX, e.clientY - down.clientY) > 6) return; // a drag
         const r = el.getBoundingClientRect();
         const ray = new THREE.Raycaster();
         ray.setFromCamera(new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1), this.camera);
         const hitMarker = ray.intersectObjects(this.markers.children)[0];
         if (hitMarker) return this.onMarker(hitMarker.object.userData.id as string);
-        const hit = ray.intersectObject(this.earth)[0];
+        const hit = ray.intersectObject(this.earth, false)[0];
         if (hit) {
-          const local = this.earth.worldToLocal(hit.point.clone());
-          const { lat, lon } = vector3ToLatLon(local);
+          const { lat, lon } = vector3ToLatLon(this.earth.worldToLocal(hit.point.clone()));
           this.onPick(lat, lon);
         }
       };
@@ -196,22 +277,20 @@ export class Globe {
   }
 
   private resize(): void {
-    this.camera.aspect = innerWidth / innerHeight;
+    const w = Math.max(1, this.host.clientWidth);
+    const h = Math.max(1, this.host.clientHeight);
+    this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
-    this.renderer.setSize(innerWidth, innerHeight);
+    this.renderer.setSize(w, h);
   }
 
   private animate = (): void => {
     requestAnimationFrame(this.animate);
-    this.clouds.rotation.y += 0.0004;
-    if (!this.target && !this.beacon.visible) {
-      this.earth.rotation.y += 0.0002;
-      this.markers.rotation.y = this.earth.rotation.y;
-    }
+    if (!this.target && !this.beacon.visible) this.earth.rotation.y += 0.0004;
     this.ring.scale.setScalar(1 + Math.sin(performance.now() * 0.006) * 0.25);
     if (this.target) {
-      this.camera.position.lerp(this.target, 0.05);
-      this.controls.target.lerp(this.lookAt, 0.05);
+      this.camera.position.lerp(this.target, 0.06);
+      this.controls.target.lerp(new THREE.Vector3(), 0.06);
       if (this.camera.position.distanceTo(this.target) < 0.05) this.target = null;
     }
     this.controls.update();
@@ -233,76 +312,33 @@ export function vector3ToLatLon(v: THREE.Vector3): { lat: number; lon: number } 
   return { lat: +lat.toFixed(4), lon: +lon.toFixed(4) };
 }
 
-/** Procedural stylised textures, as in the prototype (so the globe works with no image assets). */
-function proceduralTextures() {
-  const w = 2048;
-  const h = 1024;
-  const day = document.createElement("canvas");
-  day.width = w;
-  day.height = h;
-  const c = day.getContext("2d")!;
-  const ocean = c.createLinearGradient(0, 0, 0, h);
-  ocean.addColorStop(0, "#0a192f");
-  ocean.addColorStop(0.5, "#0284c7");
-  ocean.addColorStop(1, "#0f172a");
-  c.fillStyle = ocean;
-  c.fillRect(0, 0, w, h);
-  // Continents placed by real lon/lat centres so markers sit roughly on the right land mass.
+/** Plain stylised map, used only until (or if) the NASA imagery files are unavailable. */
+function stylisedFallback(): THREE.Texture {
+  const w = 1024;
+  const h = 512;
+  const c = document.createElement("canvas");
+  c.width = w;
+  c.height = h;
+  const g = c.getContext("2d")!;
+  g.fillStyle = "#0b3b5c";
+  g.fillRect(0, 0, w, h);
   const X = (lon: number) => ((lon + 180) / 360) * w;
   const Y = (lat: number) => ((90 - lat) / 180) * h;
   const blob = (lon: number, lat: number, rLon: number, rLat: number, col: string, rot = 0) => {
-    c.fillStyle = col;
-    c.beginPath();
-    c.ellipse(X(lon), Y(lat), (rLon / 360) * w, (rLat / 180) * h, rot, 0, Math.PI * 2);
-    c.fill();
+    g.fillStyle = col;
+    g.beginPath();
+    g.ellipse(X(lon), Y(lat), (rLon / 360) * w, (rLat / 180) * h, rot, 0, Math.PI * 2);
+    g.fill();
   };
-  blob(-100, 48, 32, 20, "#22c55e"); // North America
-  blob(-60, -15, 16, 24, "#15803d", 0.25); // South America
-  blob(15, 50, 22, 12, "#16a34a"); // Europe
-  blob(90, 45, 48, 20, "#16a34a"); // Asia
-  blob(18, 18, 22, 14, "#d97706"); // Sahara
-  blob(22, -8, 16, 20, "#15803d"); // Central/Southern Africa
-  blob(134, -25, 17, 11, "#ca8a04"); // Australia
-  blob(47, -19, 2.4, 6, "#16a34a", 0.2); // Madagascar
-  blob(57.55, -20.25, 0.9, 0.9, "#16a34a"); // Mauritius (oversized so it is visible)
-  blob(0, -84, 180, 8, "#f8fafc"); // Antarctica
-  blob(0, 86, 180, 6, "#f1f5f9"); // Arctic ice
-  blob(-42, 73, 14, 9, "#f1f5f9"); // Greenland
-  const img = c.getImageData(0, 0, w, h);
-  for (let i = 0; i < img.data.length; i += 4) {
-    const n = (Math.random() - 0.5) * 15;
-    img.data[i] += n;
-    img.data[i + 1] += n;
-    img.data[i + 2] += n;
-  }
-  c.putImageData(img, 0, 0);
-
-  const bump = document.createElement("canvas");
-  bump.width = w;
-  bump.height = h;
-  const b = bump.getContext("2d")!;
-  b.drawImage(day, 0, 0);
-  const bd = b.getImageData(0, 0, w, h);
-  for (let i = 0; i < bd.data.length; i += 4) {
-    const avg = (bd.data[i] + bd.data[i + 1] + bd.data[i + 2]) / 3;
-    bd.data[i] = bd.data[i + 1] = bd.data[i + 2] = avg > 100 ? avg : avg * 0.2;
-  }
-  b.putImageData(bd, 0, 0);
-
-  const clouds = document.createElement("canvas");
-  clouds.width = w;
-  clouds.height = h;
-  const cc = clouds.getContext("2d")!;
-  cc.fillStyle = "rgba(255,255,255,0.7)";
-  for (let i = 0; i < 400; i++) {
-    cc.beginPath();
-    cc.arc(Math.random() * w, Math.random() * h, 20 + Math.random() * 60, 0, Math.PI * 2);
-    cc.fill();
-  }
-  const tex = (cv: HTMLCanvasElement, srgb: boolean) => {
-    const t = new THREE.CanvasTexture(cv);
-    if (srgb) t.colorSpace = THREE.SRGBColorSpace;
-    return t;
-  };
-  return { day: tex(day, true), bump: tex(bump, false), clouds: tex(clouds, true) };
+  blob(-100, 48, 32, 20, "#3f6b3a");
+  blob(-60, -15, 16, 24, "#2f5d2a", 0.25);
+  blob(15, 50, 22, 12, "#4a6b3a");
+  blob(90, 45, 48, 20, "#55703f");
+  blob(18, 18, 22, 14, "#b08a4e");
+  blob(22, -8, 16, 20, "#3f6b3a");
+  blob(134, -25, 17, 11, "#a37b45");
+  blob(0, -84, 180, 8, "#e2e8f0");
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
 }
