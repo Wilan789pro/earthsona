@@ -1,503 +1,503 @@
 {
- "id": "power-t2m-svalbard-2015-2024",
+ "id": "power-prectotcorr-kyoto-2015-2024",
  "experience": "pulse",
- "variable": "T2M",
- "label": "Air temperature at 2 m",
- "unit": "°C",
+ "variable": "PRECTOTCORR",
+ "label": "Precipitation (bias-corrected)",
+ "unit": "mm/day",
  "dataset": "NASA POWER POWER Monthly and Annual API",
  "region": {
-  "name": "Svalbard Archipelago, Norway",
-  "lat": 78.2232,
-  "lon": 15.6267
+  "name": "Kyoto, Japan",
+  "lat": 35.0116,
+  "lon": 135.7681
  },
  "points": [
   {
    "time": "2015-01-01",
-   "value": -12.22
+   "value": 5.4
   },
   {
    "time": "2015-02-01",
-   "value": -16.38
+   "value": 2.06
   },
   {
    "time": "2015-03-01",
-   "value": -10.64
+   "value": 4.22
   },
   {
    "time": "2015-04-01",
-   "value": -9.14
+   "value": 4.83
   },
   {
    "time": "2015-05-01",
-   "value": -4.96
+   "value": 3.23
   },
   {
    "time": "2015-06-01",
-   "value": 0.75
+   "value": 7.14
   },
   {
    "time": "2015-07-01",
-   "value": 4.35
+   "value": 9.77
   },
   {
    "time": "2015-08-01",
-   "value": 3.41
+   "value": 6.52
   },
   {
    "time": "2015-09-01",
-   "value": -0.68
+   "value": 7.72
   },
   {
    "time": "2015-10-01",
-   "value": -4.6
+   "value": 1.6
   },
   {
    "time": "2015-11-01",
-   "value": -7.2
+   "value": 5.19
   },
   {
    "time": "2015-12-01",
-   "value": -8.6
+   "value": 4.13
   },
   {
    "time": "2016-01-01",
-   "value": -7.17
+   "value": 3.16
   },
   {
    "time": "2016-02-01",
-   "value": -8.86
+   "value": 3.91
   },
   {
    "time": "2016-03-01",
-   "value": -9.68
+   "value": 2.63
   },
   {
    "time": "2016-04-01",
-   "value": -9.3
+   "value": 5.76
   },
   {
    "time": "2016-05-01",
-   "value": -1.45
+   "value": 4.62
   },
   {
    "time": "2016-06-01",
-   "value": 1.43
+   "value": 8.53
   },
   {
    "time": "2016-07-01",
-   "value": 4.53
+   "value": 4.35
   },
   {
    "time": "2016-08-01",
-   "value": 2.62
+   "value": 4.41
   },
   {
    "time": "2016-09-01",
-   "value": 1.08
+   "value": 10.58
   },
   {
    "time": "2016-10-01",
-   "value": -0.09
+   "value": 3.23
   },
   {
    "time": "2016-11-01",
-   "value": -4.28
+   "value": 3.22
   },
   {
    "time": "2016-12-01",
-   "value": -8.54
+   "value": 4.32
   },
   {
    "time": "2017-01-01",
-   "value": -12.9
+   "value": 3.15
   },
   {
    "time": "2017-02-01",
-   "value": -9.8
+   "value": 3.41
   },
   {
    "time": "2017-03-01",
-   "value": -14.17
+   "value": 2.31
   },
   {
    "time": "2017-04-01",
-   "value": -10.9
-  },
-  {
-   "time": "2017-05-01",
-   "value": -6.53
-  },
-  {
-   "time": "2017-06-01",
-   "value": 1.16
-  },
-  {
-   "time": "2017-07-01",
-   "value": 3.8
-  },
-  {
-   "time": "2017-08-01",
-   "value": 3.01
-  },
-  {
-   "time": "2017-09-01",
-   "value": 2.08
-  },
-  {
-   "time": "2017-10-01",
-   "value": -2.44
-  },
-  {
-   "time": "2017-11-01",
-   "value": -6.85
-  },
-  {
-   "time": "2017-12-01",
-   "value": -8.52
-  },
-  {
-   "time": "2018-01-01",
-   "value": -9.71
-  },
-  {
-   "time": "2018-02-01",
-   "value": -9.1
-  },
-  {
-   "time": "2018-03-01",
-   "value": -15.79
-  },
-  {
-   "time": "2018-04-01",
-   "value": -11.09
-  },
-  {
-   "time": "2018-05-01",
-   "value": -1.5
-  },
-  {
-   "time": "2018-06-01",
-   "value": 0.13
-  },
-  {
-   "time": "2018-07-01",
    "value": 3.9
   },
   {
+   "time": "2017-05-01",
+   "value": 2.5
+  },
+  {
+   "time": "2017-06-01",
+   "value": 4.96
+  },
+  {
+   "time": "2017-07-01",
+   "value": 5.13
+  },
+  {
+   "time": "2017-08-01",
+   "value": 5.97
+  },
+  {
+   "time": "2017-09-01",
+   "value": 5.02
+  },
+  {
+   "time": "2017-10-01",
+   "value": 14.58
+  },
+  {
+   "time": "2017-11-01",
+   "value": 2.65
+  },
+  {
+   "time": "2017-12-01",
+   "value": 2.65
+  },
+  {
+   "time": "2018-01-01",
+   "value": 3.01
+  },
+  {
+   "time": "2018-02-01",
+   "value": 1.87
+  },
+  {
+   "time": "2018-03-01",
+   "value": 5.43
+  },
+  {
+   "time": "2018-04-01",
+   "value": 5.17
+  },
+  {
+   "time": "2018-05-01",
+   "value": 6
+  },
+  {
+   "time": "2018-06-01",
+   "value": 6.6
+  },
+  {
+   "time": "2018-07-01",
+   "value": 10.62
+  },
+  {
    "time": "2018-08-01",
-   "value": 3.58
+   "value": 3.62
   },
   {
    "time": "2018-09-01",
-   "value": -1
+   "value": 14.64
   },
   {
    "time": "2018-10-01",
-   "value": -4.61
+   "value": 2.02
   },
   {
    "time": "2018-11-01",
-   "value": -6.86
+   "value": 1.61
   },
   {
    "time": "2018-12-01",
-   "value": -9.06
+   "value": 3.62
   },
   {
    "time": "2019-01-01",
-   "value": -12.82
+   "value": 1.72
   },
   {
    "time": "2019-02-01",
-   "value": -14.26
+   "value": 2.22
   },
   {
    "time": "2019-03-01",
-   "value": -15.95
+   "value": 3.07
   },
   {
    "time": "2019-04-01",
-   "value": -6.99
+   "value": 4.02
   },
   {
    "time": "2019-05-01",
-   "value": -4.43
+   "value": 3.29
   },
   {
    "time": "2019-06-01",
-   "value": 1.75
+   "value": 6.11
   },
   {
    "time": "2019-07-01",
-   "value": 4.43
+   "value": 8.52
   },
   {
    "time": "2019-08-01",
-   "value": 2.77
+   "value": 7.56
   },
   {
    "time": "2019-09-01",
-   "value": -0.89
-  },
-  {
-   "time": "2019-10-01",
-   "value": -7.85
-  },
-  {
-   "time": "2019-11-01",
-   "value": -10.82
-  },
-  {
-   "time": "2019-12-01",
-   "value": -15.15
-  },
-  {
-   "time": "2020-01-01",
-   "value": -18.08
-  },
-  {
-   "time": "2020-02-01",
-   "value": -18.01
-  },
-  {
-   "time": "2020-03-01",
-   "value": -17.82
-  },
-  {
-   "time": "2020-04-01",
-   "value": -11.76
-  },
-  {
-   "time": "2020-05-01",
-   "value": -3.76
-  },
-  {
-   "time": "2020-06-01",
-   "value": 1.33
-  },
-  {
-   "time": "2020-07-01",
-   "value": 4.14
-  },
-  {
-   "time": "2020-08-01",
-   "value": 3.42
-  },
-  {
-   "time": "2020-09-01",
-   "value": 0.02
-  },
-  {
-   "time": "2020-10-01",
-   "value": -5.41
-  },
-  {
-   "time": "2020-11-01",
-   "value": -6.82
-  },
-  {
-   "time": "2020-12-01",
-   "value": -10.03
-  },
-  {
-   "time": "2021-01-01",
-   "value": -11.09
-  },
-  {
-   "time": "2021-02-01",
-   "value": -10.72
-  },
-  {
-   "time": "2021-03-01",
-   "value": -12.52
-  },
-  {
-   "time": "2021-04-01",
-   "value": -9.24
-  },
-  {
-   "time": "2021-05-01",
-   "value": -5.76
-  },
-  {
-   "time": "2021-06-01",
-   "value": 0.09
-  },
-  {
-   "time": "2021-07-01",
-   "value": 3.54
-  },
-  {
-   "time": "2021-08-01",
-   "value": 2.93
-  },
-  {
-   "time": "2021-09-01",
-   "value": 0.47
-  },
-  {
-   "time": "2021-10-01",
-   "value": -6.47
-  },
-  {
-   "time": "2021-11-01",
-   "value": -12.83
-  },
-  {
-   "time": "2021-12-01",
-   "value": -10.7
-  },
-  {
-   "time": "2022-01-01",
-   "value": -13.29
-  },
-  {
-   "time": "2022-02-01",
-   "value": -15.78
-  },
-  {
-   "time": "2022-03-01",
-   "value": -10.54
-  },
-  {
-   "time": "2022-04-01",
-   "value": -12.18
-  },
-  {
-   "time": "2022-05-01",
-   "value": -4.51
-  },
-  {
-   "time": "2022-06-01",
    "value": 2.16
   },
   {
-   "time": "2022-07-01",
-   "value": 5.09
+   "time": "2019-10-01",
+   "value": 8.69
   },
   {
-   "time": "2022-08-01",
+   "time": "2019-11-01",
+   "value": 1.15
+  },
+  {
+   "time": "2019-12-01",
+   "value": 2.82
+  },
+  {
+   "time": "2020-01-01",
+   "value": 3.18
+  },
+  {
+   "time": "2020-02-01",
+   "value": 2.82
+  },
+  {
+   "time": "2020-03-01",
+   "value": 3.4
+  },
+  {
+   "time": "2020-04-01",
+   "value": 5.23
+  },
+  {
+   "time": "2020-05-01",
+   "value": 4.09
+  },
+  {
+   "time": "2020-06-01",
+   "value": 7.99
+  },
+  {
+   "time": "2020-07-01",
+   "value": 14.32
+  },
+  {
+   "time": "2020-08-01",
+   "value": 1.71
+  },
+  {
+   "time": "2020-09-01",
+   "value": 6.66
+  },
+  {
+   "time": "2020-10-01",
+   "value": 7
+  },
+  {
+   "time": "2020-11-01",
+   "value": 1.9
+  },
+  {
+   "time": "2020-12-01",
+   "value": 2.75
+  },
+  {
+   "time": "2021-01-01",
    "value": 3.85
   },
   {
+   "time": "2021-02-01",
+   "value": 2.87
+  },
+  {
+   "time": "2021-03-01",
+   "value": 5.07
+  },
+  {
+   "time": "2021-04-01",
+   "value": 5.5
+  },
+  {
+   "time": "2021-05-01",
+   "value": 7.47
+  },
+  {
+   "time": "2021-06-01",
+   "value": 4.56
+  },
+  {
+   "time": "2021-07-01",
+   "value": 8.58
+  },
+  {
+   "time": "2021-08-01",
+   "value": 11.6
+  },
+  {
+   "time": "2021-09-01",
+   "value": 6.69
+  },
+  {
+   "time": "2021-10-01",
+   "value": 2.04
+  },
+  {
+   "time": "2021-11-01",
+   "value": 3.09
+  },
+  {
+   "time": "2021-12-01",
+   "value": 4.99
+  },
+  {
+   "time": "2022-01-01",
+   "value": 1.89
+  },
+  {
+   "time": "2022-02-01",
+   "value": 2.13
+  },
+  {
+   "time": "2022-03-01",
+   "value": 3.18
+  },
+  {
+   "time": "2022-04-01",
+   "value": 4.03
+  },
+  {
+   "time": "2022-05-01",
+   "value": 3.5
+  },
+  {
+   "time": "2022-06-01",
+   "value": 3.86
+  },
+  {
+   "time": "2022-07-01",
+   "value": 7.86
+  },
+  {
+   "time": "2022-08-01",
+   "value": 6.74
+  },
+  {
    "time": "2022-09-01",
-   "value": 0.57
+   "value": 7.27
   },
   {
    "time": "2022-10-01",
-   "value": -4.8
+   "value": 3.37
   },
   {
    "time": "2022-11-01",
-   "value": -4.25
+   "value": 3.33
   },
   {
    "time": "2022-12-01",
-   "value": -11.18
+   "value": 1.94
   },
   {
    "time": "2023-01-01",
-   "value": -7.21
+   "value": 2.67
   },
   {
    "time": "2023-02-01",
-   "value": -9.04
+   "value": 1.83
   },
   {
    "time": "2023-03-01",
-   "value": -15.95
+   "value": 3.01
   },
   {
    "time": "2023-04-01",
-   "value": -7.55
+   "value": 6.7
   },
   {
    "time": "2023-05-01",
-   "value": -3.83
+   "value": 10.34
   },
   {
    "time": "2023-06-01",
-   "value": 1.41
+   "value": 14.64
   },
   {
    "time": "2023-07-01",
-   "value": 5.65
+   "value": 4.69
   },
   {
    "time": "2023-08-01",
-   "value": 4.72
+   "value": 8.09
   },
   {
    "time": "2023-09-01",
-   "value": -1.5
+   "value": 3.75
   },
   {
    "time": "2023-10-01",
-   "value": -6.68
+   "value": 2.97
   },
   {
    "time": "2023-11-01",
-   "value": -9.9
+   "value": 3.6
   },
   {
    "time": "2023-12-01",
-   "value": -9.41
+   "value": 1.81
   },
   {
    "time": "2024-01-01",
-   "value": -15.2
+   "value": 2.71
   },
   {
    "time": "2024-02-01",
-   "value": -11.03
+   "value": 4.14
   },
   {
    "time": "2024-03-01",
-   "value": -16.22
+   "value": 6.31
   },
   {
    "time": "2024-04-01",
-   "value": -11.63
+   "value": 5.59
   },
   {
    "time": "2024-05-01",
-   "value": -4.09
+   "value": 6.82
   },
   {
    "time": "2024-06-01",
-   "value": 1.38
+   "value": 9.3
   },
   {
    "time": "2024-07-01",
-   "value": 4.92
+   "value": 7.62
   },
   {
    "time": "2024-08-01",
-   "value": 5.65
+   "value": 8.61
   },
   {
    "time": "2024-09-01",
-   "value": 0.54
+   "value": 3.74
   },
   {
    "time": "2024-10-01",
-   "value": -3.21
+   "value": 7.67
   },
   {
    "time": "2024-11-01",
-   "value": -8.04
+   "value": 5.4
   },
   {
    "time": "2024-12-01",
-   "value": -11.33
+   "value": 2.02
   }
  ],
  "source": {
   "kind": "nasa",
   "name": "NASA POWER (LaRC)",
-  "product": "POWER Monthly and Annual API v2.10.0 · SYN1DEG, MERRA2",
-  "url": "https://power.larc.nasa.gov/api/temporal/monthly/point?parameters=T2M%2CPRECTOTCORR%2CALLSKY_SFC_SW_DWN&community=AG&latitude=78.2232&longitude=15.6267&start=2015&end=2024&format=JSON",
+  "product": "POWER Monthly and Annual API v2.10.0 · MERRA2, SYN1DEG",
+  "url": "https://power.larc.nasa.gov/api/temporal/monthly/point?parameters=T2M%2CPRECTOTCORR%2CALLSKY_SFC_SW_DWN&community=AG&latitude=35.0116&longitude=135.7681&start=2015&end=2024&format=JSON",
   "citation": "The data was obtained from the National Aeronautics and Space Administration (NASA) Langley Research Center (LaRC) Prediction of Worldwide Energy Resources (POWER) Project funded through the NASA Earth Science Division. POWER Monthly and Annual API v2.10.0, accessed 2026-11-12.",
-  "retrievedAt": "2026-11-12T17:49:28.414Z"
+  "retrievedAt": "2026-11-12T21:04:00.737Z"
  }
 }

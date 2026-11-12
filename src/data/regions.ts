@@ -1,5 +1,6 @@
 import config from "../../scripts/regions.json";
 import type { ExperienceId, PeriodDef, RegionDef } from "./types";
+import type { EicRef } from "./eic";
 
 /** Same config file the pre-fetch script reads, so app and bundled data never drift apart. */
 export const REGIONS: RegionDef[] = config.regions as RegionDef[];
@@ -10,13 +11,18 @@ export interface ExperienceDef {
   tagline: string;
   regions: string[];
   periods: PeriodDef[];
-  eic: { svsId: number; itemTitle?: string };
+  /** Child-friendly one-liner. */
+  kid: string;
+  /** Short name for the big environment buttons. */
+  short: string;
+  icon: string;
+  eic: EicRef[];
 }
 
-const META: Record<ExperienceId, { title: string; tagline: string }> = {
-  ocean: { title: "Ocean Symphony", tagline: "Sea surface temperature and its anomaly" },
-  forest: { title: "Forest Voices", tagline: "Vegetation greenness (NDVI) and EVI" },
-  pulse: { title: "Earth's Pulse", tagline: "Air temperature, rainfall and sunlight" },
+const META: Record<ExperienceId, { title: string; tagline: string; kid: string; short: string; icon: string }> = {
+  ocean: { title: "Ocean Symphony", short: "Ocean", icon: "🌊", tagline: "Sea surface temperature and its anomaly", kid: "Hear how warm the sea is." },
+  forest: { title: "Forest Voices", short: "Forest", icon: "🌳", tagline: "Vegetation greenness (NDVI) and EVI", kid: "Hear how green the forest is." },
+  pulse: { title: "Earth's Pulse", short: "Pulse", icon: "💓", tagline: "Air temperature, rainfall and sunlight", kid: "Hear the weather: heat, rain and sun." },
 };
 
 export const EXPERIENCES: ExperienceDef[] = (["ocean", "forest", "pulse"] as ExperienceId[]).map((id) => {
@@ -26,7 +32,7 @@ export const EXPERIENCES: ExperienceDef[] = (["ocean", "forest", "pulse"] as Exp
     ...META[id],
     regions: e.regions,
     periods: e.periods,
-    eic: (config.eic as Record<string, { svsId: number; itemTitle?: string }>)[id],
+    eic: (config.eic as unknown as Record<string, EicRef[]>)[id] ?? [],
   };
 });
 

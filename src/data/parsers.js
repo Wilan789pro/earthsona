@@ -359,14 +359,33 @@ export const ERDDAP_DEFAULT = {
   anomaly: { datasetId: "jplMURSST41anom1day", variable: "sstAnom" },
 };
 
+/** https://coralreefwatch.noaa.gov/product/5km/index.php */
+export const CRW_REFERENCE =
+  "NOAA Coral Reef Watch. 2018, updated daily. NOAA Coral Reef Watch Version 3.1 Daily Global 5km Satellite " +
+  "Sea Surface Temperature (CoralTemp) and SST Anomaly products. College Park, Maryland, USA: NOAA Coral Reef Watch. https://coralreefwatch.noaa.gov/";
+
+/**
+ * Fallback used ONLY when the MUR server cannot be reached: NOAA Coral Reef Watch CoralTemp v3.1, a global
+ * 5 km gap-free (Level 4) satellite SST analysis, and CRW's own daily SST anomaly. Served by NOAA OceanWatch
+ * Central Pacific ERDDAP, whose grid uses 0–360° longitudes. Labelled as NOAA (not MUR) everywhere.
+ */
+export const ERDDAP_FALLBACK = {
+  base: "https://oceanwatch.pifsc.noaa.gov/erddap",
+  lon360: true,
+  sst: { datasetId: "CRW_sst_v3_1", variable: "analysed_sst" },
+  anomaly: { datasetId: "CRW_sst_anom_v1_0", variable: "sea_surface_temperature_anomaly" },
+};
+
 /**
  * griddap point time series. Works for 3-D [time][lat][lon] and 4-D [time][level][lat][lon] grids
  * (pass `extraDims` like ["(0.0)"] for the level). `stride` 7 on a daily grid = weekly samples.
- * @param {{base:string, datasetId:string, variable:string, start:string, end:string, stride?:number, lat:number, lon:number, extraDims?:string[]}} p
+ * `lon360` converts a -180..180 longitude for servers whose grid runs 0..360.
+ * @param {{base:string, datasetId:string, variable:string, start:string, end:string, stride?:number, lat:number, lon:number, extraDims?:string[], lon360?:boolean}} p
  */
 export function buildErddapUrl(p) {
   const t = (/** @type {string} */ d) => (d.length === 10 ? `${d}T09:00:00Z` : d);
-  const dims = [`(${t(p.start)}):${p.stride ?? 1}:(${t(p.end)})`, ...(p.extraDims ?? []), `(${p.lat})`, `(${p.lon})`];
+  const lon = p.lon360 && p.lon < 0 ? round(p.lon + 360, 4) : p.lon;
+  const dims = [`(${t(p.start)}):${p.stride ?? 1}:(${t(p.end)})`, ...(p.extraDims ?? []), `(${p.lat})`, `(${lon})`];
   const q = `${p.variable}${dims.map((d) => `[${d}]`).join("")}`;
   return `${p.base.replace(/\/$/, "")}/griddap/${p.datasetId}.json?${encodeURIComponent(q).replace(/%3A/g, ":").replace(/%2C/g, ",")}`;
 }
@@ -398,13 +417,38 @@ export function parseErddapTable(json, variable) {
 
 /**
  * @param {any} json
- * @param {{experience: import("./types").ExperienceId, variable:"SST"|"SSTA", erddapVariable:string, datasetId:string, region:{id:string,name:string,lat:number,lon:number}, periodKey:string, url:string, retrievedAt?:string, baselineNote?:string}} ctx
+ * `provider: "crw"` = the NOAA Coral Reef Watch fallback (see ERDDAP_FALLBACK); default is MUR.
+ * @param {{experience: import("./types").ExperienceId, variable:"SST"|"SSTA", erddapVariable:string, datasetId:string, region:{id:string,name:string,lat:number,lon:number}, periodKey:string, url:string, retrievedAt?:string, baselineNote?:string, provider?:"mur"|"crw", fallbackReason?:string}} ctx
  * @returns {EarthSeries}
  */
 export function buildErddapSstSeries(json, ctx) {
   const { points, unit } = parseErddapTable(json, ctx.erddapVariable);
   const retrievedAt = ctx.retrievedAt ?? new Date().toISOString();
   const anomaly = ctx.variable === "SSTA";
+  if (ctx.provider === "crw") {
+    return {
+      id: makeSeriesId("crw", ctx.variable, ctx.region.id, ctx.periodKey),
+      experience: ctx.experience,
+      variable: ctx.variable,
+      label: anomaly ? "Sea surface temperature anomaly" : "Sea surface temperature",
+      unit: unit || "°C",
+      dataset: anomaly
+        ? "NOAA Coral Reef Watch CoralTemp SST Anomaly (daily, 5 km)"
+        : "NOAA Coral Reef Watch CoralTemp SST v3.1 (Level 4 analysis, daily, 5 km)",
+      region: { name: ctx.region.name, lat: ctx.region.lat, lon: ctx.region.lon },
+      points,
+      source: {
+        kind: "noaa",
+        name: "NOAA Coral Reef Watch (CoralTemp) via ERDDAP",
+        product:
+          `${ctx.datasetId} (${ctx.erddapVariable})${anomaly && ctx.baselineNote ? ` · ${ctx.baselineNote}` : ""}` +
+          ` · Used instead of NASA/JPL MUR because ${ctx.fallbackReason ?? "the MUR server could not be reached"} when the data was fetched.`,
+        url: ctx.url,
+        citation: `${CRW_REFERENCE} Served by NOAA OceanWatch ERDDAP (${ctx.datasetId}). Accessed ${retrievedAt.slice(0, 10)}.`,
+        retrievedAt,
+      },
+    };
+  }
   return {
     id: makeSeriesId("mur", ctx.variable, ctx.region.id, ctx.periodKey),
     experience: ctx.experience,
@@ -423,6 +467,67 @@ export function buildErddapSstSeries(json, ctx) {
       retrievedAt,
     },
   };
+}
+
+// ---------------------------------------------------------------------------
+// What KIND of data each value is: satellite-derived product, analysis or model estimate.
+// Shown wherever a value is explained, so a model output is never presented as a direct satellite reading.
+// ---------------------------------------------------------------------------
+
+/** @typedef {{kind:"satellite-derived"|"analysis"|"model"|"simulated", label:string, kid:string, detail:string}} DataType */
+
+/**
+ * @param {string} variable
+ * @param {string} [sourceName]
+ * @returns {DataType}
+ */
+export function dataTypeFor(variable, sourceName = "") {
+  if (/simulat/i.test(sourceName)) {
+    return { kind: "simulated", label: "Simulated (not real data)", kid: "Made-up practice numbers, not a real measurement.", detail: SIMULATED_LABEL };
+  }
+  switch (variable) {
+    case "T2M":
+      return {
+        kind: "model",
+        label: "Model-based estimate (MERRA-2 reanalysis)",
+        kid: "Worked out by a NASA computer model that combines many satellite and weather-station measurements.",
+        detail: "POWER air temperature comes from NASA's MERRA-2 reanalysis, a weather model kept close to observations. It is an estimate for a grid cell about 50 km across, not a thermometer reading.",
+      };
+    case "PRECTOTCORR":
+      return {
+        kind: "model",
+        label: "Model-based estimate, bias-corrected (MERRA-2)",
+        kid: "Worked out by a NASA computer model, then corrected using rain measurements.",
+        detail: "POWER corrected precipitation is MERRA-2 model precipitation adjusted towards observation-based precipitation. It is an estimate for a grid cell, not a rain-gauge reading.",
+      };
+    case "ALLSKY_SFC_SW_DWN":
+      return {
+        kind: "satellite-derived",
+        label: "Satellite-derived estimate (NASA CERES)",
+        kid: "Worked out from satellites that measure sunlight and clouds.",
+        detail: "POWER surface solar radiation is derived from NASA CERES satellite measurements of radiation and clouds, with model inputs. It is an estimate for a grid cell.",
+      };
+    case "NDVI":
+    case "EVI":
+      return {
+        kind: "satellite-derived",
+        label: "Satellite-derived index (MODIS, 16-day composite)",
+        kid: "Measured from space: a satellite camera compares the red and infrared light that plants reflect.",
+        detail: "MOD13Q1 vegetation indices are calculated from Terra MODIS surface reflectance, keeping the best view in each 16-day window. They measure greenness, not the number of trees.",
+      };
+    case "SST":
+    case "SSTA":
+      return {
+        kind: "analysis",
+        label: "Analysis (Level 4: gap-free blend of satellite and in-situ measurements)",
+        kid: "Measured from space by several satellites, joined together with ship and buoy readings to fill the gaps.",
+        detail: /Coral Reef Watch/i.test(sourceName)
+          ? "CoralTemp is a Level 4 analysis: it blends several satellite SST products into a gap-free daily map at 5 km. The anomaly compares each day with Coral Reef Watch's own climatology."
+          : "MUR is a Level 4 analysis: it blends several satellite instruments and in-situ data into a gap-free daily map at about 1 km. Values between satellite passes are filled in by the analysis.",
+      };
+    default:
+      return { kind: "analysis", label: "See dataset documentation", kid: "Measured or estimated by scientists.", detail: "See the dataset documentation." };
+  }
 }
 
 // ---------------------------------------------------------------------------

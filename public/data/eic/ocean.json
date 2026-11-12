@@ -1,12 +1,39 @@
 {
- "svsId": 40509,
- "title": "Earth Now Dashboard: Sea Surface Temperature",
- "description": "The second cycle of the Earth Now dashboad shows a set of recent observations covering the globe, provided by NASA's Worldview.",
- "imageUrl": "https://svs.gsfc.nasa.gov/images/gallery/EarthNowDashboard/WorldView_SST.png",
- "altText": "Sea Surface Temperature — Worldview Satellite Observations - Second Cycle, from NASA's Earth Now Dashboard.",
- "pageUrl": "https://svs.gsfc.nasa.gov/gallery/earth-now-dashboard/",
- "released": "2023-10-16T00:00:00-04:00",
- "updated": "2023-10-25T00:00:00-04:00",
- "credit": "Visualizations courtesy of NASA's Scientific Visualization Studio (SVS) and the NASA Earth Information Center.",
- "retrievedAt": "2026-11-12T18:16:25.304Z"
+ "experience": "ocean",
+ "frames": [
+  {
+   "svsId": 5101,
+   "title": "Sea Surface Temperature (SST) - Near Real Time",
+   "description": "An equirectangular view of sea surface temperature (SST) data for the past two and half years, updated daily to include the latest available data. || sst_mur_print.jpg (1024x512) [142.4 KB] || sst_mur_searchweb.png (320x180) [78.8 KB] || sst_mur_thm.png (80x40) [6.5 KB] || sst_mur (4096x2048) [0 Item(s)] || sst_30_sec_4096x2048_2x1_30p.mp4 (4096x2048) [78.0 MB] || slide-01.hwshow [504 bytes] ||",
+   "imageUrl": "https://svs.gsfc.nasa.gov/vis/a000000/a005100/a005101/sst_mur_searchweb.png",
+   "altText": "An equirectangular view of sea surface temperature (SST) data for the past two and half years, updated daily to include the latest available data.",
+   "pageUrl": "https://svs.gsfc.nasa.gov/5101/",
+   "released": "2023-05-08T00:00:00-04:00",
+   "updated": "2026-10-26T14:29:47.801071-04:00",
+   "credit": "Visualizations courtesy of NASA's Scientific Visualization Studio (SVS) and the NASA Earth Information Center.",
+   "key": "ocean-sst",
+   "gallery": "EIC Daily Visualizations",
+   "dataset": "NASA/JPL MUR SST (GHRSST Level 4)",
+   "relation": "Same topic and the same NASA dataset family as the sound (MUR sea surface temperature). The EIC map shows the whole planet for recent days; the sound plays one point over 2020–2024.",
+   "localImage": "ocean-sst.png",
+   "retrievedAt": "2026-11-12T21:03:22.321Z"
+  },
+  {
+   "svsId": 5176,
+   "title": "Sea Surface Temperature (SST) Anomaly - Near Real Time",
+   "description": "An equirectangular view of sea surface temperature (SST) anomaly data for the past two and half years, updated daily to include the latest available data. || sst_mur_anomaly_print.jpg (1024x512) [246.1 KB] || sst_mur_anomaly_searchweb.png (320x180) [101.7 KB] || sst_mur_anomaly_20231014_thm.png (80x40) [7.4 KB] || sst_mur_anomaly (4096x2048) [0 Item(s)] || sst_anomaly_30_sec_4096x2048_2x1_30p.mp4 (4096x2048) [338.0 MB] ||",
+   "imageUrl": "https://svs.gsfc.nasa.gov/vis/a000000/a005100/a005176/sst_mur_anomaly_searchweb.png",
+   "altText": "An equirectangular view of sea surface temperature (SST) anomaly data for the past two and half years, updated daily to include the latest available data.",
+   "pageUrl": "https://svs.gsfc.nasa.gov/5176/",
+   "released": "2023-10-16T00:00:00-04:00",
+   "updated": "2026-10-24T19:30:16.572743-04:00",
+   "credit": "Visualizations courtesy of NASA's Scientific Visualization Studio (SVS) and the NASA Earth Information Center.",
+   "key": "ocean-ssta",
+   "gallery": "EIC Daily Visualizations",
+   "dataset": "NASA/JPL MUR SST anomaly",
+   "relation": "Shows where the ocean is warmer or cooler than usual, the same idea as the harmony layer. It covers recent days worldwide, not the years in the sound.",
+   "localImage": "ocean-ssta.png",
+   "retrievedAt": "2026-11-12T21:03:30.308Z"
+  }
+ ]
 }

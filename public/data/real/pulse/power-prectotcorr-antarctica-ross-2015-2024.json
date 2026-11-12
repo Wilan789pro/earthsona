@@ -1,503 +1,503 @@
 {
- "id": "power-t2m-sahara-2015-2024",
+ "id": "power-prectotcorr-antarctica-ross-2015-2024",
  "experience": "pulse",
- "variable": "T2M",
- "label": "Air temperature at 2 m",
- "unit": "°C",
+ "variable": "PRECTOTCORR",
+ "label": "Precipitation (bias-corrected)",
+ "unit": "mm/day",
  "dataset": "NASA POWER POWER Monthly and Annual API",
  "region": {
-  "name": "Sahara Desert",
-  "lat": 23.806,
-  "lon": 11.2884
+  "name": "Ross Island, Antarctica",
+  "lat": -77.85,
+  "lon": 166.67
  },
  "points": [
   {
    "time": "2015-01-01",
-   "value": 8.27
+   "value": 0.35
   },
   {
    "time": "2015-02-01",
-   "value": 13.81
+   "value": 0.63
   },
   {
    "time": "2015-03-01",
-   "value": 15.92
+   "value": 0.08
   },
   {
    "time": "2015-04-01",
-   "value": 21.38
+   "value": 0.17
   },
   {
    "time": "2015-05-01",
-   "value": 27.9
+   "value": 0.11
   },
   {
    "time": "2015-06-01",
-   "value": 30.9
+   "value": 0.15
   },
   {
    "time": "2015-07-01",
-   "value": 31.14
+   "value": 0.17
   },
   {
    "time": "2015-08-01",
-   "value": 32.06
+   "value": 0.4
   },
   {
    "time": "2015-09-01",
-   "value": 29.94
+   "value": 0.14
   },
   {
    "time": "2015-10-01",
-   "value": 25.49
+   "value": 0.18
   },
   {
    "time": "2015-11-01",
-   "value": 15.93
+   "value": 0.12
   },
   {
    "time": "2015-12-01",
-   "value": 8.38
+   "value": 0.11
   },
   {
    "time": "2016-01-01",
-   "value": 10.54
+   "value": 0.62
   },
   {
    "time": "2016-02-01",
-   "value": 14.25
+   "value": 0.05
   },
   {
    "time": "2016-03-01",
-   "value": 17.72
+   "value": 0.3
   },
   {
    "time": "2016-04-01",
-   "value": 27.74
+   "value": 0.31
   },
   {
    "time": "2016-05-01",
-   "value": 30.61
+   "value": 0.17
   },
   {
    "time": "2016-06-01",
-   "value": 32.42
+   "value": 0.27
   },
   {
    "time": "2016-07-01",
-   "value": 30.74
+   "value": 0.14
   },
   {
    "time": "2016-08-01",
-   "value": 30.24
+   "value": 0.2
   },
   {
    "time": "2016-09-01",
-   "value": 28.04
+   "value": 0.09
   },
   {
    "time": "2016-10-01",
-   "value": 22.81
+   "value": 0.15
   },
   {
    "time": "2016-11-01",
-   "value": 18.09
+   "value": 0.11
   },
   {
    "time": "2016-12-01",
-   "value": 12.85
+   "value": 0.23
   },
   {
    "time": "2017-01-01",
-   "value": 8.54
+   "value": 0.7
   },
   {
    "time": "2017-02-01",
-   "value": 13.38
+   "value": 0.14
   },
   {
    "time": "2017-03-01",
-   "value": 17.8
+   "value": 0.36
   },
   {
    "time": "2017-04-01",
-   "value": 23.18
+   "value": 0.33
   },
   {
    "time": "2017-05-01",
-   "value": 28.9
+   "value": 0.4
   },
   {
    "time": "2017-06-01",
-   "value": 30.54
+   "value": 0.24
   },
   {
    "time": "2017-07-01",
-   "value": 30.53
+   "value": 0.15
   },
   {
    "time": "2017-08-01",
-   "value": 30.15
+   "value": 0.68
   },
   {
    "time": "2017-09-01",
-   "value": 28.11
+   "value": 0.09
   },
   {
    "time": "2017-10-01",
-   "value": 22.42
+   "value": 0.57
   },
   {
    "time": "2017-11-01",
-   "value": 15.95
+   "value": 0.18
   },
   {
    "time": "2017-12-01",
-   "value": 11.35
+   "value": 0.34
   },
   {
    "time": "2018-01-01",
-   "value": 10.06
+   "value": 0.42
   },
   {
    "time": "2018-02-01",
-   "value": 14.71
+   "value": 0.53
   },
   {
    "time": "2018-03-01",
-   "value": 20.47
+   "value": 0.32
   },
   {
    "time": "2018-04-01",
-   "value": 25.89
+   "value": 0.26
   },
   {
    "time": "2018-05-01",
-   "value": 29.69
+   "value": 0.19
   },
   {
    "time": "2018-06-01",
-   "value": 32.82
+   "value": 0.26
   },
   {
    "time": "2018-07-01",
-   "value": 30.79
+   "value": 0.23
   },
   {
    "time": "2018-08-01",
-   "value": 32.21
+   "value": 0.13
   },
   {
    "time": "2018-09-01",
-   "value": 27.81
+   "value": 0.42
   },
   {
    "time": "2018-10-01",
-   "value": 26.09
+   "value": 0.47
   },
   {
    "time": "2018-11-01",
-   "value": 19.05
+   "value": 0.08
   },
   {
    "time": "2018-12-01",
-   "value": 9.97
+   "value": 0.16
   },
   {
    "time": "2019-01-01",
-   "value": 8.89
+   "value": 0.28
   },
   {
    "time": "2019-02-01",
-   "value": 9.96
+   "value": 0.82
   },
   {
    "time": "2019-03-01",
-   "value": 17.17
+   "value": 0.33
   },
   {
    "time": "2019-04-01",
-   "value": 23.68
+   "value": 0.21
   },
   {
    "time": "2019-05-01",
-   "value": 29.18
+   "value": 0.33
   },
   {
    "time": "2019-06-01",
-   "value": 30.73
+   "value": 0.37
   },
   {
    "time": "2019-07-01",
-   "value": 30.87
+   "value": 0.12
   },
   {
    "time": "2019-08-01",
-   "value": 30.5
+   "value": 0.57
   },
   {
    "time": "2019-09-01",
-   "value": 28.66
+   "value": 0.23
   },
   {
    "time": "2019-10-01",
-   "value": 24.69
+   "value": 0.18
   },
   {
    "time": "2019-11-01",
-   "value": 19.87
+   "value": 0.12
   },
   {
    "time": "2019-12-01",
-   "value": 13.02
+   "value": 0.38
   },
   {
    "time": "2020-01-01",
-   "value": 9.9
+   "value": 0.35
   },
   {
    "time": "2020-02-01",
-   "value": 12.61
+   "value": 0.91
   },
   {
    "time": "2020-03-01",
-   "value": 19.31
+   "value": 0.73
   },
   {
    "time": "2020-04-01",
-   "value": 25.52
+   "value": 0.11
   },
   {
    "time": "2020-05-01",
-   "value": 27.04
+   "value": 0.18
   },
   {
    "time": "2020-06-01",
-   "value": 30.37
+   "value": 0.2
   },
   {
    "time": "2020-07-01",
-   "value": 29.89
+   "value": 0.31
   },
   {
    "time": "2020-08-01",
-   "value": 30.66
+   "value": 0.68
   },
   {
    "time": "2020-09-01",
-   "value": 28.22
+   "value": 1.12
   },
   {
    "time": "2020-10-01",
-   "value": 24.38
+   "value": 0.17
   },
   {
    "time": "2020-11-01",
-   "value": 14.8
+   "value": 0.03
   },
   {
    "time": "2020-12-01",
-   "value": 14.18
+   "value": 0.02
   },
   {
    "time": "2021-01-01",
-   "value": 13.82
+   "value": 0.48
   },
   {
    "time": "2021-02-01",
-   "value": 12.77
+   "value": 0.36
   },
   {
    "time": "2021-03-01",
-   "value": 18.32
+   "value": 0.62
   },
   {
    "time": "2021-04-01",
-   "value": 25.42
+   "value": 0.2
   },
   {
    "time": "2021-05-01",
-   "value": 30.23
+   "value": 0.61
   },
   {
    "time": "2021-06-01",
-   "value": 30.31
+   "value": 0.25
   },
   {
    "time": "2021-07-01",
-   "value": 31.31
+   "value": 0.3
   },
   {
    "time": "2021-08-01",
-   "value": 30.44
+   "value": 0.07
   },
   {
    "time": "2021-09-01",
-   "value": 27.36
+   "value": 0.36
   },
   {
    "time": "2021-10-01",
-   "value": 24.14
+   "value": 0.04
   },
   {
    "time": "2021-11-01",
-   "value": 21.21
+   "value": 0.1
   },
   {
    "time": "2021-12-01",
-   "value": 11.62
+   "value": 0.06
   },
   {
    "time": "2022-01-01",
-   "value": 8.16
+   "value": 0.3
   },
   {
    "time": "2022-02-01",
-   "value": 12.18
+   "value": 0.48
   },
   {
    "time": "2022-03-01",
-   "value": 17.65
+   "value": 0.32
   },
   {
    "time": "2022-04-01",
-   "value": 25.64
+   "value": 0.35
   },
   {
    "time": "2022-05-01",
-   "value": 26.77
+   "value": 0.48
   },
   {
    "time": "2022-06-01",
-   "value": 30.06
+   "value": 0.04
   },
   {
    "time": "2022-07-01",
-   "value": 30.09
+   "value": 0.25
   },
   {
    "time": "2022-08-01",
-   "value": 30.99
+   "value": 0.12
   },
   {
    "time": "2022-09-01",
-   "value": 28.87
+   "value": 0.13
   },
   {
    "time": "2022-10-01",
-   "value": 21.36
+   "value": 0.08
   },
   {
    "time": "2022-11-01",
-   "value": 15.24
+   "value": 0.17
   },
   {
    "time": "2022-12-01",
-   "value": 14.65
+   "value": 0.13
   },
   {
    "time": "2023-01-01",
-   "value": 10.54
+   "value": 0.49
   },
   {
    "time": "2023-02-01",
-   "value": 12.89
+   "value": 0.17
   },
   {
    "time": "2023-03-01",
-   "value": 19.44
+   "value": 0.13
   },
   {
    "time": "2023-04-01",
-   "value": 23.74
+   "value": 0.19
   },
   {
    "time": "2023-05-01",
-   "value": 27.31
+   "value": 0.17
   },
   {
    "time": "2023-06-01",
-   "value": 31.49
+   "value": 0.23
   },
   {
    "time": "2023-07-01",
-   "value": 31.18
+   "value": 0.1
   },
   {
    "time": "2023-08-01",
-   "value": 32.49
+   "value": 0.17
   },
   {
    "time": "2023-09-01",
-   "value": 29
+   "value": 0.31
   },
   {
    "time": "2023-10-01",
-   "value": 24.18
+   "value": 0.18
   },
   {
    "time": "2023-11-01",
-   "value": 17.92
+   "value": 0.12
   },
   {
    "time": "2023-12-01",
-   "value": 11.34
+   "value": 0.16
   },
   {
    "time": "2024-01-01",
-   "value": 11
+   "value": 1.01
   },
   {
    "time": "2024-02-01",
-   "value": 12.82
+   "value": 0.3
   },
   {
    "time": "2024-03-01",
-   "value": 18.78
+   "value": 0.22
   },
   {
    "time": "2024-04-01",
-   "value": 25.27
+   "value": 0.36
   },
   {
    "time": "2024-05-01",
-   "value": 29.69
+   "value": 0.44
   },
   {
    "time": "2024-06-01",
-   "value": 32.37
+   "value": 0.76
   },
   {
    "time": "2024-07-01",
-   "value": 32.02
+   "value": 0.04
   },
   {
    "time": "2024-08-01",
-   "value": 31.69
+   "value": 0.16
   },
   {
    "time": "2024-09-01",
-   "value": 31.4
+   "value": 0.19
   },
   {
    "time": "2024-10-01",
-   "value": 25.52
+   "value": 0.23
   },
   {
    "time": "2024-11-01",
-   "value": 16.15
+   "value": 0.12
   },
   {
    "time": "2024-12-01",
-   "value": 10.96
+   "value": 0.43
   }
  ],
  "source": {
   "kind": "nasa",
   "name": "NASA POWER (LaRC)",
   "product": "POWER Monthly and Annual API v2.10.0 · SYN1DEG, MERRA2",
-  "url": "https://power.larc.nasa.gov/api/temporal/monthly/point?parameters=T2M%2CPRECTOTCORR%2CALLSKY_SFC_SW_DWN&community=AG&latitude=23.8060&longitude=11.2884&start=2015&end=2024&format=JSON",
+  "url": "https://power.larc.nasa.gov/api/temporal/monthly/point?parameters=T2M%2CPRECTOTCORR%2CALLSKY_SFC_SW_DWN&community=AG&latitude=-77.8500&longitude=166.6700&start=2015&end=2024&format=JSON",
   "citation": "The data was obtained from the National Aeronautics and Space Administration (NASA) Langley Research Center (LaRC) Prediction of Worldwide Energy Resources (POWER) Project funded through the NASA Earth Science Division. POWER Monthly and Annual API v2.10.0, accessed 2026-11-12.",
-  "retrievedAt": "2026-11-12T17:49:23.188Z"
+  "retrievedAt": "2026-11-12T21:04:05.313Z"
  }
 }

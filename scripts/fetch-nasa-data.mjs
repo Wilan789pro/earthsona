@@ -29,6 +29,7 @@ import {
   MODIS_VI,
   MODIS_RELIABILITY_BAND,
   ERDDAP_DEFAULT,
+  ERDDAP_FALLBACK,
   buildErddapUrl,
   buildErddapSstSeries,
 } from "../src/data/parsers.js";
@@ -109,7 +110,7 @@ function validate(series, range) {
   return null;
 }
 
-const PLAUSIBLE = { T2M: [-90, 60], PRECTOTCORR: [0, 1000], ALLSKY_SFC_SW_DWN: [0, 45], NDVI: [-0.2, 1], EVI: [-0.2, 1], SST: [-3, 40], SSTA: [-15, 15] };
+const PLAUSIBLE = { T2M: [-90, 60], PRECTOTCORR: [0, 1000], ALLSKY_SFC_SW_DWN: [0, 50], NDVI: [-0.2, 1], EVI: [-0.2, 1], SST: [-3, 40], SSTA: [-15, 15] };
 
 function summarise(series) {
   const vals = series.points.map((p) => p.value).filter((v) => v !== null);
@@ -137,6 +138,9 @@ async function saveSeries(series, { experience, regionId, periodKey }) {
     return;
   }
   await writeJsonAtomic(join(OUT, file), series);
+  for (const [id, e] of manifest) {
+    if (id !== series.id && e.experience === experience && e.regionId === regionId && e.variable === series.variable && e.periodKey === periodKey) manifest.delete(id);
+  }
   manifest.set(series.id, {
     id: series.id,
     experience,
@@ -239,31 +243,55 @@ async function fetchModis(experience, exp) {
   }
 }
 
-// --- Ocean Symphony: NASA/JPL MUR SST via ERDDAP -----------------------------
-async function fetchSst(experience, exp) {
-  const base = process.env.ERDDAP_BASE || ERDDAP_DEFAULT.base;
-  let baselineNote = "";
+// --- Ocean Symphony: NASA/JPL MUR SST via ERDDAP (NOAA CoralTemp only if MUR is unreachable) ----------
+/** Read the anomaly dataset's own description of its baseline (we never compute an anomaly ourselves). */
+async function anomalyBaselineNote(base, datasetId) {
   try {
-    const info = await getJson(`${base}/info/${ERDDAP_DEFAULT.anomaly.datasetId}/index.json`);
+    await fetch(`${base}/info/index.json?page=1&itemsPerPage=1`, { headers: { "User-Agent": UA }, signal: AbortSignal.timeout(15_000) });
+  } catch (err) {
+    log.info(`${base} not reachable: ${err.message}`);
+    return null;
+  }
+  try {
+    const info = await getJson(`${base}/info/${datasetId}/index.json`);
     const rows = info?.table?.rows ?? [];
     const summary = rows.find((r) => r[1] === "NC_GLOBAL" && r[2] === "summary")?.[4] ?? "";
     const m = summary.match(/[^.]*(climatolog|baseline|reference)[^.]*\./i);
-    baselineNote = m ? `anomaly baseline (from dataset metadata): ${m[0].trim()}` : "anomaly baseline: see dataset metadata";
+    return m ? `anomaly baseline (from dataset metadata): ${m[0].trim()}` : "anomaly baseline: see dataset metadata";
   } catch (err) {
     log.info(`could not read anomaly metadata from ${base}: ${err.message}`);
+    return null;
+  }
+}
+
+async function fetchSst(experience, exp) {
+  // 1. Prefer NASA/JPL MUR. 2. If that server cannot be reached (and no ERDDAP_BASE override was given),
+  //    use NOAA Coral Reef Watch CoralTemp for BOTH layers, so SST and its anomaly always come from one family.
+  const murBase = process.env.ERDDAP_BASE || ERDDAP_DEFAULT.base;
+  let provider = { id: "mur", base: murBase, lon360: false, ...ERDDAP_DEFAULT };
+  let baselineNote = await anomalyBaselineNote(murBase, ERDDAP_DEFAULT.anomaly.datasetId);
+  let fallbackReason;
+  if (baselineNote === null && !process.env.ERDDAP_BASE) {
+    fallbackReason = `the MUR server (${new URL(murBase).host}) could not be reached`;
+    log.info(`${fallbackReason}; using NOAA Coral Reef Watch CoralTemp instead (labelled as NOAA, not MUR)`);
+    provider = { id: "crw", ...ERDDAP_FALLBACK };
+    baselineNote = await anomalyBaselineNote(provider.base, ERDDAP_FALLBACK.anomaly.datasetId);
   }
   for (const def of layersOf(exp, "sst")) {
-    const ds = def.variable === "SSTA" ? ERDDAP_DEFAULT.anomaly : ERDDAP_DEFAULT.sst;
+    const ds = def.variable === "SSTA" ? provider.anomaly : provider.sst;
     for (const regionId of exp.regions.filter(regionWanted)) {
       const region = regions.get(regionId);
-      const url = buildErddapUrl({ base, datasetId: ds.datasetId, variable: ds.variable, start: def.start, end: def.end, stride: def.stride ?? 7, lat: region.lat, lon: region.lon });
+      const url = buildErddapUrl({ base: provider.base, datasetId: ds.datasetId, variable: ds.variable, start: def.start, end: def.end, stride: def.stride ?? 7, lat: region.lat, lon: region.lon, lon360: provider.lon360 });
       log.info(`ERDDAP ${ds.datasetId} ${region.name} ${def.periodKey}`);
       try {
-        const s = buildErddapSstSeries(await getJson(url), { experience, variable: def.variable, erddapVariable: ds.variable, datasetId: ds.datasetId, region, periodKey: def.periodKey, url, retrievedAt: new Date().toISOString(), baselineNote });
+        const s = buildErddapSstSeries(await getJson(url), {
+          experience, variable: def.variable, erddapVariable: ds.variable, datasetId: ds.datasetId, region, periodKey: def.periodKey, url,
+          retrievedAt: new Date().toISOString(), baselineNote: baselineNote ?? undefined, provider: provider.id, fallbackReason,
+        });
         await saveSeries(s, { experience, regionId, periodKey: def.periodKey });
       } catch (err) {
         log.fail(`sst ${def.variable} ${regionId}: ${err.message}`);
-        results.failed.push(`sst-${def.variable}-${regionId}: ${err.message} (server ${base}; set ERDDAP_BASE to try another)`);
+        results.failed.push(`sst-${def.variable}-${regionId}: ${err.message} (server ${provider.base}; set ERDDAP_BASE to try another)`);
       }
     }
   }
@@ -308,41 +336,48 @@ async function fetchImagery() {
 
 // --- EIC visuals: NASA SVS --------------------------------------------------
 async function fetchEic() {
-  for (const [experience, ref] of Object.entries(config.eic)) {
-    log.info(`SVS ${ref.svsId}${ref.itemTitle ? ` · ${ref.itemTitle}` : ""} → ${experience}`);
+  for (const [experience, refs] of Object.entries(config.eic)) {
+    if (experience.startsWith("$")) continue;
+    const frames = [];
     const outJson = join(EIC_OUT, `${experience}.json`);
-    try {
-      const frame = parseSvsPage(await getJson(`https://svs.gsfc.nasa.gov/api/${ref.svsId}`), { itemTitle: ref.itemTitle });
-      if (!frame.imageUrl) throw new Error("no image in SVS page");
-      let localImage;
+    const old = (await readJsonIfExists(outJson))?.frames ?? [];
+    for (const ref of refs) {
+      log.info(`SVS ${ref.svsId}${ref.itemTitle ? ` · ${ref.itemTitle}` : ""} → ${experience} (${ref.key})`);
       try {
-        await sleep(DELAY_MS);
-        const res = await fetch(frame.imageUrl, { headers: { "User-Agent": UA }, signal: AbortSignal.timeout(TIMEOUT_MS) });
-        const len = Number(res.headers.get("content-length") ?? 0);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        if (len > MAX_IMAGE_BYTES) {
-          res.body?.cancel();
-          log.info(`image is ${(len / 1048576).toFixed(1)} MB — too large to bundle; the app will load it online only`);
-        } else {
-          const buf = Buffer.from(await res.arrayBuffer());
-          if (buf.length <= MAX_IMAGE_BYTES) {
-            const ext = frame.imageUrl.match(/\.(png|jpe?g)$/i)?.[1] ?? "png";
-            localImage = `${experience}.${ext}`;
-            await mkdir(EIC_OUT, { recursive: true });
-            await writeFile(join(EIC_OUT, localImage), buf);
+        const frame = parseSvsPage(await getJson(`https://svs.gsfc.nasa.gov/api/${ref.svsId}`), { itemTitle: ref.itemTitle });
+        if (!frame.imageUrl) throw new Error("no image in SVS page");
+        let localImage;
+        try {
+          await sleep(DELAY_MS);
+          const res = await fetch(frame.imageUrl, { headers: { "User-Agent": UA }, signal: AbortSignal.timeout(TIMEOUT_MS) });
+          const len = Number(res.headers.get("content-length") ?? 0);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          if (len > MAX_IMAGE_BYTES) {
+            res.body?.cancel();
+            log.info(`image is ${(len / 1048576).toFixed(1)} MB — too large to bundle; the app will load it online only`);
+          } else {
+            const buf = Buffer.from(await res.arrayBuffer());
+            if (buf.length <= MAX_IMAGE_BYTES) {
+              const ext = frame.imageUrl.match(/\.(png|jpe?g)$/i)?.[1] ?? "png";
+              localImage = `${ref.key}.${ext}`;
+              await mkdir(EIC_OUT, { recursive: true });
+              await writeFile(join(EIC_OUT, localImage), buf);
+            }
           }
+        } catch (err) {
+          log.info(`image not bundled: ${err.message}`);
         }
+        frames.push({ ...frame, key: ref.key, gallery: ref.gallery, dataset: ref.dataset, relation: ref.relation, localImage, retrievedAt: new Date().toISOString() });
+        log.ok(`${ref.key}: "${frame.title}"${localImage ? ` + ${localImage}` : " (remote image)"}`);
+        results.ok.push(`eic-${ref.key}`);
       } catch (err) {
-        log.info(`image not bundled: ${err.message}`);
+        const prev = old.find((f) => f.key === ref.key);
+        if (prev) frames.push(prev);
+        log.fail(`eic ${ref.key}: ${err.message}${prev ? " (kept existing entry)" : ""}`);
+        results.failed.push(`eic-${ref.key}: ${err.message}`);
       }
-      await writeJsonAtomic(outJson, { ...frame, localImage, retrievedAt: new Date().toISOString() });
-      log.ok(`eic/${experience}.json: "${frame.title}"${localImage ? ` + ${localImage}` : " (remote image)"}`);
-      results.ok.push(`eic-${experience}`);
-    } catch (err) {
-      const kept = (await stat(outJson).catch(() => null)) ? " (kept existing file)" : "";
-      log.fail(`eic ${experience}: ${err.message}${kept}`);
-      results.failed.push(`eic-${experience}: ${err.message}`);
     }
+    if (frames.length) await writeJsonAtomic(outJson, { experience, frames });
   }
 }
 
@@ -363,6 +398,14 @@ if (want("imagery")) {
 if (want("eic")) {
   log.head("eic (NASA SVS)");
   await fetchEic();
+}
+
+// Drop manifest entries for places no longer listed under their experience in regions.json.
+for (const [id, e] of manifest) {
+  if (!config.experiences[e.experience]?.regions.includes(e.regionId)) {
+    log.info(`manifest: dropping ${id} (place no longer in ${e.experience})`);
+    manifest.delete(id);
+  }
 }
 
 await writeJsonAtomic(manifestPath, {

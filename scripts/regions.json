@@ -1,69 +1,139 @@
 {
-  "$comment": "Single source of truth for places, periods and data layers. Used by the app (src/data/regions.ts) and by scripts/fetch-nasa-data.mjs. Add a place here, then run `npm run fetch-data`. Facts must cite a source.",
+  "$comment": "Single source of truth for places, periods, data layers, natural sound, regional music and EIC visuals. Used by the app (src/data/regions.ts) and by scripts/fetch-nasa-data.mjs. Add a place here, then run `npm run fetch-data`. Facts must cite a source. Regional music is only switched on (music: \"sega\") where the team has researched it; otherwise musicStatus explains why there is none.",
   "regions": [
     {
-      "id": "port-louis", "name": "Port Louis, Mauritius", "lat": -20.1609, "lon": 57.5012,
-      "country": "Mauritius", "biome": "Tropical island coast (urban)",
-      "context": "Capital and main port of Mauritius, on the island's north-west coast in the south-west Indian Ocean.",
-      "fact": "Aapravasi Ghat in Port Louis, the immigration depot where indentured labourers arrived from 1849, is a UNESCO World Heritage Site (inscribed 2006).",
-      "factSource": { "label": "UNESCO World Heritage Centre", "url": "https://whc.unesco.org/en/list/1227" },
-      "music": "sega",
-      "baseline": { "temp": 25.0, "ndvi": 0.22, "sst": 26.0 }
-    },
-    {
-      "id": "black-river-gorges", "name": "Black River Gorges, Mauritius", "lat": -20.4167, "lon": 57.45,
-      "country": "Mauritius", "biome": "Tropical montane forest",
-      "context": "Upland forest in south-west Mauritius, protected as the island's largest national park.",
-      "fact": "Black River Gorges National Park was established in 1994 and protects much of the island's remaining native forest.",
-      "factSource": { "label": "National Parks and Conservation Service, Mauritius", "url": "https://npcs.govmu.org/" },
-      "music": "sega",
-      "baseline": { "temp": 21.5, "ndvi": 0.82, "sst": 25.8 }
-    },
-    {
-      "id": "mauritius-waters", "name": "Indian Ocean off Mauritius", "lat": -20.5, "lon": 57.0,
-      "country": "Mauritius (territorial waters region)", "biome": "Open tropical ocean",
+      "id": "mauritius-waters", "name": "Indian Ocean off Mauritius", "short": "Mauritius", "lat": -20.5, "lon": 57.0,
+      "country": "Mauritius", "biome": "Tropical island ocean",
+      "kidIntro": "Warm blue water all around a small island in the Indian Ocean.",
       "context": "Open ocean just west of Mauritius, an island about 2,000 km off the south-east coast of Africa.",
       "fact": "Mauritius lies in the south-west Indian Ocean, east of Madagascar.",
       "factSource": { "label": "CIA World Factbook — Mauritius", "url": "https://www.cia.gov/the-world-factbook/countries/mauritius/" },
       "music": "sega",
+      "ambience": "reef-coast",
       "baseline": { "temp": 25.3, "ndvi": 0.0, "sst": 25.9 }
     },
     {
-      "id": "amazon", "name": "Amazon Rainforest, Brazil", "lat": -3.4653, "lon": -62.2159,
+      "id": "hawaii-waters", "name": "Pacific Ocean off Oʻahu, Hawaiʻi", "short": "Hawaiʻi", "lat": 21.1, "lon": -158.0,
+      "country": "United States (Hawaiʻi)", "biome": "Tropical island ocean",
+      "kidIntro": "Big Pacific waves roll in towards the islands of Hawaiʻi.",
+      "context": "Ocean just south of the island of Oʻahu, in the middle of the North Pacific.",
+      "fact": "Papahānaumokuākea, north-west of the main Hawaiian Islands, was inscribed as a UNESCO World Heritage Site in 2010 for both its nature and its Native Hawaiian cultural importance.",
+      "factSource": { "label": "UNESCO World Heritage Centre", "url": "https://whc.unesco.org/en/list/1326" },
+      "musicStatus": "pending",
+      "musicNote": "Hawaiian music is living Native Hawaiian heritage. EARTHSONA does not add a Hawaiian sound yet: that needs proper research and collaboration with Hawaiian musicians. Here you hear nature and data only.",
+      "ambience": "surf-coast",
+      "baseline": { "temp": 25.0, "ndvi": 0.0, "sst": 25.5 }
+    },
+    {
+      "id": "central-pacific", "name": "Open Central Pacific Ocean", "short": "Central Pacific", "kidName": "the open Pacific", "lat": 10.0, "lon": -150.0,
+      "country": "International waters", "biome": "Open ocean",
+      "kidIntro": "Deep open ocean, far from any land. Only wind and waves.",
+      "context": "Open water roughly 1,300 km south-east of Hawaiʻi, far from any coast.",
+      "fact": "The Pacific is the largest and deepest of Earth's ocean basins.",
+      "factSource": { "label": "Encyclopaedia Britannica — Pacific Ocean", "url": "https://www.britannica.com/place/Pacific-Ocean" },
+      "musicStatus": "none",
+      "musicNote": "No regional music: open ocean belongs to no one culture, so you hear nature and data only.",
+      "ambience": "open-ocean",
+      "baseline": { "temp": 26.0, "ndvi": 0.0, "sst": 27.0 }
+    },
+    {
+      "id": "black-river-gorges", "name": "Black River Gorges, Mauritius", "short": "Mauritius", "lat": -20.4167, "lon": 57.45,
+      "country": "Mauritius", "biome": "Tropical montane forest",
+      "kidIntro": "Green hills and native forest on the island of Mauritius.",
+      "context": "Upland forest in south-west Mauritius, protected as the island's largest national park.",
+      "fact": "Black River Gorges National Park was established in 1994 and protects much of the island's remaining native forest.",
+      "factSource": { "label": "National Parks and Conservation Service, Mauritius", "url": "https://npcs.govmu.org/" },
+      "music": "sega",
+      "ambience": "island-forest",
+      "baseline": { "temp": 21.5, "ndvi": 0.82, "sst": 25.8 }
+    },
+    {
+      "id": "amazon", "name": "Amazon Rainforest, Brazil", "short": "Amazon", "kidName": "the Amazon", "lat": -3.4653, "lon": -62.2159,
       "country": "Brazil (Amazonas)", "biome": "Tropical rainforest",
+      "kidIntro": "The world's biggest rainforest: thick, wet and full of life.",
       "context": "Lowland rainforest in Brazil's Amazonas state, in the basin of the world's largest river by discharge.",
       "fact": "The Central Amazon Conservation Complex in Amazonas state is a UNESCO World Heritage Site (inscribed 2000, extended 2003).",
       "factSource": { "label": "UNESCO World Heritage Centre", "url": "https://whc.unesco.org/en/list/998" },
+      "musicStatus": "pending",
+      "musicNote": "The Amazon is home to many Indigenous peoples with their own music. EARTHSONA does not add a regional sound yet: that must be developed with Indigenous and Brazilian musicians and properly credited. Here you hear nature and data only.",
+      "ambience": "rainforest",
       "baseline": { "temp": 27.5, "ndvi": 0.88, "sst": 28.0 }
     },
     {
-      "id": "sahara", "name": "Sahara Desert", "lat": 23.806, "lon": 11.2884,
-      "country": "Algeria / Libya / Niger border region", "biome": "Arid desert",
-      "context": "Central Sahara, near the meeting point of Algeria, Libya and Niger.",
-      "fact": "The Sahara is the largest hot desert in the world.",
-      "factSource": { "label": "Encyclopaedia Britannica — Sahara", "url": "https://www.britannica.com/place/Sahara-desert-Africa" },
-      "baseline": { "temp": 27.0, "ndvi": 0.04, "sst": 22.0 }
+      "id": "boreal-wood-buffalo", "name": "Boreal forest, Wood Buffalo, Canada", "short": "Boreal forest", "kidName": "the boreal forest", "lat": 59.2, "lon": -113.5,
+      "country": "Canada (Alberta)", "biome": "Boreal forest",
+      "kidIntro": "A huge, cold northern forest of spruce and pine, snowy in winter.",
+      "context": "Remote boreal forest and wetland in northern Alberta, inside Canada's largest national park.",
+      "fact": "Wood Buffalo National Park, Canada's largest national park, was inscribed as a UNESCO World Heritage Site in 1983.",
+      "factSource": { "label": "UNESCO World Heritage Centre", "url": "https://whc.unesco.org/en/list/256" },
+      "musicStatus": "none",
+      "musicNote": "No regional music: this experience is about the forest itself, so you hear nature and data only.",
+      "ambience": "boreal",
+      "baseline": { "temp": -2.0, "ndvi": 0.55, "sst": 5.0 }
     },
     {
-      "id": "great-barrier-reef", "name": "Great Barrier Reef, Coral Sea", "lat": -18.2871, "lon": 147.6992,
-      "country": "Australia", "biome": "Coral reef",
-      "context": "Coral Sea waters off Queensland, north-east Australia.",
-      "fact": "The Great Barrier Reef was inscribed as a UNESCO World Heritage Site in 1981.",
-      "factSource": { "label": "UNESCO World Heritage Centre", "url": "https://whc.unesco.org/en/list/154" },
-      "baseline": { "temp": 26.1, "ndvi": 0.0, "sst": 26.5 }
+      "id": "port-louis", "name": "Port Louis, Mauritius", "short": "Mauritius", "lat": -20.1609, "lon": 57.5012,
+      "country": "Mauritius", "biome": "Tropical island coast (urban)",
+      "kidIntro": "A warm island city where tropical rain showers come and go.",
+      "context": "Capital and main port of Mauritius, on the island's north-west coast in the south-west Indian Ocean.",
+      "fact": "Aapravasi Ghat in Port Louis, the immigration depot where indentured labourers arrived from 1849, is a UNESCO World Heritage Site (inscribed 2006).",
+      "factSource": { "label": "UNESCO World Heritage Centre", "url": "https://whc.unesco.org/en/list/1227" },
+      "music": "sega",
+      "ambience": "island-weather",
+      "baseline": { "temp": 25.0, "ndvi": 0.22, "sst": 26.0 }
     },
     {
-      "id": "svalbard", "name": "Svalbard Archipelago, Norway", "lat": 78.2232, "lon": 15.6267,
-      "country": "Norway", "biome": "Arctic polar tundra",
-      "context": "High-Arctic archipelago between mainland Norway and the North Pole.",
-      "fact": "The Svalbard Global Seed Vault near Longyearbyen opened in 2008 to safeguard duplicate seed samples from genebanks worldwide.",
-      "factSource": { "label": "Svalbard Global Seed Vault (Crop Trust)", "url": "https://www.croptrust.org/work/svalbard-global-seed-vault/" },
-      "baseline": { "temp": -6.4, "ndvi": 0.12, "sst": 2.0 }
+      "id": "kyoto", "name": "Kyoto, Japan", "short": "Japan", "lat": 35.0116, "lon": 135.7681,
+      "country": "Japan", "biome": "Temperate city in a valley",
+      "kidIntro": "A city with four clear seasons: hot rainy summers and cold winters.",
+      "context": "Former imperial capital in a basin surrounded by hills on the island of Honshu.",
+      "fact": "The Historic Monuments of Ancient Kyoto (Kyoto, Uji and Otsu Cities) were inscribed as a UNESCO World Heritage Site in 1994.",
+      "factSource": { "label": "UNESCO World Heritage Centre", "url": "https://whc.unesco.org/en/list/688" },
+      "musicStatus": "pending",
+      "musicNote": "Japan has many regional music traditions. EARTHSONA does not add a Japanese sound yet: an original palette needs research with Japanese musicians and proper credit, not a stereotype. Here you hear nature and data only.",
+      "ambience": "temperate-rain",
+      "baseline": { "temp": 16.0, "ndvi": 0.3, "sst": 18.0 }
+    },
+    {
+      "id": "antarctica-ross", "name": "Ross Island, Antarctica", "short": "Antarctica", "lat": -77.85, "lon": 166.67,
+      "country": "Antarctica", "biome": "Polar ice",
+      "kidIntro": "The coldest place on Earth: ice, snow and strong winds.",
+      "context": "Ross Island at the edge of the Ross Ice Shelf, home to research stations.",
+      "fact": "The Antarctic Treaty, signed in 1959, sets Antarctica aside for peaceful purposes and scientific research.",
+      "factSource": { "label": "Secretariat of the Antarctic Treaty", "url": "https://www.ats.aq/e/antarctictreaty.html" },
+      "musicStatus": "none",
+      "musicNote": "No regional music: Antarctica has no native population, so you hear nature and data only.",
+      "ambience": "polar-wind",
+      "baseline": { "temp": -18.0, "ndvi": 0.0, "sst": -1.8 }
     }
   ],
   "experiences": {
+    "ocean": {
+      "regions": ["mauritius-waters", "hawaii-waters", "central-pacific"],
+      "periods": [
+        {
+          "key": "2020-2024", "label": "2020–2024 · weekly",
+          "layers": [
+            { "source": "sst", "variable": "SST", "roles": ["pitch"], "stride": 7, "start": "2020-01-01", "end": "2024-12-31", "periodKey": "2020-2024" },
+            { "source": "sst", "variable": "SSTA", "roles": ["harmony"], "stride": 7, "start": "2020-01-01", "end": "2024-12-31", "periodKey": "2020-2024" }
+          ]
+        }
+      ]
+    },
+    "forest": {
+      "regions": ["black-river-gorges", "amazon", "boreal-wood-buffalo"],
+      "periods": [
+        {
+          "key": "2020-2024", "label": "2020–2024 · 16-day",
+          "layers": [
+            { "source": "modis", "variable": "NDVI", "roles": ["pitch", "texture"], "product": "MOD13Q1", "start": "2020-01-01", "end": "2024-12-31", "periodKey": "2020-2024" },
+            { "source": "modis", "variable": "EVI", "roles": ["harmony"], "product": "MOD13Q1", "start": "2020-01-01", "end": "2024-12-31", "periodKey": "2020-2024" }
+          ]
+        }
+      ]
+    },
     "pulse": {
-      "regions": ["port-louis", "amazon", "sahara", "svalbard"],
+      "regions": ["port-louis", "kyoto", "antarctica-ross"],
       "periods": [
         {
           "key": "2015-2024", "label": "2015–2024 · monthly",
@@ -82,36 +152,28 @@
           ]
         }
       ]
-    },
-    "forest": {
-      "regions": ["black-river-gorges", "amazon", "port-louis"],
-      "periods": [
-        {
-          "key": "2020-2024", "label": "2020–2024 · 16-day",
-          "layers": [
-            { "source": "modis", "variable": "NDVI", "roles": ["pitch", "texture"], "product": "MOD13Q1", "start": "2020-01-01", "end": "2024-12-31", "periodKey": "2020-2024" },
-            { "source": "modis", "variable": "EVI", "roles": ["harmony"], "product": "MOD13Q1", "start": "2020-01-01", "end": "2024-12-31", "periodKey": "2020-2024" }
-          ]
-        }
-      ]
-    },
-    "ocean": {
-      "regions": ["mauritius-waters", "great-barrier-reef"],
-      "periods": [
-        {
-          "key": "2020-2024", "label": "2020–2024 · weekly",
-          "layers": [
-            { "source": "sst", "variable": "SST", "roles": ["pitch"], "stride": 7, "start": "2020-01-01", "end": "2024-12-31", "periodKey": "2020-2024" },
-            { "source": "sst", "variable": "SSTA", "roles": ["harmony"], "stride": 7, "start": "2020-01-01", "end": "2024-12-31", "periodKey": "2020-2024" }
-          ]
-        }
-      ]
     }
   },
   "eic": {
-    "ocean": { "svsId": 40509, "itemTitle": "Sea Surface Temperature" },
-    "forest": { "svsId": 40509, "itemTitle": "True color imagery from Terra satellite" },
-    "pulse": { "svsId": 5147 }
+    "$comment": "Official NASA Earth Information Center visuals (SVS ids from the EIC gallery 40467 and the EIC Daily Visualizations gallery 40512). `relation` says honestly how each visual relates to the sound.",
+    "ocean": [
+      { "key": "ocean-sst", "svsId": 5101, "gallery": "EIC Daily Visualizations", "dataset": "NASA/JPL MUR SST (GHRSST Level 4)",
+        "relation": "Same topic and the same NASA dataset family as the sound (MUR sea surface temperature). The EIC map shows the whole planet for recent days; the sound plays one point over 2020–2024." },
+      { "key": "ocean-ssta", "svsId": 5176, "gallery": "EIC Daily Visualizations", "dataset": "NASA/JPL MUR SST anomaly",
+        "relation": "Shows where the ocean is warmer or cooler than usual, the same idea as the harmony layer. It covers recent days worldwide, not the years in the sound." }
+    ],
+    "forest": [
+      { "key": "forest-gedi", "svsId": 4950, "gallery": "Earth Information Center", "dataset": "NASA GEDI lidar (ISS)",
+        "relation": "Shows how TALL forests are, measured by laser from the International Space Station. The sound uses a different measurement, MODIS greenness (NDVI/EVI): tall and green are related but not the same." },
+      { "key": "forest-ndvi", "svsId": 5544, "gallery": "EIC Daily Visualizations", "dataset": "Near real-time NDVI",
+        "relation": "The same measurement as the melody (NDVI greenness), shown worldwide for a recent period; the sound plays one forest over 2020–2024." }
+    ],
+    "pulse": [
+      { "key": "pulse-precip", "svsId": 5149, "gallery": "EIC Daily Visualizations", "dataset": "NASA GEOS-FP model (forecast system)",
+        "relation": "Rain and clouds from NASA's GEOS weather model for recent days: a model, like the POWER values in the sound. The sound uses POWER rainfall for one place over 2015–2024." },
+      { "key": "pulse-temp", "svsId": 5147, "gallery": "EIC Daily Visualizations", "dataset": "NASA GEOS-FP model (forecast system)",
+        "relation": "Near-surface air temperature from the GEOS model for recent days, the same variable as the melody (air temperature at 2 m), for the whole planet." }
+    ]
   },
   "imagery": {
     "$comment": "NASA GIBS WMS snapshots bundled by `npm run fetch-data -- --only=imagery`.",

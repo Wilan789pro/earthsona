@@ -1,13 +1,39 @@
 {
- "svsId": 5147,
- "title": "GEOS-FP Near-Surface Temperature",
- "description": "Near-surface temperature is calculated by sampling 3-D atmospheric fields from NASA’s GEOS-FP system 3 meters above Earth’s surface. GEOS-FP combines millions of weather observations with a predictive model to create a global best estimate of weather conditions that are used to begin a forecast.",
- "imageUrl": "https://svs.gsfc.nasa.gov/vis/a000000/a005100/a005147/MC01_stage3_GMAO_near_surface_temperature_2048x1024_en.00001_searchweb.png",
- "altText": "Near surface temperature is calculated by sampling 3-D atmospheric fields from NASA’s GEOS-FP system 3 meters above Earth’s surface. GEOS-FP combines millions of weather observations with a predictive model to create a global best estimate of weather conditions that are used to begin a forecast.",
- "pageUrl": "https://svs.gsfc.nasa.gov/5147/",
- "released": "2023-09-26T17:00:00-04:00",
- "updated": "2026-11-12T02:30:43.815551-05:00",
- "credit": "Visualizations courtesy of NASA's Scientific Visualization Studio (SVS) and the NASA Earth Information Center.",
- "localImage": "pulse.png",
- "retrievedAt": "2026-11-12T18:16:34.417Z"
+ "experience": "pulse",
+ "frames": [
+  {
+   "svsId": 5149,
+   "title": "GEOS-FP Precipitation and Clouds",
+   "description": "Precipitation and clouds are calculated using fields from NASA’s GEOS-FP system. GEOS-FP combines millions of weather observations with a predictive model to create a global best estimate of weather conditions, which can be used to estimate the formation of clouds along with rain and snowfall.",
+   "imageUrl": "https://svs.gsfc.nasa.gov/vis/a000000/a005100/a005149/MC03_stage3_GMAO_precipitation_2048x1024_en.00001_searchweb.png",
+   "altText": "Precipitation and clouds are calculated using fields from NASA’s GEOS-FP system. GEOS-FP combines millions of weather observations with a predictive model to create a global best estimate of weather conditions, which can be used to estimate the formation of clouds along with rain and snowfall.",
+   "pageUrl": "https://svs.gsfc.nasa.gov/5149/",
+   "released": "2023-09-26T17:00:00-04:00",
+   "updated": "2026-11-12T02:32:15.360819-05:00",
+   "credit": "Visualizations courtesy of NASA's Scientific Visualization Studio (SVS) and the NASA Earth Information Center.",
+   "key": "pulse-precip",
+   "gallery": "EIC Daily Visualizations",
+   "dataset": "NASA GEOS-FP model (forecast system)",
+   "relation": "Rain and clouds from NASA's GEOS weather model for recent days: a model, like the POWER values in the sound. The sound uses POWER rainfall for one place over 2015–2024.",
+   "localImage": "pulse-precip.png",
+   "retrievedAt": "2026-11-12T21:03:51.238Z"
+  },
+  {
+   "svsId": 5147,
+   "title": "GEOS-FP Near-Surface Temperature",
+   "description": "Near-surface temperature is calculated by sampling 3-D atmospheric fields from NASA’s GEOS-FP system 3 meters above Earth’s surface. GEOS-FP combines millions of weather observations with a predictive model to create a global best estimate of weather conditions that are used to begin a forecast.",
+   "imageUrl": "https://svs.gsfc.nasa.gov/vis/a000000/a005100/a005147/MC01_stage3_GMAO_near_surface_temperature_2048x1024_en.00001_searchweb.png",
+   "altText": "Near surface temperature is calculated by sampling 3-D atmospheric fields from NASA’s GEOS-FP system 3 meters above Earth’s surface. GEOS-FP combines millions of weather observations with a predictive model to create a global best estimate of weather conditions that are used to begin a forecast.",
+   "pageUrl": "https://svs.gsfc.nasa.gov/5147/",
+   "released": "2023-09-26T17:00:00-04:00",
+   "updated": "2026-11-12T02:30:43.815551-05:00",
+   "credit": "Visualizations courtesy of NASA's Scientific Visualization Studio (SVS) and the NASA Earth Information Center.",
+   "key": "pulse-temp",
+   "gallery": "EIC Daily Visualizations",
+   "dataset": "NASA GEOS-FP model (forecast system)",
+   "relation": "Near-surface air temperature from the GEOS model for recent days, the same variable as the melody (air temperature at 2 m), for the whole planet.",
+   "localImage": "pulse-temp.png",
+   "retrievedAt": "2026-11-12T21:03:57.805Z"
+  }
+ ]
 }

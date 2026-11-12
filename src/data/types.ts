@@ -35,7 +35,7 @@ export interface EarthSeries {
   region: { name: string; lat: number; lon: number };
   points: EarthPoint[];
   source: {
-    kind: "simulated" | "nasa";
+    kind: "simulated" | "nasa" | "noaa";
     name: string; // "NASA POWER (LaRC)"
     product?: string; // "MOD13Q1"
     url?: string; // exact request URL used
@@ -78,6 +78,17 @@ export interface RegionDef {
   factSource?: { label: string; url: string };
   /** Regional sound profile available for this place (see src/sonification/palettes.ts). */
   music?: string;
+  /** Why there is no regional music: "pending" (needs research/collaboration) or "none" (not appropriate). */
+  musicStatus?: "pending" | "none";
+  musicNote?: string;
+  /** Short name for buttons, e.g. "Mauritius". */
+  short?: string;
+  /** Name used inside sentences, e.g. "the boreal forest" (defaults to `short`). */
+  kidName?: string;
+  /** One child-friendly sentence. */
+  kidIntro?: string;
+  /** Natural soundscape preset (src/audio/ambience.ts). */
+  ambience?: string;
   baseline: { temp: number; ndvi: number; sst: number };
 }
 
