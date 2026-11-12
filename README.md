@@ -1,112 +1,134 @@
-# EARTHSONA: Earthy, the Earth Information Jukebox
+# EARTHSONA: Hear the Earth. Understand the Change.
 
-NASA Space Apps 2026 · challenge **"The Earth Information Jukebox"**.
-The app turns NASA Earth data into sound and shows a NASA Earth Information Center (EIC) visual beside it.
+NASA Space Apps Challenge 2026 · **The Earth Information Jukebox**
 
-| Experience | What you hear | Data |
+EARTHSONA turns real NASA Earth measurements into data-driven sound. You pick a place on a 3D Earth that uses real NASA imagery, read a short sourced introduction to it, and listen to its ocean temperature, vegetation, rainfall and sunlight played as music.
+
+**Sound is the product.** The globe, panels and charts are there to support listening.
+
+```
+NASA dataset → processing (fill values, QA, units) → normalisation → documented mapping → music → audio
+   adapters      src/data/parsers.js + normalise.ts     sonification/frames.ts   mappings.ts   audio/engine.ts
+```
+
+| Experience | Layers and what you hear | Dataset |
 |---|---|---|
-| **Ocean Symphony** | Sea surface temperature | ◇ **Simulated** (the SST source is still to be confirmed with our mentor) |
-| **Forest Voices** | Vegetation greenness (NDVI, 16-day, 250 m) | ◆ **NASA MODIS MOD13Q1 v6.1**, via the ORNL DAAC web service |
-| **Earth's Pulse** | Air temperature (T2M) and rainfall (PRECTOTCORR), monthly | ◆ **NASA POWER** (LaRC) |
-
-The demo **does not need internet**. Real NASA data is pre-fetched and bundled in `public/data/real/`. If a file is missing, the app falls back to simulated data, which is always labelled as simulated.
+| 🌊 **Ocean Symphony** | SST → melody pitch · SST anomaly → harmony (calm ↔ tense) | NASA/JPL **MUR SST v4.1** (GHRSST L4, ~1 km), weekly samples, via NOAA ERDDAP |
+| 🌳 **Forest Voices** | NDVI → melody pitch and background pad · EVI → harmony (thin ↔ full chord) | **MODIS MOD13Q1.061** Terra, 250 m, 16-day, with pixel-reliability QA, via ORNL DAAC |
+| 💓 **Earth's Pulse** | T2M → melody pitch · PRECTOTCORR → rhythmic density · ALLSKY_SFC_SW_DWN → brightness | **NASA POWER** (LaRC), monthly 2015–2024 and daily 2024 |
 
 ## Quick start
 
 ```bash
 npm install
 npm run dev          # http://localhost:5173
-npm test             # unit tests (adapters parsed against real saved responses)
-npm run build        # static site in dist/ (relative paths, so it can be opened from any static host)
-npm run fetch-data   # refresh the bundled NASA data (needs internet, ~10–15 min)
+npm test             # unit tests: parsers against real saved responses, mappings, registry
+npm run build        # static site in dist/ (relative paths; runs offline)
+npm run fetch-data   # refresh the bundled NASA data and imagery (needs internet)
 ```
 
-Node 18+ is required. three.js, the fonts and the icons are all bundled locally, so nothing loads from a CDN at runtime.
+Node 18+ is required. No API keys or logins are needed. Copy `.env.example` to `.env` only if you want to change the ERDDAP server. **Never commit `.env`**, and never put secrets in `VITE_*` variables, because those are compiled into the public bundle.
 
-## How data flows
+## Using it
 
-```
-scripts/regions.json ──► scripts/fetch-nasa-data.mjs ──► public/data/real/{experience}/{id}.json + index.json
-        │                        │  (uses src/data/parsers.js)                  │
-        ▼                        ▼                                              ▼
-src/data/regions.ts      src/data/adapters/*  ──►  src/data/registry.ts  (bundled → live → simulated)
-                                                         │
-                                                         ▼
-                                          src/data/normalise.ts  (one data-quality step for every source)
-                                                         │ CleanSeries (EarthSeries + stats)
-                    ┌────────────────────────────────────┼─────────────────────────────┐
-                    ▼                                    ▼                             ▼
-         src/audio/player.ts ─► engine.ts        src/ui/chart.ts            source badge / Understand / Earthy
-         (one step event drives sound, playhead and "now playing" together)
-```
+- **Left column:** pick an experience (keys `1`/`2`/`3`), then a place (`[` / `]`), or click anywhere on the globe.
+- **Centre:** the globe uses NASA GIBS Blue Marble imagery, plus an optional NASA data overlay (MUR SST, MODIS NDVI or MERRA-2 air temperature) and an "Earth at night" view (VIIRS Black Marble).
+- **Right column, four tabs:**
+  - **Location:** context, a sourced fact, which data exists for the place, and the NASA Earth Information Center visual.
+  - **Listen:** source badge, time period, pitch scale (*relative* to this place or *global* so places can be compared), sound profile, chart and table, "now playing", the mapping table and "What you heard".
+  - **Sound Lab:** "Try this out".
+  - **Guide:** Discover → Learn → Listen → Explore → Understand. It is optional and can be skipped.
+- **Bottom player:** play/pause (`Space`), stop (`S`), replay, a seekable progress bar with date and time, speed, volume, waveform, per-layer toggles and WAV export.
 
-* **`src/data/types.ts`** defines `EarthSeries`, the single normalised shape that every source returns.
-* **`src/data/parsers.js`** holds all of the POWER, MODIS and SVS URL-building and parsing in plain JS. The browser adapters and the Node pre-fetch script both import it, so each parsing rule exists exactly once. The facts it relies on were checked against real responses:
-  * **POWER:** `header.fill_value` is `-999.0` and becomes `null`. Monthly responses include a `YYYY13` row, which is the annual mean, and it is dropped.
-  * **MODIS NDVI:** `scale` is `0.0001`, the fill value is `-3000`, and the valid range is `-2000…10000`. The subset endpoint rejects more than **10 dates per request**, so dates are fetched from `/dates` first and requested in batches of 10.
-* **Adapters** (`src/data/adapters/`): `simulatedAdapter`, `powerAdapter`, `modisAdapter`, and `sstAdapter`. The SST adapter is still simulated; see the TODO in the file.
-* **Registry** (`src/data/registry.ts`): tries the **bundled JSON** first, then the **live API** (only if live mode is on, with a 10 s timeout and an in-memory cache for the session), then **simulated**. It reports which one it used.
-* **Normalisation** (`src/data/normalise.ts`): sorts by time, removes duplicates, and trims missing values at the start and end. A single missing point between two real values is interpolated and flagged `bridged`; longer gaps stay `null`. It then computes min, max and mean from observations only. The sound engine plays a short neutral "no data" tick for each gap, and the Listen guide explains it.
-* **EIC hook** (`src/data/eic.ts`) reads metadata from the NASA SVS API (`/api/40509` Earth Now dashboard, `/api/5147` GEOS-FP temperature). SVS blocks cross-origin requests from browsers, so the pre-fetch script saves the metadata to `public/data/eic/` and bundles the image when it is ≤ 3 MB. It is kept separate from the rest of the code so the approach can change.
+### Sound profiles (regional music)
 
-## Fetching data
+A profile changes **instruments and arrangement only**. The same value always gives the same note, rhythm density, brightness and harmony in every profile (this is unit-tested). The mapping is defined in `src/sonification/mappings.ts`.
+
+- **Neutral scientific:** plain synthesised tones. Every sound comes from data.
+- **Mauritius, Sega-inspired:** offered only for places in Mauritius. It is an original synthesised homage, not a recording, built on the instruments named by the National Heritage Fund and UNESCO: ravann (frame drum), maravann (box rattle) and triangle.
+  - Rainfall → shaker density.
+  - Sunlight → triangle brightness.
+  - The frame drum only marks the beat and **carries no data**.
+  - The ternary (6/8-style) groove is our own design choice and **must be reviewed with Mauritian practitioners** before public use.
+
+  References: [NHF: Sega Tipik Morisien](https://nhf.govmu.org/nhf/?page_id=723), [UNESCO multimedia archive](https://www.unesco.org/archives/multimedia/document-3665), [UNESCO ICH element 01003](https://ich.unesco.org/en/RL/traditional-mauritian-sega-01003).
+
+### Earth Sound Lab
+
+- **Mode 1, Real Earth data:** choose a date. The sliders show the actual observation (read-only) and its source.
+- **Mode 2, Hypothetical scenario:** move the sliders. Everything is labelled **simulated**.
+- **A/B:** play the observation (A), then your scenario (B). A table shows both sets of values and what changes in the sound.
+- Each slider controls only its own sound layer. The Lab does not model links between variables, and a scenario is not a forecast.
+
+## Data access and honesty
+
+| Source | Access | Notes |
+|---|---|---|
+| NASA POWER point API | open, CORS `*` | Fill value `-999` → no data; monthly `YYYY13` (annual) row dropped; units taken from the response (AG community: `MJ/m²/day` for solar) |
+| ORNL DAAC MODIS REST | open | Scale `0.0001`; fill `-3000`; valid range `-2000…10000`; ≤ 10 dates per request (batched); `pixel_reliability` 2 (snow) and 3 (cloudy) → no data, 1 → kept and flagged *marginal* |
+| MUR SST via ERDDAP | open | `jplMURSST41` (`analysed_sst`) and `jplMURSST41anom1day` (`sstAnom`). The anomaly is the dataset's own (we never compute one), and its baseline note is copied from the dataset metadata at fetch time. Server set by `ERDDAP_BASE` |
+| NASA GIBS WMS | open | Globe textures and overlays, bundled |
+| NASA SVS API | open, but no browser CORS | EIC frames pre-fetched; large images stay remote |
+
+Every data point carries a **quality** status: `good`, `marginal`, `cloudy`, `snow`, `missing`, `interpolated` or `simulated`. The source badge, the source dialog (dataset, product and QA, exact request URL, retrieval date and citation for each layer) and "What you heard" always say what is real, what is cached, what is simulated and what is hypothetical.
+
+The registry tries **bundled files → live API (only when "Use live NASA data" is on; 10 s timeout) → simulated**. Fallbacks are announced in a polite `aria-live` notice row. The demo runs fully offline.
+
+## Fetching data and adding a place
 
 ```bash
-npm run fetch-data                    # everything
-npm run fetch-data -- --only=forest   # one of: pulse, forest, ocean, eic
+npm run fetch-data                          # everything
+npm run fetch-data -- --only=pulse,forest   # parts: pulse | forest | ocean | eic | imagery
+ERDDAP_BASE=https://<host>/erddap npm run fetch-data -- --only=ocean
 ```
 
-The script pauses 1.2 s between requests and retries a failed request once. It logs each series with its point count and min/mean/max, then prints a summary. **It never overwrites a good file with an empty or failed result.** A series is rejected if it has no values, fewer than 50 % valid values, or values outside a plausible range (T2M −90…60 °C, NDVI −0.2…1). Files are written atomically, and `index.json` keeps entries for series that failed this run.
+The script pauses politely between requests, retries once, validates each series (it must have values, at least 50 % of them valid, and all within a plausible range), writes files atomically, **never overwrites a good file with a failed or empty result**, and prints a summary.
 
-Last run (2026-11-11): 11 series written and 0 failed.
+**To add a place:**
+1. Add it to `regions` in `scripts/regions.json`. Include `country`, `context`, a `fact` with `factSource`, and `music` only if a regional profile has been researched for it.
+2. List its `id` under each experience that should use it.
+3. Run `npm run fetch-data`.
 
-| Series | Points | min / mean / max |
-|---|---|---|
-| POWER T2M · Port Louis | 120 | 22.4 / 25.4 / 28.3 °C |
-| POWER T2M · Amazon | 120 | 25.1 / 27.1 / 32.9 °C |
-| POWER T2M · Sahara | 120 | 8.2 / 22.5 / 32.8 °C |
-| POWER T2M · Svalbard | 120 | −18.1 / −5.5 / 5.7 °C |
-| POWER PRECTOTCORR · 4 places | 120 each | 0.0 – 18.2 mm/day |
-| MODIS NDVI · Black River Gorges | 115 | 0.49 / 0.82 / 0.96 |
-| MODIS NDVI · Amazon | 115 | 0.15 / 0.76 / 0.92 |
-| MODIS NDVI · Port Louis (urban) | 115 | 0.06 / 0.15 / 0.39 |
+The app and the script read the same file.
 
-## Adding a region
+## Architecture
 
-1. Add the region to `regions` in **`scripts/regions.json`**, with an `id`, `name`, `lat`, `lon`, `biome`, and a `baseline` (used only for simulated data).
-2. Add its `id` to the `regions` list of each experience it belongs to.
-3. Run `npm run fetch-data -- --only=pulse` (or `forest`) and check the logged min/mean/max.
-4. Commit the new files in `public/data/real/`. The app picks up the region automatically, because it reads the same `regions.json`.
+```
+scripts/regions.json            places, periods, layers + roles, imagery (single source of truth)
+scripts/fetch-nasa-data.mjs     pre-fetch (Node 18+, no deps) → public/data/real, public/data/eic, public/textures
+src/data/types.ts               EarthSeries / EarthPoint (+quality) / SeriesDef (+roles) / PeriodDef
+src/data/parsers.js             all URL building + parsing (shared by browser and script)
+src/data/adapters/*             power · modis · sst (ERDDAP) · simulated
+src/data/registry.ts            bundled → live → simulated; getTrack() loads all layers of a period
+src/data/normalise.ts           sort, trim, bridge single gaps, stats on observations only
+src/sonification/mappings.ts    THE documented data → sound rules
+src/sonification/frames.ts      Track → SoundFrames (layers aligned by date)
+src/sonification/palettes.ts    neutral + Sega-inspired (instruments/arrangement + references)
+src/audio/engine.ts             Web Audio StepRenderer (live and offline WAV share it)
+src/audio/player.ts             play / pause / stop / replay / seek
+src/globe.ts                    three.js globe with GIBS textures and overlays
+src/ui/*                        chart, lab, guide, DOM helpers
+```
 
-To change the period, edit `start`, `end` and `periodKey` in the experience's `series` entry. POWER monthly takes years (`"2015"`); MODIS takes ISO dates.
+**Why three.js and not CesiumJS:** the demo must work with no internet. Cesium's default imagery and terrain need an Ion token and online tiles, and its bundle is much larger. A three.js globe textured with bundled NASA GIBS imagery is reliable offline and fast, which the brief explicitly allows.
 
-## Live mode
+## Layout and accessibility
 
-Settings → **"Use live NASA data (requires internet)"** is **off by default**. When it is on, places with no bundled data are fetched from POWER or MODIS in the browser. This covers any point you click on the globe or find through search. If a request fails or takes longer than 10 s, the app falls back to simulated data and shows a notice in an `aria-live="polite"` region. Successful responses are cached in memory for the session. The **Data** menu in the player ("Best available" / "Simulated (compare)") lets you play the simulated version of the same place for comparison.
+- **Layout:** one CSS grid with header, notice row, navigation, globe, panels and player. These regions never overlap; this is checked automatically at 1440, 1024 and 400 px. On narrow screens the navigation becomes a collapsible drawer and the page scrolls.
+- **Keyboard:** every action is reachable by keyboard (tabs follow the WAI-ARIA tabs pattern; shortcuts are listed in ⌨). Screen-reader announcements cover loading, playback, fallbacks and layer changes.
+- **Text and visual alternatives:** text size is adjustable with A−/A+. The chart has a data table, and "now playing" shows the values as text.
+- **Not colour alone:** source badges use text plus an icon.
+- **Volume:** a compressor keeps loudness comfortable.
 
-## Honest labelling
+## GitHub workflow
 
-* Every experience shows a source badge with an icon and text: **"NASA data: NASA POWER"**, **"NASA data: NASA MODIS (ORNL DAAC)"**, or **"Simulated demonstration data — not a NASA observation"**. Clicking the badge opens the details: type, source, product and version, variable, place, period, where the data was loaded from, the exact request URL, the retrieval date, and the citation.
-* The About & methodology dialog lists every source with its citation, and says what is real, what is simulated, and what is only decorative. The globe surface is a stylised drawing; the place search uses OpenStreetMap and is not NASA data.
-* Removed from the prototypes because they implied NASA data that wasn't there: an Unsplash photo captioned "NASA GIBS", hard-coded "EONET" pins and "MODIS/VIIRS alerts", and a red "MODIS thermal" tint on the globe.
-
-### Citations
-
-* **NASA POWER:** "The data was obtained from the National Aeronautics and Space Administration (NASA) Langley Research Center (LaRC) Prediction of Worldwide Energy Resources (POWER) Project funded through the NASA Earth Science Division." The service name, API version and access date are added for each dataset. (power.larc.nasa.gov/docs/referencing)
-* **MODIS web service:** ORNL DAAC. 2018. Terrestrial Ecology Subsetting & Visualization Services (TESViS) RESTful Web Service. ORNL DAAC, Oak Ridge, Tennessee, USA. https://doi.org/10.3334/ORNLDAAC/1600
-* **MOD13Q1:** Didan, K. (2021). MODIS/Terra Vegetation Indices 16-Day L3 Global 250m SIN Grid V061. NASA EOSDIS LP DAAC. https://doi.org/10.5067/MODIS/MOD13Q1.061
-* **EIC visuals:** NASA Scientific Visualization Studio and the Earth Information Center, Earth Now dashboard (https://svs.gsfc.nasa.gov/gallery/earth-now-dashboard/).
-
-## Testing
-
-* `npm test` runs 23 unit tests. They cover each adapter's parsing against **real saved responses** in `tests/fixtures/` (Port Louis, saved 2026-11-11): fill values, scale factor, MODIS batching and SVS frame selection. They also cover the normaliser (gaps, interpolation, stats) and the registry's fallback order (bundled → live → simulated, live timeout, network down, forced simulated).
-* An end-to-end browser check was also run against the dev server. It switched between real and simulated data in each experience and confirmed that the sound status, "now playing", the chart playhead and the badge change together. It then blocked all non-localhost traffic and confirmed the app still runs, using bundled and simulated data with the polite fallback notice. Result: 20/20 passing. That script is not committed; ask if you want it added as `npm run e2e`.
+The work is split into feature branches: `feature/nasa-data` (data layer) and `feature/sonification-ui`, which contains sonification, regional music, globe, Sound Lab and guide in separate commits. Merge them into `master` through pull requests, in that order. Never commit `.env` files or credentials.
 
 ## Known limitations
 
-* **Ocean Symphony is fully simulated.** The intended source is JPL MUR SST via ERDDAP (see `src/data/adapters/sstAdapter.ts`).
-* Each value is for a single point, not an area. POWER cells are about 0.5° × 0.625° (MERRA-2), and MODIS uses one 250 m pixel. Cloud-contaminated MODIS composites can produce low outliers; for example, the Amazon minimum of 0.15 is likely one of these. The data is not QA-filtered yet.
-* Pitch is scaled within each series. The same note means different values in different places, so compare the numbers shown, not the pitch.
-* Two of the three EIC images (Earth Now SST and true colour) are 5–9 MB and are not bundled. Offline, the app shows their alt text instead. The GEOS-FP temperature frame is bundled.
-* The bundled data is a snapshot (POWER 2015–2024 monthly, MODIS 2020–2024). Live mode only applies to places without bundled data.
-* Simulated series are deterministic for each place and labelled everywhere, but they are not climatologically accurate.
+- **Ocean Symphony needs the MUR fetch to succeed.** During development the default ERDDAP server (`coastwatch.pfeg.noaa.gov`) was unreachable from our network, so ocean plays clearly labelled simulated data until `npm run fetch-data -- --only=ocean` succeeds (try another network or set `ERDDAP_BASE`).
+- **Values are for points, not areas:** POWER grid cells are about 0.5° × 0.625° (MERRA-2 based), MODIS uses one 250 m pixel, and MUR is about 1 km.
+- **NDVI and EVI measure greenness**, not tree counts or deforestation. Seasons and land use change them.
+- **Relative pitch** is per series; use **Global** pitch to compare places.
+- **The Sega-inspired profile** is an original interpretation and needs review by cultural practitioners.
+- **Live mode** applies only to places without bundled data.
