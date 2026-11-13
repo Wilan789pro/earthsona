@@ -6,6 +6,7 @@
  *   npm run fetch-data -- --only=forest --region=port-louis   # one part and/or place
  *   npm run fetch-data -- --only=pulse # one part: pulse | forest | ocean | eic | imagery
  *   ERDDAP_BASE=https://host/erddap npm run fetch-data -- --only=ocean   # another ERDDAP server for MUR SST
+ *   EARTHDATA_TOKEN in .env           # NASA/JPL MUR SST straight from PO.DAAC (CMR + OPeNDAP); see .env.example
  *
  * Writes:
  *   public/data/real/{experience}/{id}.json   one normalised EarthSeries per file
@@ -32,9 +33,25 @@ import {
   ERDDAP_FALLBACK,
   buildErddapUrl,
   buildErddapSstSeries,
+  MUR_PODAAC,
+  murGridIndex,
+  buildCmrGranuleUrl,
+  parseCmrGranules,
+  sampleGranules,
+  buildMurOpendapUrl,
+  parseDmrPacking,
+  parseMurPointValue,
+  buildMurPodaacSeries,
 } from "../src/data/parsers.js";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+// Server-side configuration (never bundled into the app): read .env when it exists. Node 20.12+.
+try {
+  process.loadEnvFile?.(join(ROOT, ".env"));
+} catch {
+  /* no .env: fine */
+}
+const CACHE = join(ROOT, ".cache");
 const OUT = join(ROOT, "public", "data", "real");
 const EIC_OUT = join(ROOT, "public", "data", "eic");
 const DELAY_MS = 1200; // polite pause between requests
@@ -264,7 +281,110 @@ async function anomalyBaselineNote(base, datasetId) {
   }
 }
 
+// --- NASA/JPL MUR straight from PO.DAAC (needs an Earthdata Login token; Node only) ---------------------
+const MUR_DELAY_MS = Number(process.env.MUR_DELAY_MS ?? 300);
+
+/** Authenticated GET (text). Detects the Earthdata Login redirect instead of following it. */
+async function getEarthdataText(url, token) {
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    await sleep(attempt === 1 ? MUR_DELAY_MS : RETRY_DELAY_MS);
+    try {
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}`, "User-Agent": UA }, redirect: "manual", signal: AbortSignal.timeout(TIMEOUT_MS) });
+      if (res.status >= 300 && res.status < 400) {
+        const to = res.headers.get("location") ?? "";
+        if (/login|urs\.earthdata/i.test(to)) throw Object.assign(new Error("Earthdata Login rejected the token (redirected to login). Create a new token at https://urs.earthdata.nasa.gov/ → Generate Token."), { fatal: true });
+        return await getEarthdataText(new URL(to, url).toString(), token);
+      }
+      const text = await res.text();
+      if (res.status === 401 || res.status === 403) throw Object.assign(new Error(`HTTP ${res.status}: token not accepted`), { fatal: true });
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${text.slice(0, 160)}`);
+      return text;
+    } catch (err) {
+      if (err.fatal || attempt === 2) throw err;
+      log.info(`retrying once after: ${err.message ?? err}`);
+    }
+  }
+}
+
+/** Returns true when every wanted place was saved from PO.DAAC MUR. */
+async function fetchMurPodaac(experience, exp, token) {
+  const defs = layersOf(exp, "sst");
+  const def = defs.find((d) => d.variable === "SST") ?? defs[0];
+  if (!def) return true;
+  const stride = def.stride ?? 7;
+  log.info(`PO.DAAC MUR v4.1 (${MUR_PODAAC.collection}) via CMR + OPeNDAP, every ${stride} days ${def.start} → ${def.end}`);
+  // 1. Discover granules (public CMR, paged).
+  let granules = [];
+  for (let page = 1; page < 20; page++) {
+    const batch = parseCmrGranules(await getJson(buildCmrGranuleUrl({ start: def.start, end: def.end, page })));
+    granules.push(...batch);
+    if (batch.length < 2000) break;
+  }
+  granules = sampleGranules(granules, def.start, stride);
+  if (!granules.length) throw new Error("CMR returned no MUR granules for the period");
+  log.info(`${granules.length} sampled granules`);
+  // 2. Packing from the dataset's own DMR (falls back to the documented values).
+  let packing = {};
+  try {
+    const dmr = await getEarthdataText(`${granules[0].opendap}.dmr.xml`, token);
+    packing = { analysed_sst: parseDmrPacking(dmr, "analysed_sst"), sst_anomaly: parseDmrPacking(dmr, "sst_anomaly") };
+  } catch (err) {
+    if (err.fatal) throw err;
+    log.info(`could not read DMR (${err.message}); using documented MUR packing`);
+  }
+  let allOk = true;
+  for (const regionId of exp.regions.filter(regionWanted)) {
+    const region = regions.get(regionId);
+    const cell = murGridIndex(region.lat, region.lon);
+    const cacheFile = join(CACHE, "mur", `${regionId}-${cell.i}-${cell.j}.json`);
+    const cache = (await readJsonIfExists(cacheFile)) ?? {};
+    const samples = [];
+    let n = 0;
+    for (const g of granules) {
+      let text = cache[g.granule];
+      if (text === undefined) {
+        try {
+          text = await getEarthdataText(buildMurOpendapUrl(g.opendap, cell.i, cell.j), token);
+        } catch (err) {
+          if (err.fatal) throw err;
+          log.info(`${g.date}: ${err.message} (left as no data)`);
+          samples.push({ date: g.date, sst: null, anom: null });
+          continue;
+        }
+        cache[g.granule] = text;
+        if (++n % 25 === 0) {
+          await writeJsonAtomic(cacheFile, cache);
+          log.info(`${region.name}: ${samples.length + 1}/${granules.length}`);
+        }
+      }
+      samples.push({ date: g.date, sst: parseMurPointValue(text, "analysed_sst", packing.analysed_sst ?? undefined), anom: parseMurPointValue(text, "sst_anomaly", packing.sst_anomaly ?? undefined) });
+    }
+    await writeJsonAtomic(cacheFile, cache);
+    const url = buildMurOpendapUrl(granules[0].opendap, cell.i, cell.j) + `   (one request per sampled day, ${granules.length} days; Earthdata Login)`;
+    const { SST, SSTA } = buildMurPodaacSeries(samples, { experience, region, cell, periodKey: def.periodKey, url, retrievedAt: new Date().toISOString() });
+    const before = results.failed.length;
+    for (const s of [SST, SSTA]) if (defs.some((d) => d.variable === s.variable)) await saveSeries(s, { experience, regionId, periodKey: def.periodKey });
+    if (results.failed.length > before) allOk = false;
+  }
+  return allOk;
+}
+
 async function fetchSst(experience, exp) {
+  // 0. NASA/JPL MUR straight from PO.DAAC when an Earthdata token is configured (server-side only).
+  const token = process.env.EARTHDATA_TOKEN?.trim();
+  if (token) {
+    try {
+      // Partial failures are listed in the summary; existing good files are kept.
+      await fetchMurPodaac(experience, exp, token);
+      return;
+    } catch (err) {
+      log.fail(`PO.DAAC MUR: ${err.message}`);
+      results.failed.push(`mur-podaac: ${err.message}`);
+      log.info("falling back to ERDDAP");
+    }
+  } else {
+    log.info("EARTHDATA_TOKEN not set: skipping PO.DAAC (MUR there requires Earthdata Login); trying ERDDAP");
+  }
   // 1. Prefer NASA/JPL MUR. 2. If that server cannot be reached (and no ERDDAP_BASE override was given),
   //    use NOAA Coral Reef Watch CoralTemp for BOTH layers, so SST and its anomaly always come from one family.
   const murBase = process.env.ERDDAP_BASE || ERDDAP_DEFAULT.base;

@@ -359,6 +359,164 @@ export const ERDDAP_DEFAULT = {
   anomaly: { datasetId: "jplMURSST41anom1day", variable: "sstAnom" },
 };
 
+// ---------------------------------------------------------------------------
+// NASA/JPL MUR SST v4.1 directly from PO.DAAC (Earthdata Cloud). Used by the Node pre-fetch ONLY when an
+// Earthdata Login token is configured (EARTHDATA_TOKEN in .env). Never used in the browser: the token must
+// stay server-side. Discovery: CMR granule search (public). Values: OPeNDAP (Hyrax) point subsets, one
+// granule per sampled day, requesting just one grid cell of analysed_sst and sst_anomaly.
+// Checked 2026-11-13: CMR answers without a login; OPeNDAP and Harmony both redirect to Earthdata Login.
+// ---------------------------------------------------------------------------
+
+export const MUR_PODAAC = {
+  collection: "C1996881146-POCLOUD",
+  shortName: "MUR-JPL-L4-GLOB-v4.1",
+  cmr: "https://cmr.earthdata.nasa.gov/search/granules.umm_json",
+  /** Grid from the MUR v4.1 file specification: 0.01°, lat −89.99…89.99 (17 999 rows), lon −179.99…180.00 (36 000 columns). */
+  grid: { lat0: -89.99, lon0: -179.99, step: 0.01, nLat: 17999, nLon: 36000 },
+  /**
+   * Packing as stored in the files (int16). Used only if the server returns packed integers and the
+   * dataset's own DMR attributes could not be read. analysed_sst is in kelvin; sst_anomaly is a kelvin
+   * difference from the 2003–2014 day-of-year average (added to MUR granules in July 2019).
+   */
+  packing: {
+    analysed_sst: { scale: 0.001, offset: 298.15, fill: -32768 },
+    sst_anomaly: { scale: 0.001, offset: 0, fill: -32768 },
+  },
+  anomalyBaseline: "anomaly baseline (MUR sst_anomaly): day-of-year average 2003–2014",
+};
+
+/** Nearest MUR grid cell to a point.
+ * @param {number} lat
+ * @param {number} lon */
+export function murGridIndex(lat, lon) {
+  const g = MUR_PODAAC.grid;
+  const i = Math.min(g.nLat - 1, Math.max(0, Math.round((lat - g.lat0) / g.step)));
+  const j = Math.min(g.nLon - 1, Math.max(0, Math.round((lon - g.lon0) / g.step)));
+  return { i, j, lat: round(g.lat0 + i * g.step, 2), lon: round(g.lon0 + j * g.step, 2) };
+}
+
+/** CMR granule search for MUR v4.1 between two dates (inclusive), one page.
+ * @param {{start:string, end:string, page?:number, pageSize?:number}} p */
+export function buildCmrGranuleUrl({ start, end, page = 1, pageSize = 2000 }) {
+  const q = new URLSearchParams({
+    collection_concept_id: MUR_PODAAC.collection,
+    temporal: `${start}T00:00:00Z,${end}T23:59:59Z`,
+    page_size: String(pageSize),
+    page_num: String(page),
+    sort_key: "start_date",
+  });
+  return `${MUR_PODAAC.cmr}?${q}`;
+}
+
+/**
+ * CMR UMM-JSON granules → [{date, granule, opendap}]. Only granules that advertise an OPeNDAP service URL.
+ * @param {any} json
+ */
+export function parseCmrGranules(json) {
+  if (!json || !Array.isArray(json.items)) throw new Error("CMR: unexpected response");
+  /** @type {{date:string, granule:string, opendap:string}[]} */
+  const out = [];
+  for (const it of json.items) {
+    const ur = it?.umm?.GranuleUR ?? "";
+    const m = /^(\d{4})(\d{2})(\d{2})/.exec(ur);
+    const od = (it?.umm?.RelatedUrls ?? []).find((/** @type {any} */ u) => /OPENDAP/i.test(u.Subtype ?? "") && /^https:/.test(u.URL));
+    // Some granules advertise a long-name URL; the concept-id form below is accepted for all of them.
+    if (m && od) out.push({ date: `${m[1]}-${m[2]}-${m[3]}`, granule: ur, opendap: `https://opendap.earthdata.nasa.gov/collections/${MUR_PODAAC.collection}/granules/${ur}` });
+  }
+  return out;
+}
+
+/** Keep every `stride`-th calendar day counted from `start` (weekly samples with stride 7).
+ * @template {{date:string}} G
+ * @param {G[]} granules
+ * @param {string} start
+ * @param {number} stride
+ * @returns {G[]} */
+export function sampleGranules(granules, start, stride) {
+  const t0 = Date.parse(`${start}T00:00:00Z`);
+  return granules.filter((g) => Math.round((Date.parse(`${g.date}T00:00:00Z`) - t0) / 86400000) % stride === 0);
+}
+
+/** DAP2 ASCII point request for one grid cell: analysed_sst and sst_anomaly (brackets percent-encoded; Hyrax rejects raw ones).
+ * @param {string} opendapUrl
+ * @param {number} i
+ * @param {number} j */
+export function buildMurOpendapUrl(opendapUrl, i, j) {
+  const cell = `%5B0:1:0%5D%5B${i}:1:${i}%5D%5B${j}:1:${j}%5D`;
+  return `${opendapUrl}.ascii?analysed_sst${cell},sst_anomaly${cell}`;
+}
+
+/**
+ * Read scale_factor / add_offset / _FillValue for one variable from an OPeNDAP DMR (XML). Returns null
+ * for anything missing so the caller can fall back to the documented packing.
+ * @param {string} dmr
+ * @param {string} variable
+ */
+export function parseDmrPacking(dmr, variable) {
+  const block = new RegExp(`<(?:Int16|Int32|Float32|Float64)\\s+name="${variable}"[\\s\\S]*?</(?:Int16|Int32|Float32|Float64)>`).exec(dmr)?.[0];
+  if (!block) return null;
+  const attr = (/** @type {string} */ name) => {
+    const m = new RegExp(`<Attribute\\s+name="${name}"[^>]*>\\s*<Value>([^<]+)</Value>`).exec(block);
+    return m ? Number(m[1]) : null;
+  };
+  return { scale: attr("scale_factor"), offset: attr("add_offset"), fill: attr("_FillValue"), packed: /^<Int/.test(block) };
+}
+
+/**
+ * Value of one variable from an OPeNDAP ASCII (DAP2) or CSV (DAP4) point response.
+ * Packed integers are unpacked with `packing`; kelvin is converted to °C for analysed_sst.
+ * Fill / NaN / missing → null (never invented).
+ * @param {string} text
+ * @param {"analysed_sst"|"sst_anomaly"} variable
+ * @param {{scale:number|null, offset:number|null, fill:number|null}} [packing]
+ */
+export function parseMurPointValue(text, variable, packing) {
+  const re = new RegExp(`(?:^|[\\s/.])${variable}(?:\\.${variable})?(?:\\[[^\\]]*\\])*\\s*,\\s*(-?(?:\\d+\\.?\\d*(?:[eE][-+]?\\d+)?|NaN|nan))`, "m");
+  const m = re.exec(text);
+  if (!m || /nan/i.test(m[1])) return null;
+  const raw = Number(m[1]);
+  if (!Number.isFinite(raw)) return null;
+  const def = MUR_PODAAC.packing[variable];
+  const p = { scale: packing?.scale ?? def.scale, offset: packing?.offset ?? def.offset, fill: packing?.fill ?? def.fill };
+  const isInteger = /^-?\d+$/.test(m[1]);
+  if (isInteger && raw === p.fill) return null;
+  // Integers are stored (packed) values; a decimal means the server already unpacked them.
+  const v = isInteger ? raw * p.scale + p.offset : raw;
+  return round(variable === "analysed_sst" ? v - 273.15 : v, 3);
+}
+
+/**
+ * Two EarthSeries (SST and SSTA) from MUR point samples fetched via PO.DAAC OPeNDAP.
+ * @param {{date:string, sst:number|null, anom:number|null}[]} samples
+ * @param {{experience: import("./types").ExperienceId, region:{id:string,name:string,lat:number,lon:number}, cell:{lat:number,lon:number}, periodKey:string, url:string, retrievedAt?:string}} ctx
+ * @returns {{SST: EarthSeries, SSTA: EarthSeries}}
+ */
+export function buildMurPodaacSeries(samples, ctx) {
+  const retrievedAt = ctx.retrievedAt ?? new Date().toISOString();
+  const sorted = [...samples].sort((a, b) => (a.date < b.date ? -1 : 1));
+  const make = (/** @type {"SST"|"SSTA"} */ variable) => ({
+    id: makeSeriesId("mur", variable, ctx.region.id, ctx.periodKey),
+    experience: ctx.experience,
+    variable,
+    label: variable === "SSTA" ? "Sea surface temperature anomaly" : "Sea surface temperature",
+    unit: "°C",
+    dataset: "GHRSST L4 MUR Global Foundation SST Analysis v4.1 (JPL)",
+    region: { name: ctx.region.name, lat: ctx.region.lat, lon: ctx.region.lon },
+    points: sorted.map((s) => ({ time: s.date, value: variable === "SSTA" ? s.anom : s.sst })),
+    source: {
+      kind: /** @type {const} */ ("nasa"),
+      name: "NASA/JPL MUR SST v4.1 via PO.DAAC OPeNDAP",
+      product:
+        `${MUR_PODAAC.shortName} (${variable === "SSTA" ? "sst_anomaly" : "analysed_sst"}), grid cell ${ctx.cell.lat}°, ${ctx.cell.lon}°` +
+        (variable === "SSTA" ? ` · ${MUR_PODAAC.anomalyBaseline}` : ""),
+      url: ctx.url,
+      citation: `${MUR_REFERENCE} Accessed through NASA Earthdata (CMR + OPeNDAP) on ${retrievedAt.slice(0, 10)}.`,
+      retrievedAt,
+    },
+  });
+  return { SST: make("SST"), SSTA: make("SSTA") };
+}
+
 /** https://coralreefwatch.noaa.gov/product/5km/index.php */
 export const CRW_REFERENCE =
   "NOAA Coral Reef Watch. 2018, updated daily. NOAA Coral Reef Watch Version 3.1 Daily Global 5km Satellite " +
