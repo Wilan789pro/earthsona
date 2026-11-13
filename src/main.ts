@@ -18,6 +18,11 @@ import { trackToFrames, type PitchScale, type SoundFrame } from "./sonification/
 import { LIMITATIONS, ROLE_DOCS, SCALES, VARIABLE_WORDS, densityHits, harmonyIntervals, noteFrequency, noteIndex, noteName } from "./sonification/mappings";
 import { PALETTES, type PaletteId } from "./sonification/palettes";
 import { KID, timeWindows, type TimeWindow } from "./ui/kid";
+import { BuddyVoice, astronautSvg } from "./ui/astronaut";
+import { MISSIONS, badgeCount, emptyProgress, loadProgress, saveProgress, type Progress } from "./ui/missions";
+import { MissionCard } from "./ui/missionCard";
+import { renderImpact } from "./ui/impact";
+import { Story } from "./ui/story";
 
 // ---------------------------------------------------------------------------
 // State
@@ -54,6 +59,9 @@ const player = new FramePlayer();
 const chart = new SeriesChart($("chart"));
 const globe = new Globe($("globe"));
 const narrator = new Narrator();
+const voice = new BuddyVoice();
+let progress: Progress = loadProgress();
+const saveProg = () => (saveProgress(progress), updateBadgeCount());
 
 const palette = (): PaletteId => (state.region.music === "sega" && settings.regional ? "sega" : "neutral");
 const renderOpts = () => ({ experience: state.experience, palette: palette(), layers: state.layers });
@@ -122,7 +130,7 @@ async function renderPlaces() {
   globe.setMarkers(exp.regions.map((id) => ({ id, lat: getRegion(id)!.lat, lon: getRegion(id)!.lon })), COLORS[exp.id]);
 }
 
-function selectExperience(id: ExperienceId) {
+function selectExperience(id: ExperienceId): Promise<void> | void {
   if (id === state.experience) return;
   state.experience = id;
   state.periodIndex = 0;
@@ -138,16 +146,26 @@ function selectExperience(id: ExperienceId) {
   applyOverlay();
   renderEic();
   flyToRegion();
-  loadTrack("place");
+  missionCard.render();
+  return loadTrack("place");
 }
 
-function selectRegion(r: RegionDef) {
+function selectRegion(r: RegionDef): Promise<void> | void {
   if (r.id === state.region.id && state.track) return;
   state.region = r;
   state.window = "all";
   flyToRegion();
   renderPlaces();
-  loadTrack("place");
+  return loadTrack("place");
+}
+
+/** Go to a world and place (used by missions, Listen and Explore) and wait for its data. */
+async function goTo(exp: ExperienceId, regionId?: string) {
+  const r = getRegion(regionId ?? (getExperience(exp).regions.includes(state.region.id) ? state.region.id : getExperience(exp).regions[0]))!;
+  if (exp !== state.experience) {
+    state.region = r;
+    await selectExperience(exp);
+  } else if (r.id !== state.region.id || !state.track) await selectRegion(r);
 }
 
 function flyToRegion() {
@@ -195,6 +213,7 @@ async function loadTrack(reason: "place" | "period" | "boot") {
   renderScience();
   updateMix();
   lab.refresh();
+  missionCard.render();
   if (state.soundOn) engine.startNature(ambienceFor(state.region.ambience));
   if (reason !== "boot") showDiscovery("place");
   announce(`${exp.short}, ${state.region.name}. ${state.track ? sourceChip().text : "Nature sounds only"}. Press Space to play.`);
@@ -328,10 +347,14 @@ function updateNow(f: SoundFrame | undefined) {
 // Discovery cards
 // ---------------------------------------------------------------------------
 let discoveryTimer: number | undefined;
-function showDiscovery(kind: "place" | "time" | "welcome") {
-  if (!settings.popups && kind !== "welcome") return;
+interface CardContent { kicker: string; title: string; fact: string; data: string; sound: string }
+function showDiscovery(kind: "place" | "time" | "welcome", force = false) {
+  if (!settings.popups && kind !== "welcome" && !force) return;
+  showCard(kind === "welcome" ? KID.welcome() : KID.discovery(kind, state.experience, state.region, state.track, currentWindow()), kind);
+}
+function showCard(content: CardContent, kind: string) {
   const card = $("discovery");
-  const content = kind === "welcome" ? KID.welcome() : KID.discovery(kind, state.experience, state.region, state.track, currentWindow());
+  card.dataset.kind = kind;
   $("disc-kicker").textContent = content.kicker;
   $("disc-title").textContent = content.title;
   $("disc-fact").innerHTML = content.fact;
@@ -343,6 +366,73 @@ function showDiscovery(kind: "place" | "time" | "welcome") {
   card.classList.add("pop");
   clearTimeout(discoveryTimer);
   announce(`${content.title}. ${card.innerText.slice(0, 160)}`);
+}
+
+// ---------------------------------------------------------------------------
+// "Why does it sound like this?" — short, dismissible, non-blocking; reopen with (i) or W
+// ---------------------------------------------------------------------------
+const explained = new Set<string>();
+function showSoundExplain() {
+  const exp = state.experience;
+  const r = state.region;
+  const t = state.track;
+  const sega = r.music === "sega" && settings.regional;
+  const amb = AMBIENCE[ambienceFor(r.ambience)];
+  const what = { ocean: "the ocean", forest: "the forest", pulse: "Earth's pulse" }[exp];
+  const natureWord = { ocean: "an ocean-inspired texture", forest: "a forest-inspired texture", pulse: "a weather-inspired texture" }[exp];
+  const dataWord = { ocean: "a melody made from real ocean-temperature measurements", forest: "a melody made from real measurements of how green the land is", pulse: "music made from real temperature, rain and sunshine estimates" }[exp];
+  const lead = t
+    ? `You're hearing ${natureWord}${sega ? ", a Sega-inspired rhythm" : ""} and ${dataWord}.`
+    : `You're hearing ${natureWord}. There are no real measurements here yet, so there is no data melody.`;
+  const pitch = t?.layers.find((l) => l.def.roles.includes("pitch"))?.result.series;
+  let science = "";
+  if (t && pitch) {
+    const f = state.soundOn || player.index > 0 ? state.frames[Math.min(player.index, state.frames.length - 1)] : undefined;
+    let pt: { time: string; value: number | null } | null = f ? { time: f.time, value: f.values[pitch.variable]?.value ?? null } : null;
+    if (!pt || pt.value === null) {
+      const ok = (pitch.points as CleanPoint[]).filter((p) => p.value !== null && !p.bridged);
+      const last = ok[ok.length - 1];
+      pt = last ? { time: last.time, value: last.value } : null;
+    }
+    const dt = dataTypeFor(pitch.variable, pitch.source.name);
+    science = `<dl class="kv small sci-list">
+      <dt>Dataset</dt><dd>${esc(pitch.dataset ?? pitch.source.name)}</dd>
+      <dt>Variable</dt><dd>${esc(pitch.label)} (<code>${esc(pitch.variable)}</code>)</dd>
+      <dt>${f ? "Value (when opened)" : "Latest value"}</dt><dd><strong>${pt && pt.value !== null ? esc(fmtValue(pt.value, pitch.unit)) : "no data"}</strong></dd>
+      <dt>Unit</dt><dd>${esc(pitch.unit)}</dd>
+      <dt>Date</dt><dd>${pt ? esc(fmtDate(pt.time, pitch, true)) : "—"}</dd>
+      <dt>Source</dt><dd>${esc(pitch.source.kind === "noaa" ? "NOAA" : "NASA")} · ${esc(pitch.source.name)}</dd>
+      <dt>Kind</dt><dd>${esc(dt.label)}</dd>
+    </dl>`;
+  }
+  const regional =
+    r.music === "sega"
+      ? settings.regional
+        ? "original Sega-inspired music for Mauritius (ravann-like drum, maravann-like shaker, triangle). It carries no data."
+        : "Sega-inspired music is switched off (🎵 button)."
+      : r.musicNote ?? "none for this place.";
+  const sci = { ocean: "the real sea temperature changes the melody's pitch; warmer than usual makes the harmony more tense.", forest: "real greenness changes the pitch and the fullness of the sound.", pulse: "temperature changes the pitch, rain the number of beats and sunshine the brightness." }[exp];
+  showCard(
+    {
+      kicker: "🎧 Why this sound?",
+      title: `Why does ${what} sound like this?`,
+      fact: esc(lead),
+      data:
+        `<ol class="why-list">
+        <li><strong>🌿 Nature-inspired sound:</strong> ${esc(amb.title)}, made by the computer to feel like the place. It is not a recording and carries no data.</li>
+        <li><strong>🎵 Regional music:</strong> ${esc(regional)}</li>
+        <li><strong>📈 Science sound:</strong> ${t ? esc(sci) : "silent here: no real measurements, and EARTHSONA never makes numbers up."}</li>
+      </ol>` + (science ? `<button class="btn small" id="why-sci" aria-expanded="false" aria-controls="why-sci-box">🔬 Discover the science</button><div id="why-sci-box" hidden>${science}</div>` : ""),
+      sound: `<span class="small muted">These sounds are artistic interpretations made from the data, not sounds recorded by satellites. Reopen this with the <em>Why this sound?</em> button.</span>`,
+    },
+    "why",
+  );
+  const b = document.getElementById("why-sci");
+  if (b) b.onclick = () => {
+    const box = $("why-sci-box");
+    box.hidden = !box.hidden;
+    b.setAttribute("aria-expanded", String(!box.hidden));
+  };
 }
 function hideDiscovery() {
   $("discovery").hidden = true;
@@ -649,6 +739,11 @@ async function play() {
   engine.startNature(ambienceFor(state.region.ambience));
   if (state.frames.length) player.play();
   setPlayingUi();
+  const key = `${state.experience}:${state.region.id}`;
+  if (!explained.has(key) && settings.popups) {
+    explained.add(key);
+    showSoundExplain();
+  }
 }
 function pause() {
   state.soundOn = false;
@@ -746,7 +841,19 @@ async function exportWav() {
 // Narration (short tips with subtitles)
 // ---------------------------------------------------------------------------
 narrator.onDuck = (d) => engine.setDucked(d);
+voice.onDuck = (d) => engine.setDucked(d);
+voice.onState = (s) => {
+  if (s === "speaking") narrator.stop();
+  document.querySelectorAll<HTMLElement>(".voice-bar[data-active]").forEach((bar) => {
+    bar.querySelector<HTMLElement>(".voice-ctls")!.hidden = s === "idle";
+    const pb = bar.querySelector<HTMLButtonElement>("[data-vpause]")!;
+    pb.innerHTML = s === "paused" ? `<span aria-hidden="true">▶</span><span class="sr-only">Resume</span>` : `<span aria-hidden="true">⏸</span><span class="sr-only">Pause</span>`;
+    pb.title = s === "paused" ? "Resume" : "Pause";
+    if (s === "idle") delete bar.dataset.active;
+  });
+};
 narrator.onState = (s, text) => {
+  if (s === "speaking") voice.stop();
   const sub = $("tip-subtitle");
   $("tip-ctls").hidden = s === "idle";
   $("tip-play-label").textContent = s === "idle" ? (narrator.text ? "Next tip" : "Hear a tip") : "Next tip";
@@ -878,7 +985,171 @@ const lab = new EarthLab(engine, {
     engine.startNature(ambienceFor(state.region.ambience));
   },
   afterPlay: () => engine.stopNature(),
+  onCompared: () => missionCard.markDone(3),
 });
+
+// ---------------------------------------------------------------------------
+// Story, missions, Earth Impact Explorer, Listen, My Missions
+// ---------------------------------------------------------------------------
+const missionCard = new MissionCard({
+  experience: () => state.experience,
+  region: () => state.region,
+  hasData: () => !!state.track,
+  progress: () => progress,
+  save: saveProg,
+  voice,
+  enter: (anim) => playSceneFx(anim),
+  showData: () => showDiscovery("place", true),
+  listen: async () => {
+    explained.add(`${state.experience}:${state.region.id}`);
+    await play();
+    showSoundExplain();
+  },
+  compare: () => {
+    lab.refresh();
+    lab.openCompare();
+    openDialog("dlg-lab");
+  },
+  impact: () => openImpact(),
+  badgeEarned: () => (badgeCount(progress) === 3 ? story.open("finale") : story.open("missions")),
+});
+
+const story = new Story({
+  progress: () => progress,
+  save: saveProg,
+  voice,
+  explore: () => showExplore(),
+  chooseMission: (exp) => startMission(exp),
+});
+
+async function startMission(exp: ExperienceId) {
+  await goTo(exp);
+  missionCard.render();
+  const card = $("mission-card");
+  card.scrollIntoView({ block: "start", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  $("mc-title").tabIndex = -1;
+  $("mc-title").focus();
+  announce(`${MISSIONS[exp].title}. Step ${progress[exp].step + 1}.`);
+}
+
+function updateBadgeCount() {
+  $("badge-count").textContent = `${badgeCount(progress)}/3`;
+}
+
+/** Short scene animation over the globe for the mission "Enter" step (decorative). */
+let fxTimer: number | undefined;
+function playSceneFx(kind: "dive" | "land" | "clouds") {
+  const fx = $("scene-fx");
+  const art = {
+    dive: `<div class="fx-bg"></div><span class="fx-a">🐠</span><span class="fx-b">🐢</span><span class="fx-c">🪸</span>`,
+    land: `<div class="fx-bg"></div><span class="fx-a">🌳</span><span class="fx-b">🦜</span><span class="fx-c">🌴</span>`,
+    clouds: `<div class="fx-bg"></div><span class="fx-a">☁️</span><span class="fx-b">☀️</span><span class="fx-c">🌧️</span>`,
+  }[kind];
+  fx.className = `scene-fx fx-${kind}`;
+  fx.innerHTML = `${art}<div class="fx-ship">🚀</div><p class="fx-caption">${esc(MISSIONS[state.experience].lines[0])}</p>`;
+  fx.hidden = false;
+  clearTimeout(fxTimer);
+  fxTimer = window.setTimeout(() => (fx.hidden = true), 4500);
+  announce(MISSIONS[state.experience].lines[0]);
+}
+$("scene-fx").addEventListener("click", () => ($("scene-fx").hidden = true));
+
+/** Scene 3: explore the Earth — the real globe, with the astronaut introducing the destinations. */
+function showExplore() {
+  const worlds = EXPERIENCES.map(
+    (e) =>
+      `<li><strong>${e.icon} ${esc(MISSIONS[e.id].title)}</strong>: ${e.regions
+        .map((id) => `<button class="link-btn" data-go="${e.id}|${id}">${esc(getRegion(id)!.short ?? getRegion(id)!.name)}</button>`)
+        .join(", ")}</li>`,
+  ).join("");
+  showCard(
+    {
+      kicker: "🌍 Explore the Earth",
+      title: "Tap a glowing dot to visit a place!",
+      fact: `<span class="explore-buddy">${astronautSvg({ pose: "point", size: "56" })}</span> These dots are places we can listen to: oceans, forests and Earth's weather. Mauritius is in all three!`,
+      data: `<ul class="disc-list explore-list">${worlds}</ul>`,
+      sound: `<button class="btn primary" id="explore-missions">🚀 Choose a mission</button>`,
+    },
+    "explore",
+  );
+  $("discovery").querySelectorAll<HTMLButtonElement>("[data-go]").forEach((b) => (b.onclick = () => {
+    const [exp, id] = b.dataset.go!.split("|");
+    goTo(exp as ExperienceId, id);
+  }));
+  $("explore-missions").onclick = () => story.open("missions");
+  globe.reset();
+}
+
+function openImpact() {
+  renderImpact({ experience: state.experience, region: state.region, track: state.track, voice });
+  openDialog("dlg-impact");
+  missionCard.markDone(4);
+}
+
+function renderListen() {
+  $("listen-grid").innerHTML = EXPERIENCES.map(
+    (e) =>
+      `<section class="listen-world" style="--c:${COLORS[e.id]}"><h3>${e.icon} ${esc(MISSIONS[e.id].title)}</h3><ul>${e.regions
+        .map((id) => {
+          const r = getRegion(id)!;
+          return `<li><button class="listen-btn" data-listen="${e.id}|${id}"><span aria-hidden="true">▶</span> <strong>${esc(r.short ?? r.name)}</strong><span class="tag ${musicTag(r).cls}">${esc(musicTag(r).text)}</span></button></li>`;
+        })
+        .join("")}</ul></section>`,
+  ).join("");
+  $("listen-grid").querySelectorAll<HTMLButtonElement>("[data-listen]").forEach((b) => (b.onclick = async () => {
+    const [exp, id] = b.dataset.listen!.split("|");
+    ($("dlg-listen") as HTMLDialogElement).close();
+    await goTo(exp as ExperienceId, id);
+    await play();
+  }));
+}
+
+let resetArmed = false;
+function renderMissions() {
+  const n = badgeCount(progress);
+  $("missions-body").innerHTML = `
+    <div class="my-missions">${EXPERIENCES.map((e) => {
+      const m = MISSIONS[e.id];
+      const mp = progress[e.id];
+      const done = mp.done.filter(Boolean).length;
+      return `<section class="my-mission ${mp.badge ? "won" : ""}" style="--c:${COLORS[e.id]}">
+        <div class="mm-badge" aria-hidden="true">${mp.badge ? m.badgeIcon : "🔒"}</div>
+        <h3>${esc(m.title)}</h3>
+        <p class="small">${mp.badge ? `<strong>${esc(m.badge)}</strong> badge earned!` : `${done} of 7 steps done`}</p>
+        <div class="mp-progress" role="img" aria-label="${done} of 7 steps done"><span style="width:${(done / 7) * 100}%"></span></div>
+        <button class="btn primary" data-continue="${e.id}">${done ? "Continue" : "Start"}</button>
+      </section>`;
+    }).join("")}</div>
+    <div class="row-btns">
+      <button class="btn" id="mm-choose">🗺️ Choose a mission</button>
+      <button class="btn" id="mm-game">🌟 What would you do?</button>
+      <button class="btn" id="mm-finale">🎉 Mission complete (${n}/3)</button>
+      <button class="btn" id="mm-story">↻ Replay the story</button>
+    </div>
+    <p class="small muted">Your progress is saved only in this browser.
+      <button class="btn small ghost" id="mm-reset">${resetArmed ? "Tap again to erase all progress" : "Start over"}</button></p>`;
+  const close = () => ($("dlg-missions") as HTMLDialogElement).close();
+  $("missions-body").querySelectorAll<HTMLButtonElement>("[data-continue]").forEach((b) => (b.onclick = () => (close(), startMission(b.dataset.continue as ExperienceId))));
+  $("mm-choose").onclick = () => (close(), story.open("missions"));
+  $("mm-game").onclick = () => (close(), story.restartGame(), story.open("game"));
+  $("mm-finale").onclick = () => (close(), story.open("finale"));
+  $("mm-story").onclick = () => (close(), story.open("message"));
+  $("mm-reset").onclick = () => {
+    if (!resetArmed) {
+      resetArmed = true;
+      renderMissions();
+      $("mm-reset").focus();
+      return;
+    }
+    resetArmed = false;
+    progress = emptyProgress();
+    progress.intro = true;
+    saveProg();
+    missionCard.render();
+    renderMissions();
+    announce("Progress erased. Start a new adventure!");
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Wiring
@@ -894,6 +1165,17 @@ $("btn-settings").onclick = () => openDialog("dlg-settings");
 $("btn-about").onclick = () => openDialog("dlg-about");
 $("btn-keys").onclick = () => openDialog("dlg-keys");
 $("disc-close").onclick = hideDiscovery;
+$("btn-why").onclick = () => showSoundExplain();
+$("nav-home").onclick = () => story.open("message");
+$("nav-explore").onclick = () => {
+  document.querySelectorAll<HTMLDialogElement>("dialog[open]").forEach((d) => d.close());
+  showExplore();
+  $("globe").scrollIntoView({ block: "nearest" });
+};
+$("nav-listen").onclick = () => (renderListen(), openDialog("dlg-listen"));
+$("nav-discover").onclick = () => openImpact();
+$("nav-missions").onclick = () => ((resetArmed = false), renderMissions(), openDialog("dlg-missions"));
+$("dlg-impact").addEventListener("close", () => voice.stop());
 $("btn-play").onclick = togglePlay;
 $("btn-stop").onclick = stopAll;
 $("btn-replay").onclick = async () => {
@@ -991,6 +1273,8 @@ addEventListener("keydown", (e) => {
   if (e.key === "Escape" && !t.closest("dialog[open]")) {
     hideDiscovery();
     narrator.stop();
+    voice.stop();
+    $("scene-fx").hidden = true;
     return;
   }
   if (t.closest("input, select, textarea, dialog[open]") || e.ctrlKey || e.metaKey || e.altKey) return;
@@ -1002,6 +1286,7 @@ addEventListener("keydown", (e) => {
       togglePlay();
       break;
     case "s": case "S": stopAll(); break;
+    case "w": case "W": showSoundExplain(); break;
     case "t": case "T": narrator.state === "idle" ? narrator.next() : narrator.stop(); break;
     case "n": case "N": toggleBus("nature"); break;
     case "d": case "D": toggleBus("data"); break;
@@ -1031,13 +1316,15 @@ renderEic();
 applyOverlay();
 flyToRegion();
 updateMix();
+updateBadgeCount();
+missionCard.render();
+// First visit: the opening story starts at once (it needs no data); the data loads behind it.
+if (!progress.intro) story.open("message");
 loadTrack("boot").then(() => {
-  if (!loadPref<boolean>("welcomed", false)) {
-    showDiscovery("welcome");
-    savePref("welcomed", true);
-  }
+  if (progress.intro && !loadPref<boolean>("welcomed", false)) showDiscovery("welcome");
+  savePref("welcomed", true);
 });
 booted = true;
 
 // Debug hook for automated checks (no effect on the UI).
-(window as unknown as { __earthsona: unknown }).__earthsona = { state, player, registry, engine, narrator, settings };
+(window as unknown as { __earthsona: unknown }).__earthsona = { state, player, registry, engine, narrator, settings, voice, progress: () => progress };

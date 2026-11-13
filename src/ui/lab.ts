@@ -40,6 +40,8 @@ export interface LabHost {
   selectRegion: (id: string) => void;
   beforePlay: () => Promise<void>;
   afterPlay: () => void;
+  /** Called once the child has heard both A and B (mission step "Compare"). */
+  onCompared?: () => void;
 }
 
 export class EarthLab {
@@ -49,6 +51,7 @@ export class EarthLab {
   private b = "";
   private timer: number | null = null;
   private wi: Values = {};
+  private heard = new Set<string>();
   private real: Values = {};
 
   constructor(private engine: SonificationEngine, private host: LabHost) {
@@ -66,9 +69,15 @@ export class EarthLab {
     $("lab-wi-ab").onclick = () => this.playValues([["Real", this.real], ["What if", this.wi]]);
   }
 
+  /** Show the "Compare real times" mode (used by the mission step). */
+  openCompare(): void {
+    this.setMode("compare");
+  }
+
   /** Call whenever the world / place / data changes (and when the dialog opens). */
   refresh(): void {
     const { experience, region, track } = this.host.state();
+    this.heard.clear();
     // World and place pickers.
     $("lab-worlds").innerHTML = EXPERIENCES.map(
       (e) => `<button class="chip" role="radio" aria-checked="${e.id === experience}" data-exp="${e.id}">${e.icon} ${esc(e.short)}</button>`,
@@ -218,6 +227,8 @@ export class EarthLab {
     this.stop();
     const clips = which.map((k) => ({ k, key: k === "A" ? this.a : this.b, frames: this.framesFor(k === "A" ? this.a : this.b) })).filter((c) => c.frames.length);
     if (!clips.length) return;
+    clips.forEach((c) => this.heard.add(c.k));
+    if (this.heard.has("A") && this.heard.has("B")) this.host.onCompared?.();
     await this.host.beforePlay();
     const { experience, palette, layers } = this.host.state();
     const step = Math.max(0.1, Math.min(0.4, 7 / Math.max(...clips.map((c) => c.frames.length))));

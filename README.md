@@ -10,6 +10,29 @@ EARTHSONA is an interactive, child-friendly way to explore Earth through sound. 
 
 When the measurements change, the sound changes. The sounds are artistic interpretations generated from observations. They are not recordings made by satellites.
 
+## The astronaut adventure
+
+Children join a friendly astronaut, their **space buddy**, on a mission to discover Earth's secrets. The story follows ten scenes:
+
+| Scene | What happens | Where in the app |
+|---|---|---|
+| 1 · The mysterious message | spaceship, Earth appears, a message arrives on the tablet | opens on the first visit; 🏠 Home replays it |
+| 2 · Welcome aboard | the astronaut waves, a holographic Earth, badge slots | story dialog |
+| 3 · Explore the Earth | the real 3D globe; the astronaut introduces the nine places | 🌍 Explore |
+| 4 · Choose your mission | Ocean Symphony, Forest Voices, Earth's Pulse, in any order | mission chooser |
+| 5–7 · The missions | seven steps each: Enter, Discover the data, Listen, Compare, Why it matters, Challenge, What can we do? | mission card (top of the right panel) |
+| 8 · Earth Impact Explorer | tap to discover, step-by-step cause and effect, ask the astronaut, prediction challenge, positive actions | 🔍 Discover, or mission step 5 |
+| 9 · What would you do? | four kind, guilt-free situations | 🏅 My Missions |
+| 10 · Mission complete | badges, discoveries, replay, printable certificate, parent and teacher prompts | 🏅 My Missions |
+
+- **The child sets the pace.** Back and Next always work and steps can be done in any order. Nothing speaks until **🔊 Hear it** is pressed. Every line has a caption, plus pause, stop and replay.
+- **"Why does it sound like this?"** pops up the first time a place plays. It explains the nature sound, the regional music and the science sound. **🔬 Discover the science** shows the dataset, the variable, the actual value, its unit and date, and the source. **ⓘ Why this sound?** (or `W`) reopens it.
+- **The Impact Explorer** keeps three kinds of statement apart, each with its own label:
+  - **real data from the dataset**: the numbers in its top box are read from the loaded series;
+  - **what research says can happen**, with linked NOAA, NASA and Drought.gov sources;
+  - **not checked for this place**: for example, EARTHSONA did not look at any reef, and lower greenness does not prove tree loss.
+- Progress and badges are stored only in this browser (🏅 My Missions → Start over erases them).
+
 ## The nine featured experiences
 
 | World | Place | Natural sound (Layer 1) | Regional music (Layer 3) |
@@ -33,6 +56,16 @@ When the measurements change, the sound changes. The sounds are artistic interpr
 | 💓 Pulse | T2M → pitch · PRECTOTCORR → rhythm density · ALLSKY_SFC_SW_DWN → brightness | **NASA POWER** daily and monthly | Model-based estimates (MERRA-2); solar is satellite-derived (CERES) |
 
 The kind of each value is shown in the app ("Science behind the sound" and the source dialog). A model value is never presented as a satellite reading.
+
+**MUR straight from NASA (PO.DAAC):** MUR v4.1 on NASA Earthdata Cloud needs an Earthdata Login. We checked on 2026-11-13: CMR granule search is public, but OPeNDAP and Harmony both redirect to the login.
+
+1. Create a free account at https://urs.earthdata.nasa.gov/.
+2. Generate a token and put it in `.env` as `EARTHDATA_TOKEN=…` (see `.env.example`).
+3. Run `npm run fetch-data -- --only=ocean`.
+
+The script finds granules with CMR, samples one day per week and requests one grid cell of `analysed_sst` and `sst_anomaly` from each day's OPeNDAP granule. The anomaly is MUR's own, relative to the 2003–2014 day-of-year average. Responses are cached in `.cache/`, which is git-ignored. The token is read only by the Node script and never reaches the browser.
+
+**Not yet verified:** the discovery step and the URL format were tested live, but reading the values themselves has not been run with a real token yet.
 
 **About the ocean data in this build:** the MUR ERDDAP server (`coastwatch.pfeg.noaa.gov`) was unreachable from our network, so the fetch script automatically used NOAA Coral Reef Watch CoralTemp for **both** SST and its anomaly. The app labels this as **NOAA**, never as MUR. If you run `npm run fetch-data -- --only=ocean` where MUR is reachable (or set `ERDDAP_BASE`), MUR replaces it automatically.
 
@@ -109,6 +142,11 @@ src/audio/player.ts             play / pause / stop / replay / seek
 src/ui/kid.ts                   child-friendly words, time windows, discovery cards (numbers read from data)
 src/ui/narrator.ts              short spoken tips with subtitles
 src/ui/lab.ts                   Earth Sound Lab: compare real times + "What if?"
+src/ui/astronaut.ts             the space buddy (original SVG) + optional voice with captions
+src/ui/missions.ts              mission steps, challenges, Impact Explorer chains, mini-game, progress
+src/ui/missionCard.ts           the seven-step mission card
+src/ui/impact.ts                Earth Impact Explorer (real-data box + general science)
+src/ui/story.ts                 scenes 1, 2, 4, 9, 10 and the printable certificate
 src/main.ts                     layout and wiring
 ```
 
@@ -128,7 +166,9 @@ Feature branches are merged into `master` through pull requests: `feature/nasa-d
 
 ## Known limitations
 
-- **Ocean data** in this build comes from NOAA CoralTemp because MUR was unreachable at fetch time (see above).
+- **Ocean data** in this build comes from NOAA CoralTemp: no Earthdata token was available and the public MUR ERDDAP was unreachable (see above).
+- **Regional music for Hawaiʻi and Japan** was requested, but it is deliberately not invented. It needs research and collaboration with musicians from those communities.
+- **Voices** are the browser's built-in voices, so quality varies by device. Captions are always shown.
 - **Points, not areas:** values are for one point or grid cell (POWER ≈ 0.5° × 0.625°, MODIS 250 m, CoralTemp 5 km, MUR ≈ 1 km).
 - **Boreal forest gaps:** about half of the boreal composites are snow- or cloud-flagged, and you hear them as ticks.
 - **Regional music:** only Mauritius has it, and the Sega-inspired profile still needs review by Mauritian practitioners. Hawaiʻi, the Amazon and Japan intentionally have none until it can be developed with musicians from those communities.

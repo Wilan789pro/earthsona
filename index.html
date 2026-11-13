@@ -40,6 +40,13 @@
             <p class="tagline">Hear the Earth. Understand the Change.</p>
           </div>
         </div>
+        <nav class="main-nav" aria-label="Main">
+          <button class="nav-btn" id="nav-home" aria-haspopup="dialog"><span aria-hidden="true">🏠</span> Home</button>
+          <button class="nav-btn" id="nav-explore"><span aria-hidden="true">🌍</span> Explore</button>
+          <button class="nav-btn" id="nav-listen" aria-haspopup="dialog"><span aria-hidden="true">🎧</span> Listen</button>
+          <button class="nav-btn" id="nav-discover" aria-haspopup="dialog"><span aria-hidden="true">🔍</span> Discover</button>
+          <button class="nav-btn" id="nav-missions" aria-haspopup="dialog"><span aria-hidden="true">🏅</span> My Missions <span class="badge-count" id="badge-count">0/3</span></button>
+        </nav>
         <button class="try-btn" id="btn-try" aria-haspopup="dialog"><span aria-hidden="true">✦</span> TRY THIS OUT <span aria-hidden="true">✦</span></button>
         <div class="tools" role="toolbar" aria-label="Display and help">
           <div class="text-size" role="group" aria-label="Text size">
@@ -84,6 +91,7 @@
         <h2 id="stage-h" class="sr-only">Interactive globe</h2>
         <div class="globe-wrap">
           <div id="globe" class="globe-host"></div>
+          <div class="scene-fx" id="scene-fx" aria-hidden="true" hidden></div>
           <div class="globe-tools" role="group" aria-label="Globe view">
             <button class="btn small ghost" id="btn-reset" title="Reset view (R)"><svg class="icon" aria-hidden="true"><use href="#i-globe" /></svg> Reset</button>
             <label class="ctl-inline check"><input type="checkbox" id="set-night" /> Night</label>
@@ -104,6 +112,25 @@
       <!-- ============ RIGHT: STORY ============ -->
       <aside class="side" id="story" aria-labelledby="loc-name" tabindex="-1">
         <div class="story">
+          <section class="mission-card" id="mission-card" aria-labelledby="mc-title">
+            <div class="mc-head">
+              <div class="mc-buddy" id="mc-buddy"></div>
+              <div>
+                <p class="eyebrow" id="mc-kicker">Mission</p>
+                <h2 class="mc-title" id="mc-title">Ocean Symphony</h2>
+                <p class="small muted" id="mc-stepof"></p>
+              </div>
+            </div>
+            <ol class="mc-steps" id="mc-steps" aria-label="Mission steps"></ol>
+            <h3 class="mc-step-title" id="mc-step-title"></h3>
+            <div id="mc-line"></div>
+            <div class="mc-body" id="mc-body"></div>
+            <div class="mc-nav">
+              <button class="btn small ghost" id="mc-back">◀ Back</button>
+              <button class="btn small" id="mc-next">Next ▶</button>
+            </div>
+          </section>
+
           <p class="eyebrow" id="loc-world"></p>
           <h2 id="loc-name" class="panel-title"></h2>
           <p id="loc-intro" class="kid-intro"></p>
@@ -213,6 +240,7 @@
           <div class="timeline-bottom"><span class="small" id="player-date">—</span><span class="status-pill" id="audio-status">STOPPED</span></div>
         </div>
         <canvas id="visualizer" width="160" height="44" aria-hidden="true"></canvas>
+        <button class="btn why-btn" id="btn-why" aria-haspopup="true" title="Why does it sound like this?"><svg class="icon" aria-hidden="true"><use href="#i-info" /></svg> Why this sound?</button>
         <fieldset class="mix" id="mix">
           <legend class="sr-only">Sound layers</legend>
           <button class="mix-btn" id="mix-nature" aria-pressed="true"><span aria-hidden="true">🌿</span> Nature</button>
@@ -283,6 +311,27 @@
       <p class="lab-now" id="lab-now" aria-live="polite"></p>
     </dialog>
 
+    <!-- ============ STORY SCENES (opening, missions, game, finale) ============ -->
+    <dialog id="dlg-story" class="story-dlg" aria-labelledby="story-h">
+      <div class="story-stage" id="story-stage"></div>
+    </dialog>
+
+    <dialog id="dlg-listen" aria-labelledby="dlg-listen-h" class="wide">
+      <div class="dlg-head"><h2 id="dlg-listen-h">🎧 Listen again</h2><button class="btn icon-btn" data-close><svg class="icon" aria-hidden="true"><use href="#i-close" /></svg><span class="sr-only">Close</span></button></div>
+      <p class="muted small">Every place plays real measurements as music. Pick one to listen.</p>
+      <div id="listen-grid" class="listen-grid"></div>
+    </dialog>
+
+    <dialog id="dlg-impact" aria-labelledby="dlg-impact-h" class="wide impact-dlg">
+      <div class="dlg-head"><h2 id="dlg-impact-h">🔍 Earth Impact Explorer</h2><button class="btn icon-btn" data-close><svg class="icon" aria-hidden="true"><use href="#i-close" /></svg><span class="sr-only">Close</span></button></div>
+      <div id="impact-body"></div>
+    </dialog>
+
+    <dialog id="dlg-missions" aria-labelledby="dlg-missions-h" class="wide">
+      <div class="dlg-head"><h2 id="dlg-missions-h">🏅 My Missions</h2><button class="btn icon-btn" data-close><svg class="icon" aria-hidden="true"><use href="#i-close" /></svg><span class="sr-only">Close</span></button></div>
+      <div id="missions-body"></div>
+    </dialog>
+
     <dialog id="dlg-source" aria-labelledby="dlg-source-h" class="wide">
       <div class="dlg-head"><h2 id="dlg-source-h">Where this data comes from</h2><button class="btn icon-btn" data-close><svg class="icon" aria-hidden="true"><use href="#i-close" /></svg><span class="sr-only">Close</span></button></div>
       <div id="source-details"></div>
@@ -316,6 +365,7 @@
           <tr><td>Arrow keys elsewhere</td><td>Rotate the globe</td></tr>
           <tr><td><kbd>+</kbd> / <kbd>-</kbd></td><td>Zoom in / out</td></tr>
           <tr><td><kbd>R</kbd></td><td>Reset globe view</td></tr>
+          <tr><td><kbd>W</kbd></td><td>Why does it sound like this?</td></tr>
           <tr><td><kbd>Esc</kbd></td><td>Close cards and dialogs, stop a tip</td></tr>
         </tbody>
       </table>
