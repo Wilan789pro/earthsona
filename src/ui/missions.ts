@@ -2,7 +2,7 @@ import type { ExperienceId } from "../data/types";
 import { loadPref, savePref } from "./dom";
 
 /**
- * Mission content for the astronaut-led story: the seven steps of each mission, the Earth Impact Explorer
+ * Mission content for Luna's adventure: what Luna says in each world, the Earth Impact Explorer
  * (what could a change mean?), the challenges and the "What would you do?" mini-game.
  *
  * Rules kept here:
@@ -47,13 +47,13 @@ export const MISSIONS: Record<ExperienceId, Mission> = {
     enterAnim: "dive",
     listenLabel: "Listen to the Ocean",
     lines: {
-      0: "Welcome to the ocean! So many creatures live here. But how do scientists know if the ocean is getting warmer or cooler?",
-      1: "Scientists use special observations to measure how warm the ocean's surface is. This helps them understand how our oceans are changing.",
-      2: "Press play! When the notes go higher, the measured ocean temperature went up. When they go lower, it went down.",
-      3: "Let's pick two different years and listen to both. Can you hear a difference?",
-      4: "Wow! We discovered something interesting. But why does it matter? Let's find out what warm water can mean for corals.",
-      5: "Time for a challenge, explorer!",
-      6: "Great job! Here are some things we can do to help the ocean.",
+      0: "Welcome to the ocean! So many creatures live here. The deeper the water, the darker the blue. Now pick a place to listen to.",
+      1: "Satellites measure how warm the top of the sea is, every single day. We turn those numbers into music.",
+      2: "Press the big play button! When the notes go up, the sea was warmer. When they go down, it was cooler.",
+      3: "Want to compare two years? Tap me and choose Two real years.",
+      4: "Want to find out why warm water matters to corals?",
+      5: "Here's a question for you, explorer!",
+      6: "You did it! Here are some ways we can help the ocean.",
     },
     challenge: {
       q: "What can happen when corals get too warm for too long?",
@@ -75,13 +75,13 @@ export const MISSIONS: Record<ExperienceId, Mission> = {
     enterAnim: "land",
     listenLabel: "Listen to the Forest",
     lines: {
-      0: "Look at all these beautiful plants! But how do scientists observe changes in forests from space?",
-      1: "Satellites can help scientists observe how green the land looks. This gives them clues about plants.",
-      2: "Press play! Greener measurements make higher notes and a fuller sound. A soft tick means clouds hid the forest.",
-      3: "Look carefully! Does the land look different in these two times? Let's listen to the difference.",
-      4: "Wow! We discovered something interesting. Let's find out what plants need, and who needs plants.",
-      5: "Time for a challenge, explorer!",
-      6: "Great job! Here are some things we can do to help forests.",
+      0: "Welcome to the forest world! The darker the green, the leafier the land. Now pick a place to listen to.",
+      1: "Satellites look at the light plants reflect, to see how green the land is. We turn that into music.",
+      2: "Press the big play button! Greener means higher notes and more birds singing. A soft tick means clouds hid the forest.",
+      3: "Want to compare two years? Tap me and choose Two real years.",
+      4: "Want to find out what plants need, and who needs plants?",
+      5: "Here's a question for you, explorer!",
+      6: "You did it! Here are some ways we can help forests.",
     },
     challenge: {
       q: "What helps plants grow?",
@@ -103,13 +103,13 @@ export const MISSIONS: Record<ExperienceId, Mission> = {
     enterAnim: "clouds",
     listenLabel: "Listen to Earth",
     lines: {
-      0: "Welcome to Earth's atmosphere! Let's discover how temperature, rain and sunshine help us understand our planet.",
-      1: "How warm or cool is it? How much rain fell? How much energy from the Sun reached the ground? Let's look!",
-      2: "Press play! Warmer air makes higher notes, more rain makes busier beats, and more sunshine makes a brighter sound.",
-      3: "Let's compare two different times and hear how the weather changed.",
-      4: "Wow! We discovered something interesting. Let's find out why rain and sunshine matter.",
-      5: "Time for a challenge, explorer!",
-      6: "Great job! Here are some things we can do to help.",
+      0: "Welcome to Earth's weather! Red and orange places are warm, blue and purple places are cold. Now pick a place to listen to.",
+      1: "NASA scientists work out the temperature, the rain and the sunshine for every place on Earth. We turn them into music.",
+      2: "Press the big play button! Warmer air makes higher notes, rain makes busy beats, and sunshine makes the sound brighter.",
+      3: "Want to compare two years? Tap me and choose Two real years.",
+      4: "Want to find out why rain and sunshine matter?",
+      5: "Here's a question for you, explorer!",
+      6: "You did it! Here are some ways we can help.",
     },
     challenge: {
       q: "What could happen when a place doesn't get enough rain for a long time?",

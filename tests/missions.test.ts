@@ -113,3 +113,23 @@ describe("Astronaut missions", () => {
     for (const w of worlds) expect(p[w]).toEqual({ step: 0, done: Array(7).fill(false), badge: false });
   });
 });
+
+import { natureModFor } from "../src/audio/ambience";
+
+describe("Measurements shape the nature sound (documented rules)", () => {
+  const v = (o: Record<string, number | null>) => Object.fromEntries(Object.entries(o).map(([k, x]) => [k, { value: x }]));
+  it("greener forest → livelier forest; no green → silent forest", () => {
+    expect(natureModFor("forest", v({ NDVI: 0.9 })).life).toBeGreaterThan(natureModFor("forest", v({ NDVI: 0.4 })).life!);
+    expect(natureModFor("forest", v({ NDVI: 0 })).life).toBe(0);
+  });
+  it("more rain → heavier rain; no rain → no rain sound; sunshine → birds", () => {
+    expect(natureModFor("pulse", v({ PRECTOTCORR: 0 })).rain).toBe(0);
+    expect(natureModFor("pulse", v({ PRECTOTCORR: 12 })).rain).toBeGreaterThan(1);
+    expect(natureModFor("pulse", v({ ALLSKY_SFC_SW_DWN: 25 })).life).toBeGreaterThan(natureModFor("pulse", v({ ALLSKY_SFC_SW_DWN: 5 })).life!);
+  });
+  it("warmer sea → brighter waves; missing data changes nothing (never invented)", () => {
+    expect(natureModFor("ocean", v({ SST: 29 })).bright).toBeGreaterThan(natureModFor("ocean", v({ SST: 18 })).bright!);
+    expect(natureModFor("ocean", v({ SST: null }))).toEqual({});
+    expect(natureModFor("forest", {})).toEqual({});
+  });
+});

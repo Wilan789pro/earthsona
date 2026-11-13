@@ -2,40 +2,51 @@
 
 NASA Space Apps Challenge 2026 · **The Earth Information Jukebox**
 
-EARTHSONA is an interactive, child-friendly way to explore Earth through sound. You pick a world and a place on a 3D Earth, press play, and hear three things:
+EARTHSONA is a child-friendly way (ages 6–8) to explore Earth through sound, with **Luna, the Moon** as guide. Pick a world and a place on a 3D Earth, press play, and hear the place's **nature sounds** and a **tune**. **Both are shaped by real environmental measurements**: when the numbers change, the waves, birds, rain and music change too. The sounds are artistic interpretations generated from observations. They are not recordings made by satellites.
 
-1. the **natural soundscape** of that place,
-2. a **sound made from real environmental measurements**, and
-3. **regional music**, but only where a genuine, researched connection exists.
+## Luna, the guide
 
-When the measurements change, the sound changes. The sounds are artistic interpretations generated from observations. They are not recordings made by satellites.
+Luna is a kawaii moon who goes round and round the Earth, on screen too: she orbits the globe and passes behind it. She guides the whole experience in a speech bubble and, after the first tap, **reads it aloud**, so children don't have to read.
 
-## The astronaut adventure
+1. **Welcome:** Luna introduces herself (first visit; the logo brings her back).
+2. **Pick a world.** Ocean, Forest or Weather. The globe changes to show only that world:
+   - **Ocean:** the sea in blues, darker where it is deeper (NASA Blue Marble bathymetry), with the land pale;
+   - **Forest:** land greenness (MODIS NDVI), darker green where it is greener;
+   - **Weather:** air temperature (MERRA-2), red where hot and blue/purple where cold.
+3. **Pick a place.** Luna introduces it ("Tell me more" gives a short tip).
+4. **Play.** Luna explains what you hear. **Why does it sound like this?** (or `W`) breaks it into nature, music and the measurements.
+5. **After listening:** Luna reads out real facts (value and date), then asks a question. A right answer earns the world's badge, followed by **Why does it matter?** (Earth Impact Explorer), **Play with Luna**, or the next world.
+6. **Badges:** "What would you do?", a printable certificate and prompts for parents and teachers.
 
-Children join a friendly astronaut, their **space buddy**, on a mission to discover Earth's secrets. The story follows ten scenes:
+**Luna's playground** (tap Luna, or press `L`) is the "Try this out" mode:
+- **Pretend:** sliders start at the real latest measurement: how warm the sea is, how much forest is left, and rain, sunshine and air warmth. Moving one **repaints the Earth**:
+  - the sea turns warmer colours and white "bleaching" patches appear;
+  - the forest disappears in patches and the land goes bare;
+  - pretend clouds roll in and the sunlight changes.
+- **Hear it:** the change also reshapes the sound. At 0 % forest the birds and insects go quiet and the tune drops low and thin. Then Luna explains what happened and what *could* happen in real life.
+- **Always labelled:** "Pretend Earth" on the globe and "make-believe, not a forecast" in the panel.
+- **Two real years:** compares two real periods (A / B) with the same music rules and says what changed, not why.
 
-| Scene | What happens | Where in the app |
-|---|---|---|
-| 1 · The mysterious message | spaceship, Earth appears, a message arrives on the tablet | opens on the first visit; 🏠 Home replays it |
-| 2 · Welcome aboard | the astronaut waves, a holographic Earth, badge slots | story dialog |
-| 3 · Explore the Earth | the real 3D globe; the astronaut introduces the nine places | 🌍 Explore |
-| 4 · Choose your mission | Ocean Symphony, Forest Voices, Earth's Pulse, in any order | mission chooser |
-| 5–7 · The missions | seven steps each: Enter, Discover the data, Listen, Compare, Why it matters, Challenge, What can we do? | mission card (top of the right panel) |
-| 8 · Earth Impact Explorer | tap to discover, step-by-step cause and effect, ask the astronaut, prediction challenge, positive actions | 🔍 Discover, or mission step 5 |
-| 9 · What would you do? | four kind, guilt-free situations | 🏅 My Missions |
-| 10 · Mission complete | badges, discoveries, replay, printable certificate, parent and teacher prompts | 🏅 My Missions |
+**Voice:**
+- **Device voices:** Luna uses this device's speech voices and prefers warm "Natural"/"Online" neural voices where available.
+- **Natural pacing:** she speaks a little slower, at natural pitch, one sentence at a time with short pauses.
+- **Controls:** the speaker button mutes her; pause and say-again are next to it; Esc stops her. Grown-ups can pick another voice in Settings.
+- **Requirements:** nothing is recorded or sent anywhere. Browsers only allow speech after the first tap.
 
-- **The child sets the pace.** Back and Next always work and steps can be done in any order. Nothing speaks until **🔊 Hear it** is pressed. Every line has a caption, plus pause, stop and replay.
-- **"Why does it sound like this?"** pops up the first time a place plays. It explains the nature sound, the regional music and the science sound. **🔬 Discover the science** shows the dataset, the variable, the actual value, its unit and date, and the source. **ⓘ Why this sound?** (or `W`) reopens it.
-- **The Impact Explorer** keeps three kinds of statement apart, each with its own label:
-  - **real data from the dataset**: the numbers in its top box are read from the loaded series;
-  - **what research says can happen**, with linked NOAA, NASA and Drought.gov sources;
-  - **not checked for this place**: for example, EARTHSONA did not look at any reef, and lower greenness does not prove tree loss.
-- Progress and badges are stored only in this browser (🏅 My Missions → Start over erases them).
+**Grown-ups' corner:** the science behind the sound:
+- data types (analysis, satellite-derived or model);
+- the chart and data table, and the full data → sound mapping;
+- "What your child heard";
+- sources and citations, settings, and WAV export.
+
+**The Impact Explorer** keeps three kinds of statement apart, each with its own label:
+- **real data from the dataset**;
+- **what research says can happen** (linked NOAA, NASA and Drought.gov sources);
+- **not checked for this place**.
 
 ## The nine featured experiences
 
-| World | Place | Natural sound (Layer 1) | Regional music (Layer 3) |
+| World | Place | Nature sounds | Regional music identity |
 |---|---|---|---|
 | 🌊 Ocean | Indian Ocean off **Mauritius** | gentle waves, lapping water, underwater hum | **Sega-inspired**: ravann-like drum, maravann-like shaker, triangle |
 | 🌊 Ocean | Pacific off Oʻahu, **Hawaiʻi** | strong surf, rolling waves, coastal wind | not added yet: needs collaboration with Native Hawaiian musicians |
@@ -47,13 +58,13 @@ Children join a friendly astronaut, their **space buddy**, on a mission to disco
 | 💓 Pulse | **Kyoto**, Japan | steady rain, drops on roofs, light wind | not added yet: needs research with Japanese musicians |
 | 💓 Pulse | **Ross Island**, Antarctica | strong polar wind, whistling gusts, creaking ice | none by design |
 
-**Layer 2 (data)** is the same for every place in a world:
+**How the measurements shape the sound** (the same rules for every place in a world):
 
-| World | Data → sound | Dataset | Kind of data |
+| World | Data → music · Data → nature | Dataset | Kind of data |
 |---|---|---|---|
-| 🌊 Ocean | SST → melody pitch · SST anomaly → harmony (calm ↔ tense) | NASA/JPL **MUR SST v4.1** (preferred). Fallback: **NOAA Coral Reef Watch CoralTemp v3.1** SST + anomaly | Level 4 analysis (gap-free blend of satellite and in-situ data) |
-| 🌳 Forest | NDVI → pitch and pad · EVI → harmony | **MODIS MOD13Q1.061**, 250 m, 16-day, with pixel-reliability QA | Satellite-derived index |
-| 💓 Pulse | T2M → pitch · PRECTOTCORR → rhythm density · ALLSKY_SFC_SW_DWN → brightness | **NASA POWER** daily and monthly | Model-based estimates (MERRA-2); solar is satellite-derived (CERES) |
+| 🌊 Ocean | SST → melody pitch · SST anomaly → harmony (calm ↔ tense) · warmer sea → brighter waves | NASA/JPL **MUR SST v4.1** (preferred). Fallback: **NOAA Coral Reef Watch CoralTemp v3.1** SST + anomaly | Level 4 analysis (gap-free blend of satellite and in-situ data) |
+| 🌳 Forest | NDVI → pitch and pad · EVI → harmony · greener → more birds, insects, rustling leaves (none at NDVI ≈ 0.1) | **MODIS MOD13Q1.061**, 250 m, 16-day, with pixel-reliability QA | Satellite-derived index |
+| 💓 Weather | T2M → pitch · PRECTOTCORR → rhythm density · ALLSKY_SFC_SW_DWN → brightness · more rain → heavier rain and thunder · more sun → more birds | **NASA POWER** daily and monthly | Model-based estimates (MERRA-2); solar is satellite-derived (CERES) |
 
 The kind of each value is shown in the app ("Science behind the sound" and the source dialog). A model value is never presented as a satellite reading.
 
@@ -81,25 +92,12 @@ npm run fetch-data   # refresh bundled data, imagery and EIC visuals (needs inte
 
 Node 18+ is required. No API keys or logins are needed. Copy `.env.example` to `.env` only to change the ERDDAP server. **Never commit `.env`**, and never put secrets in `VITE_*` variables (they are compiled into the public bundle).
 
-## Using it
-
-- **Left:** 1 · choose a world (🌊 🌳 💓), 2 · choose a place, 3 · press play.
-- **Centre:** the globe uses NASA GIBS imagery. "Data map" adds a NASA data overlay and "Night" shows the Black Marble. **Discovery cards** pop up when you pick a place or a time, with one fact, real values (date and unit), a mini chart and what to listen for. They can be dismissed and switched off in Settings.
-- **Right:** the place in one sentence, a big "now" readout (value, date, what you hear), **Choose a time** (all years, one year, or quarters of a daily year), **Hear a tip**, the official **NASA EIC visual** and a folded **🔬 Science behind the sound** section (data types, period, pitch scale, chart and table, mapping, the three layers, "What you heard", fine layer control, WAV export).
-- **Bottom player:** a large Play/Pause, Stop, Replay, progress with date, and **🌿 Nature / 📈 Data / 🎵 Music** toggles. Each switches a layer without restarting playback. There are also speed and volume controls.
-- **✦ TRY THIS OUT ✦** opens the **Earth Sound Lab**:
-  - **Compare real times:** pick a world, a place and two real periods (for example the Amazon in 2020 and in 2024). Listen to A, B, or A then B, and read what changed in the numbers and in the sound. The Lab describes what changed, never why.
-  - **What if?:** a separate make-believe mode with sliders, clearly labelled. It is not a measurement and not a forecast, and one slider never changes another.
-
-### Spoken tips
-
-Tips are short (5–12 s), cover one idea and always have subtitles. They **never autoplay**. While a tip plays, the soundscape is turned down because you asked for the tip, and it comes back afterwards. Pause, Stop, Replay and Esc always work. Tips use the browser's built-in voices; if none is available, the subtitle is still shown.
-
 ## Honesty rules built into the code
 
 - **No invented data in the experience.** If a layer has no real data, it stays silent and a notice says so. With no data at all, only the nature sound plays. The registry's simulated fallback is never played (it remains only for developer tests).
 - Missing, cloudy or snowy dates are a soft "no data" tick; a single gap between two values is bridged and labelled "interpolated".
-- The natural soundscape and the regional music **carry no data**. A sound profile changes instruments and arrangement only (unit-tested).
+- The nature sounds and the music are shaped by the documented rules above, using **absolute** values, so the same number always sounds the same (unit-tested). The regional profile changes instruments and arrangement only, never what a value sounds like.
+- **Luna's pretend changes** (globe paint and sound) are labelled "Pretend Earth" and "make-believe, not a forecast"; they start from the real measurement, and the real data never changes.
 - **No forest-loss claims:** NDVI/EVI measure greenness, not trees.
 - **EIC visuals:** each comes from the official EIC gallery or EIC Daily Visualizations, and its caption says how it relates to the sound (same dataset? same variable? which period?).
 - **Natural sounds** are synthesised in the browser, so no recordings or licences are involved. The regional music is an original synthesised homage, not a recording.
@@ -136,17 +134,17 @@ src/data/parsers.js             URL building + parsing (POWER, MODIS, ERDDAP MUR
 src/data/registry.ts            bundled → live → (simulated, never played by the app)
 src/data/eic.ts                 EIC visuals (several per world)
 src/sonification/*              documented data → sound mapping, frames, palettes
-src/audio/ambience.ts           Layer 1: synthesised natural soundscapes, one preset per place
-src/audio/engine.ts             Layer 2 + 3: StepRenderer, buses (nature / data / regional), ducking, WAV export
+src/audio/ambience.ts           synthesised nature soundscapes, one preset per place, shaped by the data (natureModFor)
+src/audio/engine.ts             music from the data (StepRenderer), nature shaping, buses, ducking, WAV export
 src/audio/player.ts             play / pause / stop / replay / seek
-src/ui/kid.ts                   child-friendly words, time windows, discovery cards (numbers read from data)
-src/ui/narrator.ts              short spoken tips with subtitles
-src/ui/lab.ts                   Earth Sound Lab: compare real times + "What if?"
-src/ui/astronaut.ts             the space buddy (original SVG) + optional voice with captions
-src/ui/missions.ts              mission steps, challenges, Impact Explorer chains, mini-game, progress
-src/ui/missionCard.ts           the seven-step mission card
+src/ui/kid.ts                   child-friendly words and time windows
+src/ui/narrator.ts              Luna's short "Tell me more" tips
+src/ui/luna.ts                  Luna: kawaii moon SVG, orbit, speech bubble, warm voice
+src/ui/playground.ts            Luna's playground: pretend sliders (globe + sound) and two real years
+src/globeThemes.ts              each world's globe map from NASA images + pretend repainting
+src/ui/missions.ts              Luna's lines, challenges, Impact Explorer chains, mini-game, progress
 src/ui/impact.ts                Earth Impact Explorer (real-data box + general science)
-src/ui/story.ts                 scenes 1, 2, 4, 9, 10 and the printable certificate
+src/ui/story.ts                 welcome, "What would you do?", badges + printable certificate
 src/main.ts                     layout and wiring
 ```
 
@@ -154,9 +152,10 @@ src/main.ts                     layout and wiring
 
 ## Layout and accessibility
 
-- **Layout:** one CSS grid; the regions never overlap (checked at 1440, 1024 and 400 px). The only overlay is the dismissible discovery card over the globe; on phones it sits below the globe.
-- **Keyboard:** every action works from the keyboard. Space plays, `T` plays a tip, `N`/`D`/`M` toggle layers, `1`–`3` choose a world, `[`/`]` change place, Esc closes cards and stops tips.
-- **Feedback:** live-region announcements, a visible playback state and captions for narration.
+- **Layout:** one CSS grid; the regions never overlap (checked at 1440 and 400 px). Kids see only worlds, places, the globe with Luna, her bubble, a year picker and the player; everything technical is in the Grown-ups' corner.
+- **Keyboard:** every action works from the keyboard. Space plays, `1`–`3` choose a world, `[`/`]` change place, `L` opens Luna's playground, `W` asks why it sounds like this, `N`/`M` toggle nature/music, Esc quiets Luna and closes things.
+- **Feedback:** Luna's words are always on screen (and in a live region) while she speaks; visible playback state.
+- **Fonts:** Fredoka and Nunito (SIL Open Font License), bundled in `src/fonts`, so it works offline.
 - **Visual:** large controls, adjustable text size, and nothing conveyed by colour alone.
 - **Sonification complements** the visual information; it is not claimed to replace it.
 

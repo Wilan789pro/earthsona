@@ -2,7 +2,7 @@ import type { Track } from "../data/registry";
 import type { CleanPoint } from "../data/normalise";
 import type { CleanSeries, ExperienceId, RegionDef } from "../data/types";
 import { dataTypeFor } from "../data/parsers.js";
-import { astronautSvg, voiceBar, wireVoiceBars, type BuddyVoice } from "./astronaut";
+import { lunaSvg, type LunaVoice } from "./luna";
 import { $, announce, esc } from "./dom";
 import { fmtDate, fmtValue } from "./format";
 import { KID } from "./kid";
@@ -17,7 +17,7 @@ export interface ImpactHost {
   experience: ExperienceId;
   region: RegionDef;
   track: Track | null;
-  voice: BuddyVoice;
+  voice: LunaVoice;
 }
 
 const valid = (s: CleanSeries) => (s.points as CleanPoint[]).filter((p) => p.value !== null && !p.bridged);
@@ -69,25 +69,26 @@ export function renderImpact(host: ImpactHost): void {
   const kind = pitch ? dataTypeFor(pitch.variable, pitch.source.name) : null;
   const org = track ? [...new Set(track.layers.map((l) => (l.result.series.source.kind === "noaa" ? "NOAA" : "NASA")))].join(" + ") : "";
   const body = $("impact-body");
+  const hear = (text: string) => `<button class="round small-round" data-say="${esc(text)}" title="Luna, say it"><svg aria-hidden="true"><use href="#i-sound" /></svg><span class="sr-only">Hear Luna say it</span></button>`;
   body.innerHTML = `
     <div class="impact-intro">
-      <div class="mc-buddy">${astronautSvg({ pose: "point", size: "70" })}</div>
+      <span class="impact-luna">${lunaSvg("wow", 72)}</span>
       <div>
-        <p class="eyebrow">${mission.icon} ${esc(mission.title)} · ${esc(region.short ?? region.name)}</p>
+        <p class="eyebrow">${esc(mission.title)} · ${esc(region.short ?? region.name)}</p>
         <h3 class="impact-title">${esc(imp.title)}</h3>
-        ${voiceBar("impact", "Wow! We discovered something interesting. But why does it matter?")}
+        <p class="luna-line" id="imp-line">We found something interesting. But why does it matter? Let's find out together! ${hear("We found something interesting. But why does it matter? Let's find out together!")}</p>
       </div>
     </div>
 
     <section class="impact-box measured" aria-labelledby="im-meas">
-      <h3 id="im-meas"><span class="kind-dot measured" aria-hidden="true"></span> What the data shows here</h3>
+      <h3 id="im-meas">What the real data shows here</h3>
       ${facts.length
-        ? `<ul>${facts.map((f) => `<li>${f}</li>`).join("")}</ul><p class="small muted">${esc(KID.label(pitch!.variable))} · ${esc(org)} · ${esc(kind!.kid)} Every period: ${esc(track!.period.label)}.</p>`
+        ? `<ul>${facts.map((f) => `<li>${f}</li>`).join("")}</ul><p class="small muted">${esc(KID.label(pitch!.variable))} · ${esc(org)} · ${esc(kind!.kid)}</p>`
         : `<p>No real measurements are loaded for this place, so there is nothing to show here. Nothing is made up.</p>`}
     </section>
 
     <section aria-labelledby="im-tap">
-      <h3 id="im-tap">👆 Tap to discover</h3>
+      <h3 id="im-tap">Tap to discover</h3>
       <div class="tap-scene t-${exp}">
         ${imp.scene.map((o, i) => `<button class="tap-obj" style="left:${o.x}%;top:${o.y}%" data-tap="${i}" aria-label="${esc(o.name)}"><span aria-hidden="true">${o.emoji}</span></button>`).join("")}
       </div>
@@ -95,37 +96,33 @@ export function renderImpact(host: ImpactHost): void {
     </section>
 
     <section aria-labelledby="im-chain">
-      <h3 id="im-chain">🔗 What could happen? <button class="btn small" id="chain-play">▶ Show me step by step</button></h3>
+      <div class="h-row"><h3 id="im-chain">What could happen?</h3><button class="pill small" id="chain-play">▶ Show me step by step</button></div>
       <ol class="chain" id="chain">
         ${imp.chain.map((c) => `<li class="chain-step k-${c.kind}"><span class="chain-icon" aria-hidden="true">${c.icon}</span><span>${esc(c.text)}<span class="kind-tag k-${c.kind}">${esc(CHAIN_LABEL[c.kind])}</span></span></li>`).join("")}
       </ol>
     </section>
 
     <section aria-labelledby="im-ask">
-      <h3 id="im-ask">🧑‍🚀 Ask the astronaut</h3>
+      <h3 id="im-ask">Ask Luna</h3>
       <div class="chips">${imp.ask.map((a, i) => `<button class="chip" data-ask="${i}">${esc(a.q)}</button>`).join("")}</div>
       <div id="ask-answer" class="ask-answer" aria-live="polite"></div>
     </section>
 
-    <section aria-labelledby="im-pred">
-      <h3 id="im-pred">🔮 Prediction challenge</h3>
-      <p>${esc(imp.predict.q)}</p>
-      <div class="choices">${imp.predict.options.map((o, i) => `<button class="choice" data-pred="${i}">${esc(o.t)}</button>`).join("")}</div>
-      <p class="feedback" id="pred-feedback" aria-live="polite"></p>
-    </section>
-
     <section aria-labelledby="im-act">
-      <h3 id="im-act">💚 What can we do?</h3>
+      <h3 id="im-act">What can we do?</h3>
       <ul class="actions">${mission.actions.map((a) => `<li>${esc(a)}</li>`).join("")}</ul>
     </section>
 
-    <p class="small muted">Sources for the science above: ${imp.sources.map((s) => `<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.label)}</a>`).join(" · ")}. These describe what can happen in general, not what happened at this place.</p>`;
+    <p class="small muted">Where the science comes from: ${imp.sources.map((s) => `<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.label)}</a>`).join(" · ")}. These describe what can happen in general, not what happened at this place.</p>`;
 
-  wireVoiceBars(body, host.voice);
+  const wireHear = (root: HTMLElement) =>
+    root.querySelectorAll<HTMLButtonElement>("[data-say]").forEach((b) => (b.onclick = () => host.voice.say(b.dataset.say ?? "", true)));
+  wireHear(body);
   body.querySelectorAll<HTMLButtonElement>("[data-tap]").forEach((b) => (b.onclick = () => {
     const o = imp.scene[+b.dataset.tap!];
     body.querySelectorAll(".tap-obj").forEach((x) => x.classList.toggle("on", x === b));
     $("tap-fact").innerHTML = `<strong>${o.emoji} ${esc(o.name)}:</strong> ${esc(o.fact)}`;
+    host.voice.say(`${o.name}. ${o.fact}`);
   }));
   $("chain-play").onclick = () => {
     const chain = $("chain");
@@ -133,16 +130,13 @@ export function renderImpact(host: ImpactHost): void {
     void chain.offsetWidth;
     chain.classList.add("reveal");
     announce(imp.chain.map((c) => c.text).join(" "));
+    host.voice.say(imp.chain.map((c) => c.text).join(" "));
   };
   body.querySelectorAll<HTMLButtonElement>("[data-ask]").forEach((b) => (b.onclick = () => {
     const a = imp.ask[+b.dataset.ask!];
     const box = $("ask-answer");
-    box.innerHTML = `<div class="ask-row"><div class="mc-buddy">${astronautSvg({ size: "48" })}</div><div><p class="small muted">${esc(a.q)}</p>${voiceBar("ask", esc(a.a))}</div></div>`;
-    wireVoiceBars(box, host.voice);
-  }));
-  body.querySelectorAll<HTMLButtonElement>("[data-pred]").forEach((b) => (b.onclick = () => {
-    const o = imp.predict.options[+b.dataset.pred!];
-    b.classList.add(o.ok ? "right" : "wrong");
-    $("pred-feedback").textContent = `${o.ok ? "✅" : "🤔"} ${o.why}`;
+    box.innerHTML = `<div class="ask-row"><span>${lunaSvg("talk", 48)}</span><div><p class="small muted">${esc(a.q)}</p><p class="luna-line" id="ask-line">${esc(a.a)} ${hear(a.a)}</p></div></div>`;
+    wireHear(box);
+    host.voice.say(a.a);
   }));
 }

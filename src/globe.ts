@@ -34,6 +34,10 @@ export class Globe {
   private textures: { day?: THREE.Texture; night?: THREE.Texture } = {};
   private loader = new THREE.TextureLoader();
   private style: "day" | "night" = "day";
+  private themeTex: THREE.CanvasTexture | null = null;
+  private clouds!: THREE.Mesh;
+  private sun!: THREE.DirectionalLight;
+  private ambient!: THREE.AmbientLight;
   /** True once real NASA imagery is on the globe. */
   realImagery = false;
   onImagery: (real: boolean) => void = () => {};
@@ -41,7 +45,8 @@ export class Globe {
   onMarker: (id: string) => void = () => {};
 
   constructor(private host: HTMLElement, private textureBase = `${import.meta.env?.BASE_URL ?? "/"}textures/`) {
-    this.scene.background = new THREE.Color(0x030712);
+    // Transparent: the page draws the space background, so Luna can pass behind the Earth.
+    this.scene.background = null;
     const w = Math.max(1, host.clientWidth);
     const h = Math.max(1, host.clientHeight);
     this.camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 1000);
@@ -56,10 +61,11 @@ export class Globe {
     Object.assign(this.controls, { enableDamping: true, dampingFactor: 0.06, rotateSpeed: 0.6, zoomSpeed: 0.8, minDistance: 6.2, maxDistance: 30, enablePan: false });
 
     // Lighting kept soft and even so the imagery reads like a photograph, not a shaded ball.
-    this.scene.add(new THREE.AmbientLight(0xffffff, 1.6));
-    const sun = new THREE.DirectionalLight(0xffffff, 1.6);
-    sun.position.set(20, 10, 20);
-    this.scene.add(sun);
+    this.ambient = new THREE.AmbientLight(0xffffff, 2.1);
+    this.scene.add(this.ambient);
+    this.sun = new THREE.DirectionalLight(0xffffff, 1.1);
+    this.sun.position.set(20, 10, 20);
+    this.scene.add(this.sun);
 
     this.buildStars();
     this.buildEarth();
@@ -71,8 +77,66 @@ export class Globe {
     this.animate();
   }
 
+  /** Use a painted world look (see globeThemes.ts); null goes back to the NASA photo. */
+  setTheme(canvas: HTMLCanvasElement | null): void {
+    const m = this.earth.material as THREE.MeshPhongMaterial;
+    if (!canvas) {
+      this.themeTex = null;
+      this.setStyle(this.style);
+      return;
+    }
+    if (!this.themeTex || this.themeTex.image !== canvas) {
+      this.themeTex?.dispose();
+      this.themeTex = new THREE.CanvasTexture(canvas);
+      this.themeTex.colorSpace = THREE.SRGBColorSpace;
+      this.themeTex.anisotropy = this.renderer.capabilities.getMaxAnisotropy();
+    } else this.themeTex.needsUpdate = true;
+    m.map = this.themeTex;
+    m.emissiveMap = null;
+    m.emissive.set(0x000000);
+    m.color.set(0xffffff);
+    m.needsUpdate = true;
+  }
+
+  /** Repaint after the theme canvas changed. */
+  refreshTheme(): void {
+    if (this.themeTex) this.themeTex.needsUpdate = true;
+  }
+
+  /** Pretend clouds (Luna's playground only). */
+  setClouds(canvas: HTMLCanvasElement | null): void {
+    const m = this.clouds.material as THREE.MeshPhongMaterial;
+    if (!canvas) {
+      this.clouds.visible = false;
+      return;
+    }
+    if (!m.map || m.map.image !== canvas) {
+      m.map?.dispose();
+      m.map = new THREE.CanvasTexture(canvas);
+      m.map.colorSpace = THREE.SRGBColorSpace;
+    } else m.map.needsUpdate = true;
+    m.needsUpdate = true;
+    this.clouds.visible = true;
+  }
+
+  /** Sunlight strength, 0.3…1.6 (1 = normal). */
+  setSunlight(level: number): void {
+    this.sun.intensity = 1.1 * level;
+    this.ambient.intensity = 1.2 + 0.9 * level;
+  }
+
+  /** Where the Earth is on screen (for Luna's orbit), in CSS pixels relative to the globe host. */
+  screenDisc(): { cx: number; cy: number; r: number } {
+    const w = this.host.clientWidth;
+    const h = this.host.clientHeight;
+    const d = this.camera.position.length();
+    const r = (GLOBE_RADIUS / (d * Math.tan((this.camera.fov * Math.PI) / 360))) * (h / 2);
+    return { cx: w / 2, cy: h / 2, r };
+  }
+
   setStyle(style: "day" | "night"): void {
     this.style = style;
+    if (this.themeTex) return;
     const m = this.earth.material as THREE.MeshPhongMaterial;
     const tex = style === "night" ? this.textures.night : this.textures.day;
     if (tex) {
@@ -121,7 +185,7 @@ export class Globe {
       this.label = null;
     }
     if (!text || lat === undefined || lon === undefined) return;
-    const font = "600 40px system-ui, -apple-system, Segoe UI, sans-serif";
+    const font = "600 40px Fredoka, Nunito, system-ui, sans-serif";
     const c = document.createElement("canvas");
     const ctx = c.getContext("2d")!;
     ctx.font = font;
@@ -129,21 +193,21 @@ export class Globe {
     c.width = w;
     c.height = 68;
     ctx.font = font;
-    ctx.fillStyle = "rgba(2,6,23,0.88)";
-    ctx.strokeStyle = "#22d3ee";
-    ctx.lineWidth = 3;
+    ctx.fillStyle = "#fffdf6";
+    ctx.strokeStyle = "#1d3557";
+    ctx.lineWidth = 5;
     ctx.beginPath();
     ctx.roundRect(2, 2, w - 4, 64, 18);
     ctx.fill();
     ctx.stroke();
-    ctx.fillStyle = "#f1f5f9";
+    ctx.fillStyle = "#1d3557";
     ctx.textBaseline = "middle";
     ctx.fillText(text, 22, 36);
     const tex = new THREE.CanvasTexture(c);
     tex.colorSpace = THREE.SRGBColorSpace;
     const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
-    sprite.scale.set((0.2 * w) / 68, 0.2, 1);
-    sprite.position.copy(latLonToVector3(lat, lon, GLOBE_RADIUS * 1.1));
+    sprite.scale.set((0.42 * w) / 68, 0.42, 1);
+    sprite.position.copy(latLonToVector3(lat, lon, GLOBE_RADIUS * 1.14));
     sprite.renderOrder = 10;
     this.label = sprite;
     this.earth.add(sprite);
@@ -152,7 +216,10 @@ export class Globe {
   setMarkers(markers: GlobeMarker[], color: string): void {
     this.markers.clear();
     for (const mk of markers) {
-      const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.075, 14, 14), new THREE.MeshBasicMaterial({ color }));
+      const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.11, 16, 16), new THREE.MeshBasicMaterial({ color }));
+      const halo = new THREE.Mesh(new THREE.SphereGeometry(0.16, 16, 16), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.55 }));
+      halo.userData.id = mk.id;
+      mesh.add(halo);
       mesh.position.copy(latLonToVector3(mk.lat, mk.lon, GLOBE_RADIUS * 1.008));
       mesh.userData.id = mk.id;
       this.markers.add(mesh);
@@ -165,11 +232,12 @@ export class Globe {
     this.beacon.position.copy(pos);
     this.beacon.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), pos.clone().normalize());
     this.beacon.visible = true;
-    this.target = latLonToVector3(lat, lon, distance);
+    // Narrow (portrait) windows need the camera further back to fit the whole Earth.
+    this.target = latLonToVector3(lat, lon, distance * Math.max(1, 1.15 / this.camera.aspect));
   }
 
   reset(): void {
-    this.target = new THREE.Vector3(0, 0, 15);
+    this.target = new THREE.Vector3(0, 0, 15 * Math.max(1, 1.15 / this.camera.aspect));
     this.controls.target.set(0, 0, 0);
   }
 
@@ -213,6 +281,13 @@ export class Globe {
     this.overlay.visible = false;
     this.earth.add(this.overlay);
 
+    this.clouds = new THREE.Mesh(
+      new THREE.SphereGeometry(GLOBE_RADIUS * 1.02, 64, 64),
+      new THREE.MeshPhongMaterial({ transparent: true, depthWrite: false, opacity: 0.95 }),
+    );
+    this.clouds.visible = false;
+    this.earth.add(this.clouds);
+
     const atmosphere = new THREE.Mesh(
       new THREE.SphereGeometry(GLOBE_RADIUS * 1.03, 64, 64),
       new THREE.ShaderMaterial({
@@ -242,11 +317,11 @@ export class Globe {
 
   private buildBeacon(): void {
     const g = new THREE.Group();
-    const pin = new THREE.Mesh(new THREE.SphereGeometry(0.07, 16, 16), new THREE.MeshBasicMaterial({ color: 0x22d3ee }));
+    const pin = new THREE.Mesh(new THREE.SphereGeometry(0.09, 16, 16), new THREE.MeshBasicMaterial({ color: 0xff5d73 }));
     pin.position.y = 0.07;
-    const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.035, 0.6, 16), new THREE.MeshBasicMaterial({ color: 0x22d3ee, transparent: true, opacity: 0.6 }));
+    const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.035, 0.6, 16), new THREE.MeshBasicMaterial({ color: 0xff5d73, transparent: true, opacity: 0.7 }));
     beam.position.y = 0.3;
-    this.ring = new THREE.Mesh(new THREE.RingGeometry(0.05, 0.16, 32), new THREE.MeshBasicMaterial({ color: 0x22d3ee, side: THREE.DoubleSide, transparent: true, opacity: 0.8 }));
+    this.ring = new THREE.Mesh(new THREE.RingGeometry(0.05, 0.16, 32), new THREE.MeshBasicMaterial({ color: 0xff5d73, side: THREE.DoubleSide, transparent: true, opacity: 0.85 }));
     this.ring.rotation.x = Math.PI / 2;
     g.add(pin, beam, this.ring);
     g.visible = false;
@@ -287,6 +362,7 @@ export class Globe {
   private animate = (): void => {
     requestAnimationFrame(this.animate);
     if (!this.target && !this.beacon.visible) this.earth.rotation.y += 0.0004;
+    if (this.clouds.visible) this.clouds.rotation.y += 0.0003;
     this.ring.scale.setScalar(1 + Math.sin(performance.now() * 0.006) * 0.25);
     if (this.target) {
       this.camera.position.lerp(this.target, 0.06);

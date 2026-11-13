@@ -1,15 +1,13 @@
 import "./styles.css";
 import { Globe } from "./globe";
-import { ALL_LAYERS, SonificationEngine, renderFramesToWav, type Bus, type LayerToggles } from "./audio/engine";
-import { AMBIENCE, ambienceFor } from "./audio/ambience";
+import { ALL_LAYERS, SonificationEngine, renderFramesToWav, type LayerToggles } from "./audio/engine";
+import { AMBIENCE, NATURE_RULES, ambienceFor } from "./audio/ambience";
 import { FramePlayer } from "./audio/player";
 import { SeriesChart, renderTable } from "./ui/chart";
 import { fmtDate, fmtValue } from "./ui/format";
-import { $, announce, esc, fmtClock, loadPref, notice, savePref } from "./ui/dom";
-import { Narrator } from "./ui/narrator";
-import { EarthLab } from "./ui/lab";
+import { $, announce, esc, fmtClock, loadPref, notice, savePref, setupTabs } from "./ui/dom";
 import { DataRegistry, getTrack, type Track } from "./data/registry";
-import { EXPERIENCES, IMAGERY, REGIONS, customRegion, getExperience, getRegion } from "./data/regions";
+import { EXPERIENCES, IMAGERY, customRegion, getExperience, getRegion } from "./data/regions";
 import { loadEicFrames, type EicFrame } from "./data/eic";
 import { CRW_REFERENCE, MOD13Q1_REFERENCE, MUR_REFERENCE, POWER_REFERENCE, SVS_REFERENCE, TESVIS_REFERENCE, dataTypeFor } from "./data/parsers.js";
 import type { CleanPoint } from "./data/normalise";
@@ -18,19 +16,23 @@ import { trackToFrames, type PitchScale, type SoundFrame } from "./sonification/
 import { LIMITATIONS, ROLE_DOCS, SCALES, VARIABLE_WORDS, densityHits, harmonyIntervals, noteFrequency, noteIndex, noteName } from "./sonification/mappings";
 import { PALETTES, type PaletteId } from "./sonification/palettes";
 import { KID, timeWindows, type TimeWindow } from "./ui/kid";
-import { BuddyVoice, astronautSvg } from "./ui/astronaut";
+import { TIPS } from "./ui/narrator";
+import { Luna, LunaVoice, bubbleList, lunaSvg, startOrbit } from "./ui/luna";
 import { MISSIONS, badgeCount, emptyProgress, loadProgress, saveProgress, type Progress } from "./ui/missions";
-import { MissionCard } from "./ui/missionCard";
 import { renderImpact } from "./ui/impact";
 import { Story } from "./ui/story";
+import { Playground } from "./ui/playground";
+import { THEME_SIZE, loadThemeLayers, paintClouds, paintTheme, type Pretend } from "./globeThemes";
 
 // ---------------------------------------------------------------------------
 // State
 // ---------------------------------------------------------------------------
-const COLORS: Record<ExperienceId, string> = { ocean: "#38bdf8", forest: "#4ade80", pulse: "#fbbf24" };
+const COLORS: Record<ExperienceId, string> = { ocean: "#2b9bf4", forest: "#2fb35e", pulse: "#ff9f1c" };
+const WORLD_NAME: Record<ExperienceId, string> = { ocean: "Ocean", forest: "Forest", pulse: "Weather" };
 
-interface Settings { live: boolean; loop: boolean; popups: boolean; textScale: number; night: boolean; overlay: boolean; regional: boolean; nature: boolean; data: boolean }
-const settings = loadPref<Settings>("settings2", { live: false, loop: false, popups: true, textScale: 1, night: false, overlay: false, regional: true, nature: true, data: true });
+interface Settings { live: boolean; loop: boolean; textScale: number; nature: boolean; music: boolean; voice: boolean; voiceName: string; photo: boolean }
+const settings = loadPref<Settings>("settings3", { live: false, loop: false, textScale: 1, nature: true, music: true, voice: true, voiceName: "", photo: false });
+const saveSettings = () => savePref("settings3", settings);
 
 const state = {
   experience: "ocean" as ExperienceId,
@@ -49,8 +51,9 @@ const state = {
   token: 0,
   eic: [] as EicFrame[],
   eicIndex: 0,
-  /** Sound is on (nature and/or data). The data player may have finished while nature keeps playing. */
   soundOn: false,
+  /** Highest frame index heard in this play-through (for "did they listen?"). */
+  heard: 0,
 };
 
 const registry = new DataRegistry();
@@ -58,29 +61,37 @@ const engine = new SonificationEngine();
 const player = new FramePlayer();
 const chart = new SeriesChart($("chart"));
 const globe = new Globe($("globe"));
-const narrator = new Narrator();
-const voice = new BuddyVoice();
+const voice = new LunaVoice();
+voice.enabled = settings.voice;
+voice.chosen = settings.voiceName;
+const luna = new Luna(voice);
 let progress: Progress = loadProgress();
 const saveProg = () => (saveProgress(progress), updateBadgeCount());
 
-const palette = (): PaletteId => (state.region.music === "sega" && settings.regional ? "sega" : "neutral");
+const palette = (): PaletteId => (state.region.music === "sega" ? "sega" : "neutral");
 const renderOpts = () => ({ experience: state.experience, palette: palette(), layers: state.layers });
 const placeShort = (r: RegionDef) => r.short ?? r.name.split(",")[0];
+const pitchSeries = () => state.track?.layers.find((l) => l.def.roles.includes("pitch"))?.result.series ?? null;
 
 // ---------------------------------------------------------------------------
-// Left: worlds and places
+// Worlds and places
 // ---------------------------------------------------------------------------
+const WORLD_ICON: Record<ExperienceId, string> = {
+  ocean: `<svg viewBox="0 0 40 40" aria-hidden="true"><path d="M3 22c5-5 9 5 14 0s9 5 14 0 6 3 6 3v10H3Z" fill="#2b9bf4" stroke="#1d3557" stroke-width="2.5" stroke-linejoin="round"/><path d="M6 14c4-4 7 3 11 0" fill="none" stroke="#1d3557" stroke-width="2.5" stroke-linecap="round"/></svg>`,
+  forest: `<svg viewBox="0 0 40 40" aria-hidden="true"><path d="M20 4 9 20h6L7 31h26l-8-11h6Z" fill="#3cc46b" stroke="#1d3557" stroke-width="2.5" stroke-linejoin="round"/><path d="M20 31v6" stroke="#1d3557" stroke-width="3" stroke-linecap="round"/></svg>`,
+  pulse: `<svg viewBox="0 0 40 40" aria-hidden="true"><circle cx="15" cy="15" r="8" fill="#ffd23f" stroke="#1d3557" stroke-width="2.5"/><path d="M14 34h17a6 6 0 0 0 0-12 8 8 0 0 0-15-1 6 6 0 0 0-2 13Z" fill="#fff" stroke="#1d3557" stroke-width="2.5" stroke-linejoin="round"/></svg>`,
+};
+
 function renderExperiences() {
   const box = $("experience-list");
   box.innerHTML = "";
   EXPERIENCES.forEach((e, i) => {
     const b = document.createElement("button");
-    b.className = "exp-btn";
+    b.className = `world w-${e.id}`;
     b.setAttribute("role", "radio");
     b.setAttribute("aria-checked", String(e.id === state.experience));
     b.tabIndex = e.id === state.experience ? 0 : -1;
-    b.style.setProperty("--c", COLORS[e.id]);
-    b.innerHTML = `<span class="exp-icon" aria-hidden="true">${e.icon}</span><strong>${esc(e.short)}</strong><span class="sub">${esc(e.kid)}<span class="sr-only"> ${esc(e.title)} (key ${i + 1})</span></span>`;
+    b.innerHTML = `${WORLD_ICON[e.id]}<span>${WORLD_NAME[e.id]}</span><span class="sr-only"> (${esc(MISSIONS[e.id].title)}, key ${i + 1})</span>`;
     b.onclick = () => selectExperience(e.id);
     b.onkeydown = (ev) => {
       if (!["ArrowDown", "ArrowUp", "ArrowRight", "ArrowLeft"].includes(ev.key)) return;
@@ -99,10 +110,8 @@ async function bundledFor(exp: ExperienceId, regionId: string) {
   return m?.series.filter((s) => s.experience === exp && s.regionId === regionId) ?? [];
 }
 
-function musicTag(r: RegionDef): { cls: string; text: string } {
-  if (r.music === "sega") return { cls: "music", text: "🎵 Sega-inspired music" };
-  if (r.musicStatus === "pending") return { cls: "nature", text: "🌿 Nature + data · regional music not added yet" };
-  return { cls: "nature", text: "🌿 Nature + data only" };
+function musicTag(r: RegionDef): string {
+  return r.music === "sega" ? "Sega-inspired music" : "Nature + music";
 }
 
 async function renderPlaces() {
@@ -114,13 +123,12 @@ async function renderPlaces() {
       const bundled = await bundledFor(exp.id, id);
       const li = document.createElement("li");
       const b = document.createElement("button");
-      b.className = "place-card";
+      b.className = "place";
       if (state.region.id === id) b.setAttribute("aria-current", "true");
-      const m = musicTag(r);
       b.innerHTML =
         `<strong>${esc(placeShort(r))}</strong><span class="place-full">${esc(r.name)}</span>` +
-        `<span class="tag ${m.cls}">${esc(m.text)}</span>` +
-        (bundled.length ? "" : `<span class="tag warn">No real data downloaded yet</span>`);
+        `<span class="tag${r.music === "sega" ? " sega" : ""}">${esc(musicTag(r))}</span>` +
+        (bundled.length ? "" : `<span class="tag warn">No data yet</span>`);
       b.onclick = () => selectRegion(r);
       li.appendChild(b);
       return li;
@@ -138,16 +146,13 @@ function selectExperience(id: ExperienceId): Promise<void> | void {
   const exp = getExperience(id);
   if (!("custom" in state.region) && !exp.regions.includes(state.region.id)) state.region = getRegion(exp.regions[0])!;
   document.body.dataset.exp = id;
-  narrator.setExperience(id);
-  $("tip-subtitle").hidden = true;
-  $("tip-play-label").textContent = "Hear a tip";
   renderExperiences();
   renderPlaces();
-  applyOverlay();
+  updateMix();
+  applyGlobeLook();
   renderEic();
   flyToRegion();
-  missionCard.render();
-  return loadTrack("place");
+  return loadTrack("world");
 }
 
 function selectRegion(r: RegionDef): Promise<void> | void {
@@ -156,16 +161,8 @@ function selectRegion(r: RegionDef): Promise<void> | void {
   state.window = "all";
   flyToRegion();
   renderPlaces();
+  updateMix();
   return loadTrack("place");
-}
-
-/** Go to a world and place (used by missions, Listen and Explore) and wait for its data. */
-async function goTo(exp: ExperienceId, regionId?: string) {
-  const r = getRegion(regionId ?? (getExperience(exp).regions.includes(state.region.id) ? state.region.id : getExperience(exp).regions[0]))!;
-  if (exp !== state.experience) {
-    state.region = r;
-    await selectExperience(exp);
-  } else if (r.id !== state.region.id || !state.track) await selectRegion(r);
 }
 
 function flyToRegion() {
@@ -180,43 +177,89 @@ function cycleRegion(dir: 1 | -1) {
 }
 
 // ---------------------------------------------------------------------------
-// Load all layers for the current world / place / period
+// Globe look: each world shows its own NASA map; Luna's pretend changes repaint it
 // ---------------------------------------------------------------------------
-async function loadTrack(reason: "place" | "period" | "boot") {
+const themeCanvas = document.createElement("canvas");
+const cloudCanvas = document.createElement("canvas");
+themeCanvas.width = cloudCanvas.width = THEME_SIZE.W;
+themeCanvas.height = cloudCanvas.height = THEME_SIZE.H;
+const LEGEND: Record<ExperienceId, string> = {
+  ocean: `<span class="key" style="--k:#7ad6ff"></span> shallow sea <span class="key" style="--k:#0a3c96"></span> deep sea`,
+  forest: `<span class="key" style="--k:#1f8a3a"></span> very green <span class="key" style="--k:#b5e07a"></span> a little green <span class="key" style="--k:#e9dcc4"></span> few plants`,
+  pulse: `<span class="key" style="--k:#e8553d"></span> hot <span class="key" style="--k:#ffe08a"></span> mild <span class="key" style="--k:#5b4fa8"></span> cold`,
+};
+const MAP_CREDIT: Record<ExperienceId, string> = {
+  ocean: "Sea depth from NASA Blue Marble (bathymetry); sea area from NASA/JPL MUR, July 2024.",
+  forest: "Greenness from NASA MODIS NDVI, July 2024.",
+  pulse: "Air temperature from NASA MERRA-2, July 2024.",
+};
+
+async function applyGlobeLook(pretend: Pretend | null = null, rain?: number, sun?: number) {
+  const exp = state.experience;
+  if (settings.photo) {
+    globe.setTheme(null);
+    globe.setClouds(null);
+    globe.setSunlight(1);
+    $("legend").innerHTML = "";
+    $("stage-caption").textContent = `NASA Blue Marble photo of Earth (GIBS). Drag to turn the Earth; tap a dot to visit a place.`;
+    return;
+  }
+  const layers = await loadThemeLayers(`${import.meta.env.BASE_URL}textures/`, { ocean: IMAGERY.overlays.ocean.file, forest: IMAGERY.overlays.forest.file, pulse: IMAGERY.overlays.pulse.file });
+  if (exp !== state.experience) return;
+  if (!layers) {
+    globe.setTheme(null);
+    $("stage-caption").textContent = "The world maps could not be loaded; showing the NASA photo instead.";
+    return;
+  }
+  const g = themeCanvas.getContext("2d")!;
+  const img = g.createImageData(THEME_SIZE.W, THEME_SIZE.H);
+  paintTheme(layers, exp, pretend ?? {}, img);
+  g.putImageData(img, 0, 0);
+  globe.setTheme(themeCanvas);
+  if (exp === "pulse" && rain !== undefined && rain > 1) {
+    const c = cloudCanvas.getContext("2d")!;
+    const ci = c.createImageData(THEME_SIZE.W, THEME_SIZE.H);
+    paintClouds(ci, Math.min(1, (rain - 1) / 2) * 0.85 + 0.15);
+    c.putImageData(ci, 0, 0);
+    globe.setClouds(cloudCanvas);
+  } else globe.setClouds(null);
+  globe.setSunlight(exp === "pulse" && sun !== undefined ? 0.4 + sun * 0.6 : 1);
+  const pretending = !!pretend || (rain !== undefined && rain !== 1) || (sun !== undefined && sun !== 1);
+  $("legend").innerHTML = pretending ? `<strong>Pretend Earth</strong> · ${LEGEND[exp]}` : LEGEND[exp];
+  $("stage-caption").textContent = `${MAP_CREDIT[exp]} Drag to turn the Earth; tap a dot to visit a place.`;
+}
+
+// ---------------------------------------------------------------------------
+// Load the data for the current world / place / period
+// ---------------------------------------------------------------------------
+async function loadTrack(reason: "world" | "place" | "period" | "boot") {
   const token = ++state.token;
   const exp = getExperience(state.experience);
   const period = exp.periods[state.periodIndex] ?? exp.periods[0];
   renderStoryHead();
-  $("understand-text").textContent = "Loading data…";
-
   const t = await getTrack(registry, { experience: exp.id, region: state.region, period, mode: "auto", live: settings.live });
-  if (token !== state.token) return; // superseded by a newer selection
+  if (token !== state.token) return;
 
-  // Never play invented values: keep only real layers.
   const real = t.layers.filter((l) => l.result.origin !== "simulated");
   state.missing = t.layers.filter((l) => l.result.origin === "simulated").map((l) => l.result.series.label);
   const hasPitch = real.some((l) => l.def.roles.includes("pitch"));
   state.track = hasPitch ? { ...t, layers: real, notices: [] } : null;
-  if (!state.track) {
-    notice(
-      "custom" in state.region && !settings.live
-        ? "There is no downloaded data for this point. Turn on “Use live data” in Settings, or pick a listed place. You can still listen to the nature sounds."
-        : `No real measurements are available for ${state.region.name} yet, so EARTHSONA plays nature sounds only (it never makes up numbers).`,
-    );
-  } else if (state.missing.length) {
-    notice(`Not available for this place: ${state.missing.join(", ")}. That sound layer is silent; nothing is made up.`);
-  }
+  if (!state.track && "custom" in state.region && !settings.live) notice("There is no downloaded data for this point. Grown-ups can turn on “Use live data” in Settings.");
+  else if (state.missing.length && state.track) notice(`Not available here: ${state.missing.join(", ")}. Nothing is made up.`);
 
   state.chartVar = state.track?.layers[0].def.variable ?? "";
   rebuildFrames(false);
   renderStory();
   renderScience();
   updateMix();
-  lab.refresh();
-  missionCard.render();
-  if (state.soundOn) engine.startNature(ambienceFor(state.region.ambience));
-  if (reason !== "boot") showDiscovery("place");
-  announce(`${exp.short}, ${state.region.name}. ${state.track ? sourceChip().text : "Nature sounds only"}. Press Space to play.`);
+  playground.refresh();
+  if (state.soundOn) {
+    engine.resetNature();
+    engine.startNature(ambienceFor(state.region.ambience));
+  }
+  if (reason === "world") lunaWorld();
+  else if (reason === "place" || reason === "period") lunaPlace(reason);
+  announce(`${WORLD_NAME[exp.id]}, ${state.region.name}. Press Space to play.`);
 }
 
 function rebuildFrames(keepPosition: boolean) {
@@ -226,7 +269,6 @@ function rebuildFrames(keepPosition: boolean) {
   if (!state.windows.some((w) => w.key === state.window)) state.window = "all";
   const w = state.windows.find((x) => x.key === state.window)!;
   const sel = state.allFrames.filter((f) => !w || (f.time >= w.from && f.time <= w.to));
-  // Re-index so the stereo sweep and arrangement follow the chosen window.
   state.frames = sel.map((f, i) => ({ ...f, index: i, pan: sel.length > 1 ? (i / (sel.length - 1)) * 2 - 1 : 0 }));
   player.load(state.frames, keepPosition);
   const pr = $<HTMLInputElement>("progress");
@@ -236,37 +278,28 @@ function rebuildFrames(keepPosition: boolean) {
 }
 
 // ---------------------------------------------------------------------------
-// Right: the story card (simple, child-friendly)
+// Side panel
 // ---------------------------------------------------------------------------
 function sourceChip() {
   const t = state.track;
-  if (!t) return { cls: "none", text: "No real data here yet", why: "nature sounds only" };
+  if (!t) return { cls: "none", text: "No real data here yet" };
   const kinds = new Set(t.layers.map((l) => l.result.series.source.kind));
   const org = kinds.has("nasa") && kinds.has("noaa") ? "NASA + NOAA" : kinds.has("noaa") ? "NOAA" : "NASA";
-  const live = t.layers.some((l) => l.result.origin === "live");
-  return { cls: kinds.has("noaa") && !kinds.has("nasa") ? "noaa" : "nasa", text: `Real ${org} data`, why: live ? "loaded live · details" : "where it comes from" };
+  return { cls: "real", text: `Real ${org} data · where it comes from` };
 }
 
 function renderStoryHead() {
-  const r = state.region;
-  const exp = getExperience(state.experience);
-  $("loc-world").textContent = `${exp.icon} ${exp.title}`;
-  $("loc-name").textContent = r.name;
-  $("loc-intro").textContent = r.kidIntro ?? r.context ?? "";
+  $("player-title").textContent = `${WORLD_NAME[state.experience]} · ${placeShort(state.region)}`;
 }
 
 function renderStory() {
-  renderStoryHead();
   const c = sourceChip();
-  const chip = $("source-badge");
-  chip.className = `data-chip ${c.cls}`;
-  chip.innerHTML = `<span aria-hidden="true">${c.cls === "none" ? "○" : "◆"}</span> ${esc(c.text)} <span class="why">${esc(c.why)}</span>`;
-  chip.setAttribute("aria-label", `${c.text}. ${c.cls === "none" ? "" : "Show where the data comes from."}`);
-  (chip as HTMLButtonElement).disabled = c.cls === "none";
+  const chip = $<HTMLButtonElement>("source-badge");
+  chip.textContent = c.text;
+  chip.disabled = c.cls === "none";
   renderTimeChips();
   updateNow(state.frames[Math.min(player.index, state.frames.length - 1)]);
-  const exp = getExperience(state.experience);
-  $("player-title").textContent = `${exp.icon} ${placeShort(state.region)} · ${state.track ? currentWindow().label : "nature sounds"}`;
+  $("player-title").textContent = `${WORLD_NAME[state.experience]} · ${placeShort(state.region)}${state.track ? ` · ${currentWindow().label}` : ""}`;
 }
 
 function currentWindow(): TimeWindow {
@@ -296,7 +329,7 @@ function selectWindow(key: string) {
   renderChart();
   renderUnderstand();
   if (wasPlaying) player.play();
-  showDiscovery("time");
+  lunaTime();
   announce(`Time: ${currentWindow().label}.`);
 }
 
@@ -307,22 +340,22 @@ function selectPeriod(i: number) {
   loadTrack("period");
 }
 
-/** The big "now" readout: one value, its date and what you hear — in plain words. */
+/** The big "now" readout: one value, its date and what you hear, in plain words. */
 function updateNow(f: SoundFrame | undefined) {
   const t = state.track;
   const list = $("hear-list");
   if (!t) {
     $("now-label").textContent = "Nature sounds only";
     $("now-value").textContent = "—";
-    $("now-date").textContent = "No real measurements to play here.";
+    $("now-date").textContent = "No real measurements here yet.";
     list.innerHTML = "";
     return;
   }
-  const pitch = t.layers.find((l) => l.def.roles.includes("pitch"))!.result.series;
+  const pitch = pitchSeries()!;
   $("now-label").textContent = KID.label(pitch.variable);
   if (!f) {
     $("now-value").textContent = "▶";
-    $("now-date").textContent = "Press play to hear the measurements";
+    $("now-date").textContent = "Press play to hear it";
     list.innerHTML = "";
     return;
   }
@@ -330,116 +363,160 @@ function updateNow(f: SoundFrame | undefined) {
   $("now-value").textContent = v?.value === null || v === undefined ? "no data" : fmtValue(v.value, pitch.unit);
   $("now-date").textContent = fmtDate(f.time, pitch, true) + (v?.quality === "cloudy" ? " · hidden by clouds" : v?.quality === "snow" ? " · snow or ice" : "");
   const items: string[] = [];
-  if (f.pitch !== null) items.push(`🎵 ${f.pitch > 0.66 ? "high" : f.pitch < 0.33 ? "low" : "middle"} note`);
-  else items.push("· soft tick: no measurement");
-  if (f.harmony) items.push(`🎶 ${KID.harmony(harmonyIntervals(f.harmony).label)}`);
-  if (f.density !== null) items.push(`🥁 ${densityHits(f.density)} rain beat${densityHits(f.density) === 1 ? "" : "s"}`);
-  if (f.brightness !== null) items.push(`✨ ${f.brightness > 0.6 ? "bright" : f.brightness < 0.3 ? "dull" : "soft"} tone`);
-  for (const l of t.layers) {
-    if (l.result.series === pitch) continue;
-    const x = f.values[l.def.variable];
-    if (x?.value !== null && x !== undefined) items.push(`${KID.label(l.def.variable)}: ${fmtValue(x.value, l.result.series.unit)}`);
-  }
+  if (f.pitch !== null) items.push(f.pitch > 0.66 ? "high notes" : f.pitch < 0.33 ? "low notes" : "middle notes");
+  else items.push("a soft tick: no measurement");
+  if (f.harmony) items.push(KID.harmony(harmonyIntervals(f.harmony).label));
+  if (f.density !== null) items.push(`${densityHits(f.density)} rain beat${densityHits(f.density) === 1 ? "" : "s"}`);
+  if (f.brightness !== null) items.push(`${f.brightness > 0.6 ? "bright" : f.brightness < 0.3 ? "soft" : "warm"} sound`);
   list.innerHTML = items.map((x) => `<li>${esc(x)}</li>`).join("");
 }
 
 // ---------------------------------------------------------------------------
-// Discovery cards
+// Luna's guidance (she speaks each step; the words are always in her bubble)
 // ---------------------------------------------------------------------------
-let discoveryTimer: number | undefined;
-interface CardContent { kicker: string; title: string; fact: string; data: string; sound: string }
-function showDiscovery(kind: "place" | "time" | "welcome", force = false) {
-  if (!settings.popups && kind !== "welcome" && !force) return;
-  showCard(kind === "welcome" ? KID.welcome() : KID.discovery(kind, state.experience, state.region, state.track, currentWindow()), kind);
+function facts(w: TimeWindow): { hi?: string; lo?: string } {
+  const s = pitchSeries();
+  if (!s) return {};
+  const pts = (s.points as CleanPoint[]).filter((p) => (w.key === "all" || (p.time >= w.from && p.time <= w.to)) && p.value !== null && !p.bridged);
+  if (!pts.length) return {};
+  const max = pts.reduce((a, b) => ((b.value as number) > (a.value as number) ? b : a));
+  const min = pts.reduce((a, b) => ((b.value as number) < (a.value as number) ? b : a));
+  const say = (p: CleanPoint) => `${fmtValue(p.value as number, s.unit)} in ${fmtDate(p.time, s, false)}`;
+  return { hi: say(max), lo: say(min) };
 }
-function showCard(content: CardContent, kind: string) {
-  const card = $("discovery");
-  card.dataset.kind = kind;
-  $("disc-kicker").textContent = content.kicker;
-  $("disc-title").textContent = content.title;
-  $("disc-fact").innerHTML = content.fact;
-  $("disc-data").innerHTML = content.data;
-  $("disc-sound").innerHTML = content.sound;
-  card.hidden = false;
-  card.classList.remove("pop");
-  void card.offsetWidth;
-  card.classList.add("pop");
-  clearTimeout(discoveryTimer);
-  announce(`${content.title}. ${card.innerText.slice(0, 160)}`);
+const HI_LO: Record<ExperienceId, [string, string]> = { ocean: ["warmest sea", "coolest"], forest: ["greenest", "least green"], pulse: ["warmest air", "coldest"] };
+
+function lunaWorld() {
+  luna.say(MISSIONS[state.experience].lines[0], { mood: "wow" });
+  $("places-h").classList.add("nudge");
+  setTimeout(() => $("places-h").classList.remove("nudge"), 2400);
 }
 
-// ---------------------------------------------------------------------------
-// "Why does it sound like this?" — short, dismissible, non-blocking; reopen with (i) or W
-// ---------------------------------------------------------------------------
-const explained = new Set<string>();
-function showSoundExplain() {
+function lunaPlace(reason: "place" | "period" = "place") {
+  const r = state.region;
+  const m = MISSIONS[state.experience];
+  if (!state.track) {
+    luna.say(`${r.kidIntro ?? r.name} There are no measurements here yet, so you'll hear just the nature sounds.`, { actions: [{ label: "▶ Play", primary: true, onClick: () => play() }] });
+    return;
+  }
+  const intro = reason === "period" ? `Now we're listening to ${KID.periodLabel(getExperience(state.experience).periods[state.periodIndex].key, "a new time").toLowerCase()}.` : r.kidIntro ?? "";
+  luna.say(`${intro} ${m.lines[2]}`.trim(), {
+    actions: [
+      { label: "▶ Play", primary: true, onClick: () => play() },
+      { label: "Tell me more", onClick: () => lunaTip() },
+    ],
+  });
+  $("btn-play").classList.add("nudge");
+  setTimeout(() => $("btn-play").classList.remove("nudge"), 2600);
+}
+
+function lunaTime() {
+  const w = currentWindow();
+  const f = facts(w);
+  const [hi, lo] = HI_LO[state.experience];
+  if (!f.hi) {
+    luna.say(`In ${w.label}, clouds got in the way, so there's not much to hear.`);
+    return;
+  }
+  luna.say(`${w.key === "all" ? "Over all the years" : `In ${w.label}`}, the ${hi} was ${f.hi}, and the ${lo} was ${f.lo}. Press play to hear it!`, {
+    actions: [{ label: "▶ Play", primary: true, onClick: () => play() }],
+  });
+}
+
+let tipIndex = -1;
+function lunaTip() {
+  const tips = TIPS[state.experience];
+  tipIndex = (tipIndex + 1) % tips.length;
+  luna.say(tips[tipIndex], { actions: [{ label: "Another one", onClick: () => lunaTip() }, { label: "▶ Play", primary: true, onClick: () => play() }] });
+}
+
+function lunaListening() {
+  const exp = state.experience;
+  const sega = state.region.music === "sega";
+  const line = state.track
+    ? {
+        ocean: "Listen! The waves set the scene, and the tune is made from real sea temperatures. Warmer sea, higher notes!",
+        forest: "Listen! The birds and the tune both come from real greenness. Greener forest, more birds and higher notes!",
+        pulse: "Listen! Warm air makes high notes, rain makes busy beats and heavy rain sounds, and sunshine makes it bright.",
+      }[exp] + (sega ? " The drums are inspired by Sega music from Mauritius." : "")
+    : "Listen to the nature sounds of this place. There are no measurements here yet, so there's no tune.";
+  luna.say(line, { actions: [{ label: "Why does it sound like this?", onClick: () => lunaWhy() }] });
+}
+
+function lunaWhy() {
   const exp = state.experience;
   const r = state.region;
-  const t = state.track;
-  const sega = r.music === "sega" && settings.regional;
-  const amb = AMBIENCE[ambienceFor(r.ambience)];
-  const what = { ocean: "the ocean", forest: "the forest", pulse: "Earth's pulse" }[exp];
-  const natureWord = { ocean: "an ocean-inspired texture", forest: "a forest-inspired texture", pulse: "a weather-inspired texture" }[exp];
-  const dataWord = { ocean: "a melody made from real ocean-temperature measurements", forest: "a melody made from real measurements of how green the land is", pulse: "music made from real temperature, rain and sunshine estimates" }[exp];
-  const lead = t
-    ? `You're hearing ${natureWord}${sega ? ", a Sega-inspired rhythm" : ""} and ${dataWord}.`
-    : `You're hearing ${natureWord}. There are no real measurements here yet, so there is no data melody.`;
-  const pitch = t?.layers.find((l) => l.def.roles.includes("pitch"))?.result.series;
-  let science = "";
-  if (t && pitch) {
-    const f = state.soundOn || player.index > 0 ? state.frames[Math.min(player.index, state.frames.length - 1)] : undefined;
-    let pt: { time: string; value: number | null } | null = f ? { time: f.time, value: f.values[pitch.variable]?.value ?? null } : null;
-    if (!pt || pt.value === null) {
-      const ok = (pitch.points as CleanPoint[]).filter((p) => p.value !== null && !p.bridged);
-      const last = ok[ok.length - 1];
-      pt = last ? { time: last.time, value: last.value } : null;
-    }
-    const dt = dataTypeFor(pitch.variable, pitch.source.name);
-    science = `<dl class="kv small sci-list">
-      <dt>Dataset</dt><dd>${esc(pitch.dataset ?? pitch.source.name)}</dd>
-      <dt>Variable</dt><dd>${esc(pitch.label)} (<code>${esc(pitch.variable)}</code>)</dd>
-      <dt>${f ? "Value (when opened)" : "Latest value"}</dt><dd><strong>${pt && pt.value !== null ? esc(fmtValue(pt.value, pitch.unit)) : "no data"}</strong></dd>
-      <dt>Unit</dt><dd>${esc(pitch.unit)}</dd>
-      <dt>Date</dt><dd>${pt ? esc(fmtDate(pt.time, pitch, true)) : "—"}</dd>
-      <dt>Source</dt><dd>${esc(pitch.source.kind === "noaa" ? "NOAA" : "NASA")} · ${esc(pitch.source.name)}</dd>
-      <dt>Kind</dt><dd>${esc(dt.label)}</dd>
-    </dl>`;
-  }
-  const regional =
+  const pitch = pitchSeries();
+  const items = [
+    `Nature: ${AMBIENCE[ambienceFor(r.ambience)].title.toLowerCase()}, made by the computer. ${NATURE_RULES[exp]}`,
     r.music === "sega"
-      ? settings.regional
-        ? "original Sega-inspired music for Mauritius (ravann-like drum, maravann-like shaker, triangle). It carries no data."
-        : "Sega-inspired music is switched off (🎵 button)."
-      : r.musicNote ?? "none for this place.";
-  const sci = { ocean: "the real sea temperature changes the melody's pitch; warmer than usual makes the harmony more tense.", forest: "real greenness changes the pitch and the fullness of the sound.", pulse: "temperature changes the pitch, rain the number of beats and sunshine the brightness." }[exp];
-  showCard(
+      ? "Music: an original tune inspired by Sega from Mauritius (a ravanne-like drum, maravanne-like shaker and triangle). Its melody comes from the measurements."
+      : "Music: a gentle tune whose melody comes from the measurements." + (r.musicStatus === "pending" ? " We haven't added music from this place's own culture yet: we want to make it with local musicians." : ""),
+    pitch ? `The measurements: ${KID.label(pitch.variable).toLowerCase()} from ${pitch.source.kind === "noaa" ? "NOAA" : "NASA"}. ${dataTypeFor(pitch.variable, pitch.source.name).kid}` : "There are no measurements here yet.",
+  ];
+  luna.say(
     {
-      kicker: "🎧 Why this sound?",
-      title: `Why does ${what} sound like this?`,
-      fact: esc(lead),
-      data:
-        `<ol class="why-list">
-        <li><strong>🌿 Nature-inspired sound:</strong> ${esc(amb.title)}, made by the computer to feel like the place. It is not a recording and carries no data.</li>
-        <li><strong>🎵 Regional music:</strong> ${esc(regional)}</li>
-        <li><strong>📈 Science sound:</strong> ${t ? esc(sci) : "silent here: no real measurements, and EARTHSONA never makes numbers up."}</li>
-      </ol>` + (science ? `<button class="btn small" id="why-sci" aria-expanded="false" aria-controls="why-sci-box">🔬 Discover the science</button><div id="why-sci-box" hidden>${science}</div>` : ""),
-      sound: `<span class="small muted">These sounds are artistic interpretations made from the data, not sounds recorded by satellites. Reopen this with the <em>Why this sound?</em> button.</span>`,
+      ocean: "Everything you hear is shaped by real sea temperatures: the waves and the music!",
+      forest: "Everything you hear is shaped by how green the land really was: the birds and the music!",
+      pulse: "Everything you hear is shaped by the real temperature, rain and sunshine: the rain sounds and the music!",
+    }[exp],
+    {
+      extra: bubbleList(items) + `<p class="small muted">These sounds are made by EARTHSONA from the numbers. They are not recordings from space.</p>`,
+      actions: [{ label: "Show me the science", onClick: () => openGrownups("tab-science") }],
     },
-    "why",
   );
-  const b = document.getElementById("why-sci");
-  if (b) b.onclick = () => {
-    const box = $("why-sci-box");
-    box.hidden = !box.hidden;
-    b.setAttribute("aria-expanded", String(!box.hidden));
-  };
 }
-function hideDiscovery() {
-  $("discovery").hidden = true;
+
+/** After listening: what we found, then Luna's question. */
+function lunaFinished() {
+  const exp = state.experience;
+  const f = facts(currentWindow());
+  const [hi, lo] = HI_LO[exp];
+  const found = f.hi ? `Wow! The ${hi} here was ${f.hi}, and the ${lo} was ${f.lo}.` : "That was lovely!";
+  if (progress[exp].badge) {
+    luna.say(`${found} You already have the ${MISSIONS[exp].badge} badge.`, { actions: afterBadgeActions() });
+    return;
+  }
+  const c = MISSIONS[exp].challenge;
+  const choices = () => c.options.map((o) => ({ label: o.t, onClick: () => answer(o) }));
+  const answer = (o: { ok: boolean; why: string }) => {
+    if (!o.ok) {
+      luna.say(o.why, { actions: choices() });
+      return;
+    }
+    const mp = progress[exp];
+    mp.done[5] = true;
+    mp.done[6] = true;
+    mp.badge = true;
+    saveProg();
+    celebrate();
+    luna.say(`${o.why} You earned the ${MISSIONS[exp].badge} badge!`, {
+      mood: "wow",
+      extra: `<p class="small"><strong>${esc(MISSIONS[exp].lines[6])}</strong></p>` + bubbleList(MISSIONS[exp].actions),
+      actions: afterBadgeActions(),
+    });
+  };
+  luna.say(`${found} ${MISSIONS[exp].lines[5]} ${c.q}`, { mood: "wow", actions: choices() });
+}
+
+function afterBadgeActions() {
+  const next = EXPERIENCES.find((e) => !progress[e.id].badge && e.id !== state.experience);
+  return [
+    { label: "Why does it matter?", primary: true, onClick: () => openImpact() },
+    { label: "Play with Luna", onClick: () => (stopAll(), playground.show()) },
+    ...(next ? [{ label: `Go to the ${WORLD_NAME[next.id].toLowerCase()}`, onClick: () => void selectExperience(next.id) }] : [{ label: "See my badges", onClick: () => story.open("finale") }]),
+  ];
+}
+
+function celebrate() {
+  const b = $("btn-badges");
+  b.classList.remove("cheer");
+  void b.offsetWidth;
+  b.classList.add("cheer");
 }
 
 // ---------------------------------------------------------------------------
-// EIC visual
+// EIC visual (a real NASA picture of the same topic)
 // ---------------------------------------------------------------------------
 async function renderEic() {
   const id = state.experience;
@@ -463,39 +540,35 @@ function showEicFrame() {
   img.removeAttribute("src");
   img.hidden = true;
   off.hidden = false;
-  off.textContent = `Loading NASA visual… ${frame.altText}`;
+  off.textContent = `Loading NASA picture… ${frame.altText}`;
   img.alt = frame.altText;
   img.onload = () => ((img.hidden = false), (off.hidden = true));
-  img.onerror = () => ((img.hidden = true), (off.hidden = false), (off.textContent = `Image unavailable offline. ${frame.altText}`));
+  img.onerror = () => ((img.hidden = true), (off.hidden = false), (off.textContent = `Picture unavailable offline. ${frame.altText}`));
   img.src = frame.imageUrl;
-  $("eic-gallery").textContent = `NASA Earth Information Center${frame.gallery && frame.gallery !== "Earth Information Center" ? ` · ${frame.gallery}` : ""}`;
+  $("eic-gallery").textContent = "A real NASA picture (Earth Information Center)";
   $("eic-title").textContent = frame.title;
   $("eic-relation").textContent = frame.relation ?? "";
   const date = frame.updated ?? frame.released;
   const d = date ? new Date(date).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : "";
   $("eic-meta").innerHTML =
-    `${frame.dataset ? `Dataset: ${esc(frame.dataset)} · ` : ""}Original visualisation: NASA SVS #${frame.svsId}${d ? ` (${frame.updated ? "updated" : "released"} ${esc(d)})` : ""} · ` +
+    `${frame.dataset ? `Dataset: ${esc(frame.dataset)} · ` : ""}NASA SVS #${frame.svsId}${d ? ` (${frame.updated ? "updated" : "released"} ${esc(d)})` : ""} · ` +
     `<a href="${esc(frame.pageUrl)}" target="_blank" rel="noopener">open on svs.gsfc.nasa.gov</a>`;
   const nav = $("eic-nav");
-  nav.innerHTML =
-    state.eic.length > 1
-      ? `<button class="btn small ghost" id="eic-next">Next NASA visual (${state.eicIndex + 1} of ${state.eic.length})</button>`
-      : "";
+  nav.innerHTML = state.eic.length > 1 ? `<button class="pill small" id="eic-next">Next picture (${state.eicIndex + 1} of ${state.eic.length})</button>` : "";
   const next = document.getElementById("eic-next");
   if (next) next.onclick = () => ((state.eicIndex = (state.eicIndex + 1) % state.eic.length), showEicFrame(), $("eic-next").focus());
 }
 
 // ---------------------------------------------------------------------------
-// Science behind the sound (all the detail, folded away)
+// Grown-ups: the science behind the sound
 // ---------------------------------------------------------------------------
 function renderScience() {
   const t = state.track;
   const exp = getExperience(state.experience);
-  $("exp-tagline").textContent = exp.tagline;
-  $("listen-place").textContent = t ? `${state.region.name} · ${t.period.label} · ${state.region.lat}°, ${state.region.lon}°` : state.region.name;
+  $("exp-tagline").textContent = `${exp.title} · ${state.region.name}`;
+  $("listen-place").textContent = t ? `${t.period.label} · ${state.region.lat}°, ${state.region.lon}°` : "";
   const per = $<HTMLSelectElement>("period");
   per.innerHTML = exp.periods.map((p, i) => `<option value="${i}" ${i === state.periodIndex ? "selected" : ""}>${esc(p.label)}</option>`).join("");
-
   $("data-types").innerHTML = t
     ? t.layers
         .map((l) => {
@@ -504,7 +577,6 @@ function renderScience() {
         })
         .join("")
     : `<li>No real measurements are loaded for this place.</li>`;
-
   const cl = $<HTMLSelectElement>("chart-layer");
   cl.innerHTML = (t?.layers ?? []).map((l) => `<option value="${l.def.variable}" ${l.def.variable === state.chartVar ? "selected" : ""}>${esc(l.result.series.label)}</option>`).join("");
   renderChart();
@@ -556,7 +628,8 @@ function renderMappingTable() {
     const extra = role === "pitch" ? ` Scale: ${SCALES[state.experience].name}; ${state.pitchScale === "absolute" ? "global fixed range" : "this place's own min–max"}.` : "";
     return `<tr><th scope="row">${esc(series.label)}<br/><span class="muted small">${esc(series.unit)}</span></th><td><strong>${esc(doc.youHear)}</strong><br/><span class="small">${esc(doc.rule + extra)}</span>${instrument ? `<br/><span class="muted small">Instrument: ${esc(instrument)}</span>` : ""}</td></tr>`;
   });
-  if (palette() === "sega") rows.push(`<tr><th scope="row">Regional music</th><td><span class="small">${esc(pal.arrangement)} ${state.experience === "forest" ? "In the forest it is reduced to soft wooden taps." : ""} The drum and taps do <strong>not</strong> carry data.</span></td></tr>`);
+  rows.push(`<tr><th scope="row">Nature sound</th><td><span class="small">${esc(NATURE_RULES[state.experience])} Absolute values are used, so the same number always sounds the same.</span></td></tr>`);
+  if (palette() === "sega") rows.push(`<tr><th scope="row">Sega-inspired arrangement</th><td><span class="small">${esc(pal.arrangement)} ${state.experience === "forest" ? "In the forest it is reduced to soft wooden taps." : ""} The drum pattern itself does not carry data; the melody it accompanies does.</span></td></tr>`);
   rows.push(`<tr><th scope="row">No data</th><td><span class="small">A soft, dull tick with the melody silent. Nothing is invented for missing or cloudy dates.</span></td></tr>`);
   $("mapping-table").innerHTML = `<thead><tr><th scope="col">Data</th><th scope="col">What you hear</th></tr></thead><tbody>${rows.join("")}</tbody>`;
 }
@@ -567,12 +640,11 @@ function renderLayersExplain() {
   const regional =
     r.music === "sega"
       ? `${esc(PALETTES.sega.description)} ${esc(PALETTES.sega.disclaimer ?? "")} References: ${PALETTES.sega.references.map((x) => `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.label.split(" — ")[0])}</a>`).join(", ")}.`
-      : esc(r.musicNote ?? "No regional music for this place.");
+      : esc(r.musicNote ?? "A neutral palette: no regional identity is assigned to this place.");
   $("layers-explain").innerHTML = `
     <dl class="kv">
-      <dt>🌿 Nature</dt><dd><strong>${esc(amb.title)}</strong>: ${esc(amb.sounds.join(", "))}. Synthesised in your browser (no recordings). It sets the scene and does <strong>not</strong> carry data.</dd>
-      <dt>📈 Data</dt><dd>Made only from the measurements listed above, using the rules in the table. When the numbers change, this layer changes.</dd>
-      <dt>🎵 Music</dt><dd>${regional}</dd>
+      <dt>Nature</dt><dd><strong>${esc(amb.title)}</strong>: ${esc(amb.sounds.join(", "))}. Synthesised in the browser (no recordings). Shaped by the data: ${esc(NATURE_RULES[state.experience])}</dd>
+      <dt>Music</dt><dd>The melody, harmony, rhythm and brightness come from the measurements (table above). Regional identity: ${regional}</dd>
     </dl>
     <p class="small muted">These are artistic sound interpretations generated from environmental observations. They are not sounds recorded by satellites.</p>`;
 }
@@ -588,16 +660,8 @@ function renderLayerToggles() {
     ["texture", "Pad", present.has("texture")],
   ];
   fs.hidden = !state.track;
-  fs.innerHTML = `<legend>Fine control of data layers</legend>` + opts
-    .filter(([, , show]) => show)
-    .map(([k, label]) => `<label><input type="checkbox" data-layer="${k}" ${state.layers[k] ? "checked" : ""}/> ${label}</label>`)
-    .join("");
-  fs.querySelectorAll<HTMLInputElement>("input").forEach((i) =>
-    i.addEventListener("change", () => {
-      state.layers[i.dataset.layer as keyof LayerToggles] = i.checked;
-      announce(`${i.parentElement!.textContent!.trim()} ${i.checked ? "on" : "off"}`);
-    }),
-  );
+  fs.innerHTML = `<legend>Fine control of the music</legend>` + opts.filter(([, , show]) => show).map(([k, label]) => `<label><input type="checkbox" data-layer="${k}" ${state.layers[k] ? "checked" : ""}/> ${label}</label>`).join("");
+  fs.querySelectorAll<HTMLInputElement>("input").forEach((i) => i.addEventListener("change", () => (state.layers[i.dataset.layer as keyof LayerToggles] = i.checked)));
 }
 
 function updateNowPlaying(f: SoundFrame | undefined) {
@@ -622,22 +686,20 @@ function updateNowPlaying(f: SoundFrame | undefined) {
   box.innerHTML = rows.join("");
 }
 
-/** "What you heard": variable, sound, values, meaning, limitations — from the data actually loaded. */
 function renderUnderstand() {
   const t = state.track;
   if (!t) {
-    $("understand-text").innerHTML = `<p>Only the nature soundscape is playing: there are no real measurements for this place to turn into sound.</p>`;
+    $("understand-text").innerHTML = `<p>Only the nature soundscape plays: there are no real measurements for this place to turn into sound.</p>`;
     return;
   }
   const out: string[] = [];
-  const pitch = windowed(t.layers.find((l) => l.def.roles.includes("pitch"))?.result.series ?? t.layers[0].result.series);
+  const pitch = windowed(pitchSeries() ?? t.layers[0].result.series);
   const pts = pitch.points as CleanPoint[];
   if (!pts.length) return;
   const d = (p: { time: string }) => esc(fmtDate(p.time, pitch, true));
   const f = (s: CleanSeries, v: number) => `<strong>${esc(fmtValue(v, s.unit))}</strong>`;
   const unit = t.period.label.includes("daily") ? "days" : t.period.label.includes("monthly") ? "months" : "time steps";
-  out.push(`<p>You heard <strong>${pts.length} ${unit}</strong> at ${esc(state.region.name)}, from ${d(pts[0])} (left ear) to ${d(pts[pts.length - 1])} (right ear).</p>`);
-  out.push("<ul>");
+  out.push(`<p>Your child heard <strong>${pts.length} ${unit}</strong> at ${esc(state.region.name)}, from ${d(pts[0])} (left ear) to ${d(pts[pts.length - 1])} (right ear).</p><ul>`);
   for (const l of t.layers) {
     const s = windowed(l.result.series);
     const vals = (s.points as CleanPoint[]).filter((p) => p.value !== null);
@@ -651,12 +713,11 @@ function renderUnderstand() {
       out.push(`<li><strong>${esc(doc.youHear)}</strong> followed ${esc(w.short)}: ${role === "pitch" ? `highest note at ${f(s, max.value as number)} (${d(max)}), lowest at ${f(s, min.value as number)} (${d(min)}); average ${f(s, mean)}.` : `values from ${f(s, min.value as number)} to ${f(s, max.value as number)} (average ${f(s, mean)}); ${esc(w.more)} → ${role === "density" ? "busier rhythm" : role === "brightness" ? "brighter sound" : role === "texture" ? "fuller pad" : "different harmony"}.`}</li>`);
     }
     const gaps = s.points.filter((p) => p.value === null).length;
-    if (gaps) out.push(`<li>${gaps} date${gaps > 1 ? "s" : ""} of ${esc(w.short)} had no usable data (missing, cloudy or snow): you heard a soft tick.</li>`);
+    if (gaps) out.push(`<li>${gaps} date${gaps > 1 ? "s" : ""} of ${esc(w.short)} had no usable data (missing, cloudy or snow): a soft tick.</li>`);
   }
   out.push("</ul>");
-  out.push(`<p>Weather, seasons and longer trends are all mixed together in these values, so a difference between two times is not, on its own, evidence of climate change, and EARTHSONA does not say what caused it.</p>`);
+  out.push(`<p>Weather, seasons and longer trends are mixed together in these values, so a difference between two times is not, on its own, evidence of climate change, and EARTHSONA does not say what caused it.</p>`);
   out.push(`<p><strong>Limits:</strong> ${t.layers.map((l) => esc(LIMITATIONS[l.def.variable] ?? "")).filter(Boolean).join(" ")}</p>`);
-  if (state.missing.length) out.push(`<p><em>Not available here: ${esc(state.missing.join(", "))}. That layer stayed silent.</em></p>`);
   $("understand-text").innerHTML = out.join("");
 }
 
@@ -690,8 +751,50 @@ function renderSourceDetails() {
     .join("");
 }
 
+function renderAbout() {
+  const sega = PALETTES.sega;
+  const places = EXPERIENCES.map((e) => `<li><strong>${esc(MISSIONS[e.id].title)}</strong>: ${e.regions.map((id) => { const r = getRegion(id)!; return `${esc(r.name)} (${esc(musicTag(r))})`; }).join("; ")}</li>`).join("");
+  $("about-body").innerHTML = `
+  <p><strong>EARTHSONA — Hear the Earth. Understand the Change.</strong> NASA Space Apps 2026, <em>The Earth Information Jukebox</em>.
+  Children explore the planet with Luna, the Moon. Each place has a synthesised nature soundscape and a tune, and <strong>both are shaped by real environmental measurements</strong>.</p>
+  <p>The sounds are <strong>artistic interpretations generated from environmental observations</strong>. They are not sounds recorded by satellites.</p>
+  <h3>The nine places</h3><ul>${places}</ul>
+  <h3>How the sound works</h3>
+  <ul>
+    <li><strong>Nature</strong>: waves, wind, rain, birds, insects, thunder, ice, synthesised in the browser (no recordings). ${esc(NATURE_RULES.ocean)} ${esc(NATURE_RULES.forest)} ${esc(NATURE_RULES.pulse)}</li>
+    <li><strong>Music</strong>: melody, harmony, rhythm and brightness follow documented rules (Science tab). For the three Mauritius places the instruments and arrangement are an original Sega-inspired homage; elsewhere a neutral palette is used.</li>
+    <li>Missing, cloudy or snowy dates are a soft tick; nothing is invented.</li>
+  </ul>
+  <h3>The globe</h3>
+  <p>Each world shows its own NASA map: sea depth (Blue Marble bathymetry, masked to the sea with the MUR SST map), vegetation greenness (MODIS NDVI) or air temperature (MERRA-2). In Luna's playground the map is repainted to show a <em>pretend</em> change; it is labelled “Pretend Earth” and is never presented as data.</p>
+  <h3>Data sources</h3>
+  <div class="table-scroll flat"><table class="sources">
+    <thead><tr><th scope="col">World</th><th scope="col">Dataset</th><th scope="col">Kind of data</th></tr></thead>
+    <tbody>
+      <tr><td>Ocean</td><td>NASA/JPL MUR SST v4.1 and anomaly (preferred: PO.DAAC with an Earthdata token, or ERDDAP). If unavailable when data is downloaded, NOAA Coral Reef Watch CoralTemp v3.1, labelled as NOAA.</td><td>Analysis (Level 4)</td></tr>
+      <tr><td>Forest</td><td>MODIS MOD13Q1.061 Terra NDVI + EVI, 250 m, 16-day, with pixel-reliability QA (ORNL DAAC)</td><td>Satellite-derived index</td></tr>
+      <tr><td>Weather</td><td>NASA POWER daily and monthly: T2M, PRECTOTCORR, ALLSKY_SFC_SW_DWN</td><td>Model-based estimates (MERRA-2); solar satellite-derived (CERES)</td></tr>
+      <tr><td>Globe</td><td>NASA GIBS: Blue Marble (relief + bathymetry), MUR SST, MODIS NDVI, MERRA-2 T2M snapshots</td><td>Imagery (visual only)</td></tr>
+      <tr><td>Pictures</td><td>NASA Earth Information Center visualisations (NASA SVS)</td><td>Visual only, not sonified</td></tr>
+    </tbody></table></div>
+  <p>NDVI and EVI measure how green vegetation looks. They do not count trees or prove deforestation.</p>
+  <h3>Citations</h3>
+  <p class="cite"><strong>NASA POWER.</strong> ${esc(POWER_REFERENCE)}</p>
+  <p class="cite"><strong>MODIS.</strong> ${esc(MOD13Q1_REFERENCE)} ${esc(TESVIS_REFERENCE)}</p>
+  <p class="cite"><strong>MUR SST.</strong> ${esc(MUR_REFERENCE)}</p>
+  <p class="cite"><strong>NOAA Coral Reef Watch</strong> (only if used). ${esc(CRW_REFERENCE)}</p>
+  <p class="cite"><strong>Imagery.</strong> We acknowledge the use of imagery provided by services from NASA's Global Imagery Browse Services (GIBS), part of NASA's Earth Science Data and Information System (ESDIS). ${esc(SVS_REFERENCE)}</p>
+  <h3>Regional music: ${esc(sega.name)}</h3>
+  <p>${esc(sega.description)} ${esc(sega.arrangement)}</p>
+  <p>${esc(sega.disclaimer ?? "")}</p>
+  <ul>${sega.references.map((r) => `<li><a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.label)}</a></li>`).join("")}</ul>
+  <p>Hawaiʻi, the Amazon and Japan have rich musical traditions. EARTHSONA does not add music for them yet: that needs research and collaboration with musicians from those communities, with proper credit. The open Pacific, the boreal forest and Antarctica have no regional music by design.</p>
+  <h3>Luna's voice</h3>
+  <p>Luna uses the speech voices built into this device. Nothing is recorded or sent anywhere.</p>`;
+}
+
 // ---------------------------------------------------------------------------
-// Player and mix
+// Player
 // ---------------------------------------------------------------------------
 function updateProgress(i: number) {
   const pr = $<HTMLInputElement>("progress");
@@ -707,6 +810,7 @@ function updateProgress(i: number) {
 
 player.onStep((i, f) => {
   engine.play(f, player.stepSec, renderOpts());
+  state.heard = Math.max(state.heard, i);
   chart.setPlayheadTime(f.time);
   updateProgress(i);
   updateNow(f);
@@ -715,8 +819,10 @@ player.onStep((i, f) => {
 
 player.onState((s) => {
   if (s === "stopped" && player.index >= state.frames.length && state.frames.length) {
-    announce("Finished. Open “Science behind the sound” to see what you heard.");
     stopAll();
+    progress[state.experience].done[2] = true;
+    saveProg();
+    lunaFinished();
     return;
   }
   if (s === "stopped") chart.hidePlayhead();
@@ -729,20 +835,20 @@ function setPlayingUi() {
   $("play-icon").setAttribute("href", on ? "#i-pause" : "#i-play");
   $("btn-play").setAttribute("aria-label", on ? "Pause (Space)" : "Play (Space)");
   $("audio-status").textContent = on ? (player.playing ? "PLAYING" : "NATURE ONLY") : player.index > 0 && player.index < state.frames.length ? "PAUSED" : "STOPPED";
-  if (on) startVisualizer();
 }
 
 async function play() {
-  lab.stop();
+  playground.stop();
   await engine.start();
+  const fresh = player.index === 0;
   state.soundOn = true;
+  engine.resetNature();
   engine.startNature(ambienceFor(state.region.ambience));
   if (state.frames.length) player.play();
   setPlayingUi();
-  const key = `${state.experience}:${state.region.id}`;
-  if (!explained.has(key) && settings.popups) {
-    explained.add(key);
-    showSoundExplain();
+  if (fresh) {
+    state.heard = 0;
+    lunaListening();
   }
 }
 function pause() {
@@ -764,66 +870,31 @@ async function togglePlay() {
 }
 
 function updateMix() {
-  const set = (id: string, on: boolean, disabled = false, title = "") => {
+  const set = (id: string, on: boolean, title: string) => {
     const b = $<HTMLButtonElement>(id);
-    b.setAttribute("aria-pressed", String(on && !disabled));
-    b.disabled = disabled;
+    b.setAttribute("aria-pressed", String(on));
     b.title = title;
   };
-  set("mix-nature", settings.nature, false, "Natural sounds of this place (no data)");
-  set("mix-data", settings.data, !state.track, state.track ? "The sound made from real measurements" : "No real measurements here");
-  const hasMusic = state.region.music === "sega";
-  set("mix-regional", settings.regional, !hasMusic, hasMusic ? "Sega-inspired music for Mauritius (no data)" : state.region.musicNote ?? "No regional music here");
-  $("mix-regional-label").textContent = hasMusic ? "Sega music" : "Music: none";
+  const sega = state.region.music === "sega";
+  set("mix-nature", settings.nature, "Nature sounds (shaped by the data)");
+  set("mix-music", settings.music, state.track ? "The tune made from the data" : "No data here, so no tune");
+  $("mix-music-label").textContent = sega ? "Sega music" : "Music";
   engine.setBus("nature", settings.nature);
-  engine.setBus("data", settings.data);
-  engine.setBus("regional", settings.regional && hasMusic);
+  engine.setBus("data", settings.music);
+  engine.setBus("regional", settings.music && sega);
 }
 
-function toggleBus(bus: Bus) {
-  const key = bus === "regional" ? "regional" : bus;
-  if (bus === "regional" && state.region.music !== "sega") return;
-  if (bus === "data" && !state.track) return;
-  settings[key] = !settings[key];
-  savePref("settings2", settings);
+function toggleBus(which: "nature" | "music") {
+  settings[which] = !settings[which];
+  saveSettings();
   updateMix();
-  if (bus === "regional") {
-    renderMappingTable();
-    announce(settings.regional ? "Sega-inspired music on. The data mapping is unchanged." : "Regional music off. Data instruments are now plain tones.");
-  } else announce(`${bus === "nature" ? "Nature sounds" : "Data sound"} ${settings[key] ? "on" : "off"}`);
-}
-
-function startVisualizer() {
-  const canvas = $<HTMLCanvasElement>("visualizer");
-  const ctx = canvas.getContext("2d")!;
-  const an = engine.analyser;
-  if (!an) return;
-  const data = new Uint8Array(an.fftSize);
-  const color = COLORS[state.experience];
-  const draw = () => {
-    ctx.fillStyle = "rgba(2,6,23,0.6)";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    if (!state.soundOn) return;
-    requestAnimationFrame(draw);
-    an.getByteTimeDomainData(data);
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    for (let i = 0; i < data.length; i++) {
-      const x = (i / (data.length - 1)) * canvas.width;
-      const y = (data[i] / 255) * canvas.height;
-      i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
-    }
-    ctx.stroke();
-  };
-  draw();
+  announce(`${which === "nature" ? "Nature sounds" : "Music"} ${settings[which] ? "on" : "off"}`);
 }
 
 async function exportWav() {
   if (!state.frames.length) return;
   const btn = $<HTMLButtonElement>("btn-wav");
   btn.disabled = true;
-  announce("Rendering WAV file…");
   try {
     const blob = await renderFramesToWav(state.frames, player.stepSec, renderOpts());
     const a = document.createElement("a");
@@ -831,152 +902,30 @@ async function exportWav() {
     a.download = `earthsona-${state.experience}-${state.region.id}-${state.track?.period.key}-${state.window}-${palette()}.wav`;
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 5000);
-    announce("WAV file ready.");
   } finally {
     btn.disabled = false;
   }
 }
 
 // ---------------------------------------------------------------------------
-// Narration (short tips with subtitles)
+// Story, playground, impact, grown-ups
 // ---------------------------------------------------------------------------
-narrator.onDuck = (d) => engine.setDucked(d);
-voice.onDuck = (d) => engine.setDucked(d);
-voice.onState = (s) => {
-  if (s === "speaking") narrator.stop();
-  document.querySelectorAll<HTMLElement>(".voice-bar[data-active]").forEach((bar) => {
-    bar.querySelector<HTMLElement>(".voice-ctls")!.hidden = s === "idle";
-    const pb = bar.querySelector<HTMLButtonElement>("[data-vpause]")!;
-    pb.innerHTML = s === "paused" ? `<span aria-hidden="true">▶</span><span class="sr-only">Resume</span>` : `<span aria-hidden="true">⏸</span><span class="sr-only">Pause</span>`;
-    pb.title = s === "paused" ? "Resume" : "Pause";
-    if (s === "idle") delete bar.dataset.active;
-  });
-};
-narrator.onState = (s, text) => {
-  if (s === "speaking") voice.stop();
-  const sub = $("tip-subtitle");
-  $("tip-ctls").hidden = s === "idle";
-  $("tip-play-label").textContent = s === "idle" ? (narrator.text ? "Next tip" : "Hear a tip") : "Next tip";
-  $("tip-pause-icon").setAttribute("href", s === "paused" ? "#i-play" : "#i-pause");
-  $("tip-pause-label").textContent = s === "paused" ? "Resume tip" : "Pause tip";
-  $("tip-pause").title = s === "paused" ? "Resume tip" : "Pause tip";
-  if (text) {
-    sub.hidden = false;
-    sub.textContent = text + (s !== "idle" && state.soundOn ? "  (soundscape turned down while the tip plays)" : "");
-  }
-};
+const story = new Story({
+  progress: () => progress,
+  save: saveProg,
+  voice,
+  start: () => {
+    voice.unlocked = true;
+    luna.say("Yay! First, pick a world: the ocean, the forest, or the weather. I'll show you each one on the Earth.", { mood: "wow" });
+    document.querySelector<HTMLElement>("#experience-list [aria-checked='true']")?.focus();
+  },
+});
 
-// ---------------------------------------------------------------------------
-// Globe layers
-// ---------------------------------------------------------------------------
-function applyOverlay() {
-  const ov = IMAGERY.overlays[state.experience];
-  globe.setOverlay(settings.overlay ? ov.file : null, (ok) => {
-    $("stage-caption").textContent =
-      (globe.realImagery
-        ? `Imagery: NASA GIBS — ${settings.night ? IMAGERY.night.title : IMAGERY.base.title}`
-        : "Globe: stylised placeholder map (NASA imagery not bundled yet)") +
-      (settings.overlay ? (ok ? `; data map: ${ov.title}.` : "; data map unavailable offline.") : ".") +
-      " Drag to turn the Earth, click a dot to choose a place.";
-  });
-}
-
-// ---------------------------------------------------------------------------
-// Search (OpenStreetMap Nominatim — online only; listed places work offline)
-// ---------------------------------------------------------------------------
-async function search(q: string) {
-  const box = $("search-results");
-  if (q.trim().length < 2) {
-    box.hidden = true;
-    return;
-  }
-  box.hidden = false;
-  box.innerHTML = `<p class="muted small">Searching…</p>`;
-  const local = REGIONS.filter((r) => r.name.toLowerCase().includes(q.toLowerCase()));
-  let remote: { display_name: string; lat: string; lon: string }[] = [];
-  try {
-    const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=5&q=${encodeURIComponent(q)}`, { signal: AbortSignal.timeout(6000) });
-    if (r.ok) remote = await r.json();
-  } catch {
-    /* offline */
-  }
-  const items: string[] = [];
-  local.forEach((r, i) => items.push(`<li><button data-local="${i}">${esc(r.name)}<span class="sub">Featured place</span></button></li>`));
-  remote.forEach((r, i) => items.push(`<li><button data-remote="${i}">${esc(r.display_name.split(",")[0])}<span class="sub">${esc(r.display_name)}</span></button></li>`));
-  box.innerHTML = (items.length ? `<ul>${items.join("")}</ul>` : `<p class="muted small">${navigator.onLine ? "No places found." : "Search needs internet. Pick a featured place or click the globe."}</p>`) + `<button class="btn small ghost" id="search-close">Close results</button>`;
-  box.querySelectorAll<HTMLButtonElement>("button[data-local]").forEach((b) => (b.onclick = () => {
-    box.hidden = true;
-    const r = local[+b.dataset.local!];
-    const exp = EXPERIENCES.find((e) => e.regions.includes(r.id));
-    if (exp && exp.id !== state.experience) {
-      state.region = r;
-      selectExperience(exp.id);
-    } else selectRegion(r);
-  }));
-  box.querySelectorAll<HTMLButtonElement>("button[data-remote]").forEach((b) => {
-    const r = remote[+b.dataset.remote!];
-    b.onclick = () => ((box.hidden = true), selectRegion(customRegion(+r.lat, +r.lon, r.display_name.split(",")[0])));
-  });
-  $("search-close").onclick = () => (box.hidden = true);
-  (box.querySelector("button[data-local], button[data-remote]") as HTMLElement | null)?.focus();
-}
-
-// ---------------------------------------------------------------------------
-// About
-// ---------------------------------------------------------------------------
-function renderAbout() {
-  const sega = PALETTES.sega;
-  const places = EXPERIENCES.map((e) => `<li>${e.icon} <strong>${esc(e.title)}</strong>: ${e.regions.map((id) => { const r = getRegion(id)!; return `${esc(r.name)} (${esc(musicTag(r).text.replace(/^\S+\s/, ""))})`; }).join("; ")}</li>`).join("");
-  $("about-body").innerHTML = `
-  <p><strong>EARTHSONA — Hear the Earth. Understand the Change.</strong> Built for NASA Space Apps 2026, <em>The Earth Information Jukebox</em>.
-  Explore the planet through sound: a natural soundscape for each place, a sound made from real environmental measurements, and regional music where a genuine, researched connection exists.</p>
-  <p>The sounds are <strong>artistic interpretations generated from environmental observations</strong>. They are not sounds recorded by satellites.</p>
-  <h3>The nine featured experiences</h3>
-  <ul>${places}</ul>
-  <h3>Three sound layers</h3>
-  <ul>
-    <li><strong>🌿 Nature</strong>: waves, wind, rain, birds, insects, thunder, ice… synthesised in the browser for each place (no recordings, so nothing needs a licence). It carries no data.</li>
-    <li><strong>📈 Data</strong>: made only from measurements, with the documented rules below. Missing or cloudy dates are a soft tick; nothing is invented.</li>
-    <li><strong>🎵 Music</strong>: an original, synthesised Sega-inspired arrangement for the three Mauritius places only. It changes instruments and adds a drum or wood taps; it never changes what a value sounds like and carries no data.</li>
-  </ul>
-  <h3>Data sources</h3>
-  <div class="table-scroll flat"><table class="sources">
-    <thead><tr><th scope="col">World</th><th scope="col">Dataset</th><th scope="col">Kind of data</th></tr></thead>
-    <tbody>
-      <tr><td>🌊 Ocean</td><td>NASA/JPL MUR SST v4.1 and its anomaly (preferred), via NOAA ERDDAP. If the MUR server cannot be reached when data is downloaded, NOAA Coral Reef Watch CoralTemp v3.1 SST and anomaly are used instead and labelled as NOAA.</td><td>Analysis (Level 4, gap-free blend of satellite and in-situ data)</td></tr>
-      <tr><td>🌳 Forest</td><td>MODIS MOD13Q1.061 Terra NDVI + EVI, 250 m, 16-day, with pixel-reliability QA, via ORNL DAAC</td><td>Satellite-derived index</td></tr>
-      <tr><td>💓 Pulse</td><td>NASA POWER (LaRC) daily and monthly: T2M, PRECTOTCORR, ALLSKY_SFC_SW_DWN</td><td>Model-based estimates (MERRA-2) and satellite-derived solar (CERES)</td></tr>
-      <tr><td>Globe</td><td>NASA GIBS: Blue Marble; VIIRS Black Marble 2016; data maps (MUR SST, MODIS NDVI, MERRA-2 T2M)</td><td>Imagery (visual only)</td></tr>
-      <tr><td>Beside each world</td><td>Official NASA Earth Information Center visualisations (NASA SVS): SST and SST anomaly near real time, GEDI forest height, near real-time NDVI, GEOS-FP precipitation and temperature</td><td>Visual only, not sonified</td></tr>
-      <tr><td>Place search</td><td>OpenStreetMap Nominatim (© OpenStreetMap contributors)</td><td>Not NASA; online only</td></tr>
-    </tbody></table></div>
-  <p>NDVI and EVI measure how green vegetation looks. They do not count trees or prove deforestation; EARTHSONA makes no forest-loss claims.</p>
-  <h3>Citations</h3>
-  <p class="cite"><strong>NASA POWER.</strong> ${esc(POWER_REFERENCE)}</p>
-  <p class="cite"><strong>MODIS.</strong> ${esc(MOD13Q1_REFERENCE)} ${esc(TESVIS_REFERENCE)}</p>
-  <p class="cite"><strong>MUR SST.</strong> ${esc(MUR_REFERENCE)}</p>
-  <p class="cite"><strong>NOAA Coral Reef Watch</strong> (only if used). ${esc(CRW_REFERENCE)}</p>
-  <p class="cite"><strong>Imagery.</strong> We acknowledge the use of imagery provided by services from NASA's Global Imagery Browse Services (GIBS), part of NASA's Earth Science Data and Information System (ESDIS). ${esc(SVS_REFERENCE)}</p>
-  <h3>How the data sound is made</h3>
-  <ul>
-    ${(["pitch", "harmony", "density", "brightness", "texture"] as SoundRole[]).map((r) => `<li><strong>${esc(ROLE_DOCS[r].youHear)}</strong>: ${esc(ROLE_DOCS[r].rule)}</li>`).join("")}
-  </ul>
-  <h3>Regional music: ${esc(sega.name)}</h3>
-  <p>${esc(sega.description)} ${esc(sega.arrangement)}</p>
-  <p>${esc(sega.disclaimer ?? "")}</p>
-  <ul>${sega.references.map((r) => `<li><a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.label)}</a></li>`).join("")}</ul>
-  <p>Hawaiʻi, the Amazon and Japan have rich musical traditions. EARTHSONA does not add music for them yet: that needs research and collaboration with musicians from those communities, with proper credit. The open Pacific, the boreal forest and Antarctica have no regional music by design.</p>
-  <h3>Earth Sound Lab (✦ Try this out)</h3>
-  <p>Compare two real times at the same place and hear the difference. The separate “What if?” mode uses make-believe values, is clearly labelled, changes only the sound and is not a forecast.</p>`;
-}
-
-// ---------------------------------------------------------------------------
-// Lab
-// ---------------------------------------------------------------------------
-const lab = new EarthLab(engine, {
+const playground = new Playground({
   state: () => ({ experience: state.experience, region: state.region, track: state.track, palette: palette(), layers: state.layers }),
-  selectExperience,
-  selectRegion: (id) => selectRegion(getRegion(id)!),
+  luna,
+  engine,
+  pretendGlobe: (p, rain, sun) => void applyGlobeLook(p, rain, sun),
   beforePlay: async () => {
     player.pause();
     await engine.start();
@@ -984,217 +933,87 @@ const lab = new EarthLab(engine, {
     setPlayingUi();
     engine.startNature(ambienceFor(state.region.ambience));
   },
-  afterPlay: () => engine.stopNature(),
-  onCompared: () => missionCard.markDone(3),
-});
-
-// ---------------------------------------------------------------------------
-// Story, missions, Earth Impact Explorer, Listen, My Missions
-// ---------------------------------------------------------------------------
-const missionCard = new MissionCard({
-  experience: () => state.experience,
-  region: () => state.region,
-  hasData: () => !!state.track,
-  progress: () => progress,
-  save: saveProg,
-  voice,
-  enter: (anim) => playSceneFx(anim),
-  showData: () => showDiscovery("place", true),
-  listen: async () => {
-    explained.add(`${state.experience}:${state.region.id}`);
-    await play();
-    showSoundExplain();
+  afterPlay: () => {
+    engine.stopNature();
+    engine.resetNature();
   },
-  compare: () => {
-    lab.refresh();
-    lab.openCompare();
-    openDialog("dlg-lab");
+  onClose: () => {
+    luna.say("Back to the real Earth! Everything you see now is real NASA data again.");
+    $("places-h").focus();
   },
-  impact: () => openImpact(),
-  badgeEarned: () => (badgeCount(progress) === 3 ? story.open("finale") : story.open("missions")),
 });
 
-const story = new Story({
-  progress: () => progress,
-  save: saveProg,
-  voice,
-  explore: () => showExplore(),
-  chooseMission: (exp) => startMission(exp),
-});
-
-async function startMission(exp: ExperienceId) {
-  await goTo(exp);
-  missionCard.render();
-  const card = $("mission-card");
-  card.scrollIntoView({ block: "start", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
-  $("mc-title").tabIndex = -1;
-  $("mc-title").focus();
-  announce(`${MISSIONS[exp].title}. Step ${progress[exp].step + 1}.`);
-}
-
-function updateBadgeCount() {
-  $("badge-count").textContent = `${badgeCount(progress)}/3`;
-}
-
-/** Short scene animation over the globe for the mission "Enter" step (decorative). */
-let fxTimer: number | undefined;
-function playSceneFx(kind: "dive" | "land" | "clouds") {
-  const fx = $("scene-fx");
-  const art = {
-    dive: `<div class="fx-bg"></div><span class="fx-a">🐠</span><span class="fx-b">🐢</span><span class="fx-c">🪸</span>`,
-    land: `<div class="fx-bg"></div><span class="fx-a">🌳</span><span class="fx-b">🦜</span><span class="fx-c">🌴</span>`,
-    clouds: `<div class="fx-bg"></div><span class="fx-a">☁️</span><span class="fx-b">☀️</span><span class="fx-c">🌧️</span>`,
-  }[kind];
-  fx.className = `scene-fx fx-${kind}`;
-  fx.innerHTML = `${art}<div class="fx-ship">🚀</div><p class="fx-caption">${esc(MISSIONS[state.experience].lines[0])}</p>`;
-  fx.hidden = false;
-  clearTimeout(fxTimer);
-  fxTimer = window.setTimeout(() => (fx.hidden = true), 4500);
-  announce(MISSIONS[state.experience].lines[0]);
-}
-$("scene-fx").addEventListener("click", () => ($("scene-fx").hidden = true));
-
-/** Scene 3: explore the Earth — the real globe, with the astronaut introducing the destinations. */
-function showExplore() {
-  const worlds = EXPERIENCES.map(
-    (e) =>
-      `<li><strong>${e.icon} ${esc(MISSIONS[e.id].title)}</strong>: ${e.regions
-        .map((id) => `<button class="link-btn" data-go="${e.id}|${id}">${esc(getRegion(id)!.short ?? getRegion(id)!.name)}</button>`)
-        .join(", ")}</li>`,
-  ).join("");
-  showCard(
-    {
-      kicker: "🌍 Explore the Earth",
-      title: "Tap a glowing dot to visit a place!",
-      fact: `<span class="explore-buddy">${astronautSvg({ pose: "point", size: "56" })}</span> These dots are places we can listen to: oceans, forests and Earth's weather. Mauritius is in all three!`,
-      data: `<ul class="disc-list explore-list">${worlds}</ul>`,
-      sound: `<button class="btn primary" id="explore-missions">🚀 Choose a mission</button>`,
-    },
-    "explore",
-  );
-  $("discovery").querySelectorAll<HTMLButtonElement>("[data-go]").forEach((b) => (b.onclick = () => {
-    const [exp, id] = b.dataset.go!.split("|");
-    goTo(exp as ExperienceId, id);
-  }));
-  $("explore-missions").onclick = () => story.open("missions");
-  globe.reset();
+function togglePlayground() {
+  if (playground.open) playground.close();
+  else {
+    stopAll();
+    playground.show();
+  }
 }
 
 function openImpact() {
   renderImpact({ experience: state.experience, region: state.region, track: state.track, voice });
-  openDialog("dlg-impact");
-  missionCard.markDone(4);
+  ($("dlg-impact") as HTMLDialogElement).showModal();
+  progress[state.experience].done[4] = true;
+  saveProg();
 }
 
-function renderListen() {
-  $("listen-grid").innerHTML = EXPERIENCES.map(
-    (e) =>
-      `<section class="listen-world" style="--c:${COLORS[e.id]}"><h3>${e.icon} ${esc(MISSIONS[e.id].title)}</h3><ul>${e.regions
-        .map((id) => {
-          const r = getRegion(id)!;
-          return `<li><button class="listen-btn" data-listen="${e.id}|${id}"><span aria-hidden="true">▶</span> <strong>${esc(r.short ?? r.name)}</strong><span class="tag ${musicTag(r).cls}">${esc(musicTag(r).text)}</span></button></li>`;
-        })
-        .join("")}</ul></section>`,
-  ).join("");
-  $("listen-grid").querySelectorAll<HTMLButtonElement>("[data-listen]").forEach((b) => (b.onclick = async () => {
-    const [exp, id] = b.dataset.listen!.split("|");
-    ($("dlg-listen") as HTMLDialogElement).close();
-    await goTo(exp as ExperienceId, id);
-    await play();
-  }));
+const selectTab = setupTabs(document.querySelector<HTMLElement>("#dlg-grownups [role='tablist']")!);
+function openGrownups(tab = "tab-science") {
+  selectTab(tab);
+  ($("dlg-grownups") as HTMLDialogElement).showModal();
 }
 
-let resetArmed = false;
-function renderMissions() {
-  const n = badgeCount(progress);
-  $("missions-body").innerHTML = `
-    <div class="my-missions">${EXPERIENCES.map((e) => {
-      const m = MISSIONS[e.id];
-      const mp = progress[e.id];
-      const done = mp.done.filter(Boolean).length;
-      return `<section class="my-mission ${mp.badge ? "won" : ""}" style="--c:${COLORS[e.id]}">
-        <div class="mm-badge" aria-hidden="true">${mp.badge ? m.badgeIcon : "🔒"}</div>
-        <h3>${esc(m.title)}</h3>
-        <p class="small">${mp.badge ? `<strong>${esc(m.badge)}</strong> badge earned!` : `${done} of 7 steps done`}</p>
-        <div class="mp-progress" role="img" aria-label="${done} of 7 steps done"><span style="width:${(done / 7) * 100}%"></span></div>
-        <button class="btn primary" data-continue="${e.id}">${done ? "Continue" : "Start"}</button>
-      </section>`;
-    }).join("")}</div>
-    <div class="row-btns">
-      <button class="btn" id="mm-choose">🗺️ Choose a mission</button>
-      <button class="btn" id="mm-game">🌟 What would you do?</button>
-      <button class="btn" id="mm-finale">🎉 Mission complete (${n}/3)</button>
-      <button class="btn" id="mm-story">↻ Replay the story</button>
-    </div>
-    <p class="small muted">Your progress is saved only in this browser.
-      <button class="btn small ghost" id="mm-reset">${resetArmed ? "Tap again to erase all progress" : "Start over"}</button></p>`;
-  const close = () => ($("dlg-missions") as HTMLDialogElement).close();
-  $("missions-body").querySelectorAll<HTMLButtonElement>("[data-continue]").forEach((b) => (b.onclick = () => (close(), startMission(b.dataset.continue as ExperienceId))));
-  $("mm-choose").onclick = () => (close(), story.open("missions"));
-  $("mm-game").onclick = () => (close(), story.restartGame(), story.open("game"));
-  $("mm-finale").onclick = () => (close(), story.open("finale"));
-  $("mm-story").onclick = () => (close(), story.open("message"));
-  $("mm-reset").onclick = () => {
-    if (!resetArmed) {
-      resetArmed = true;
-      renderMissions();
-      $("mm-reset").focus();
-      return;
-    }
-    resetArmed = false;
-    progress = emptyProgress();
-    progress.intro = true;
-    saveProg();
-    missionCard.render();
-    renderMissions();
-    announce("Progress erased. Start a new adventure!");
-  };
+function updateBadgeCount() {
+  $("badge-count").textContent = String(badgeCount(progress));
 }
+
+function renderVoices() {
+  const sel = $<HTMLSelectElement>("voice-pick");
+  const vs = voice.voices();
+  sel.innerHTML = vs.length ? vs.map((v) => `<option value="${esc(v.name)}" ${v.name === voice.voiceName ? "selected" : ""}>${esc(v.name)}</option>`).join("") : `<option>No voices on this device</option>`;
+  sel.disabled = !vs.length;
+}
+voice.onVoices = renderVoices;
+voice.onDuck = (d) => engine.setDucked(d);
+luna.onVoiceSetting = (on) => {
+  settings.voice = on;
+  saveSettings();
+  $<HTMLInputElement>("set-voice").checked = on;
+};
 
 // ---------------------------------------------------------------------------
 // Wiring
 // ---------------------------------------------------------------------------
-const openDialog = (id: string) => ($(id) as HTMLDialogElement).showModal();
 document.querySelectorAll<HTMLButtonElement>("[data-close]").forEach((b) => (b.onclick = () => (b.closest("dialog") as HTMLDialogElement).close()));
-document.querySelectorAll("dialog").forEach((d) => d.addEventListener("click", (e) => e.target === d && d.close()));
-$("dlg-lab").addEventListener("close", () => lab.stop());
-
-$("source-badge").onclick = () => (renderSourceDetails(), openDialog("dlg-source"));
-$("btn-try").onclick = () => (lab.refresh(), openDialog("dlg-lab"));
-$("btn-settings").onclick = () => openDialog("dlg-settings");
-$("btn-about").onclick = () => openDialog("dlg-about");
-$("btn-keys").onclick = () => openDialog("dlg-keys");
-$("disc-close").onclick = hideDiscovery;
-$("btn-why").onclick = () => showSoundExplain();
-$("nav-home").onclick = () => story.open("message");
-$("nav-explore").onclick = () => {
-  document.querySelectorAll<HTMLDialogElement>("dialog[open]").forEach((d) => d.close());
-  showExplore();
-  $("globe").scrollIntoView({ block: "nearest" });
-};
-$("nav-listen").onclick = () => (renderListen(), openDialog("dlg-listen"));
-$("nav-discover").onclick = () => openImpact();
-$("nav-missions").onclick = () => ((resetArmed = false), renderMissions(), openDialog("dlg-missions"));
+document.querySelectorAll("dialog").forEach((d) => d.addEventListener("click", (e) => e.target === d && (d as HTMLDialogElement).close()));
 $("dlg-impact").addEventListener("close", () => voice.stop());
+
+$("btn-home").onclick = () => story.open("welcome");
+$("btn-badges").onclick = () => story.open("finale");
+$("btn-grownups").onclick = () => openGrownups();
+$("luna").innerHTML = lunaSvg("happy", 72);
+$("luna").onclick = () => togglePlayground();
+$("source-badge").onclick = () => (renderSourceDetails(), ($("dlg-source") as HTMLDialogElement).showModal());
 $("btn-play").onclick = togglePlay;
-$("btn-stop").onclick = stopAll;
+$("btn-stop").onclick = () => {
+  const listened = state.frames.length > 0 && state.heard >= state.frames.length * 0.3;
+  stopAll();
+  if (listened) lunaFinished();
+};
 $("btn-replay").onclick = async () => {
-  lab.stop();
+  playground.stop();
   await engine.start();
   state.soundOn = true;
   engine.startNature(ambienceFor(state.region.ambience));
   if (state.frames.length) player.replay();
   setPlayingUi();
 };
+$("btn-why").onclick = () => lunaWhy();
 $("btn-wav").onclick = exportWav;
 $("btn-reset").onclick = () => globe.reset();
 $("mix-nature").onclick = () => toggleBus("nature");
-$("mix-data").onclick = () => toggleBus("data");
-$("mix-regional").onclick = () => toggleBus("regional");
-$("tip-play").onclick = () => narrator.next();
-$("tip-pause").onclick = () => narrator.togglePause();
-$("tip-stop").onclick = () => narrator.stop();
-$("tip-replay").onclick = () => narrator.replay();
+$("mix-music").onclick = () => toggleBus("music");
 $<HTMLSelectElement>("rate").onchange = (e) => {
   player.setRate(+(e.target as HTMLSelectElement).value);
   updateProgress(player.index);
@@ -1216,7 +1035,6 @@ $<HTMLSelectElement>("pitch-scale").onchange = (e) => {
   state.pitchScale = (e.target as HTMLSelectElement).value as PitchScale;
   rebuildFrames(true);
   renderMappingTable();
-  announce(state.pitchScale === "absolute" ? "Global pitch scale: the same value is the same note in every place." : "Relative pitch scale: this place's own range.");
 };
 $<HTMLSelectElement>("chart-layer").onchange = (e) => ((state.chartVar = (e.target as HTMLSelectElement).value), renderChart());
 chart.onSeek = (i) => {
@@ -1226,55 +1044,75 @@ chart.onSeek = (i) => {
   if (!state.soundOn) play();
 };
 
-const bind = (id: string, key: "live" | "loop" | "popups" | "night" | "overlay", apply: (v: boolean) => void) => {
+const bind = (id: string, key: "live" | "loop" | "voice" | "photo", apply: (v: boolean) => void) => {
   const el = $<HTMLInputElement>(id);
   el.checked = settings[key];
   apply(settings[key]);
   el.onchange = () => {
     settings[key] = el.checked;
-    savePref("settings2", settings);
+    saveSettings();
     apply(el.checked);
   };
 };
 let booted = false;
 bind("set-live", "live", () => booted && loadTrack("period"));
 bind("set-loop", "loop", (v) => (player.loop = v));
-bind("set-popups", "popups", (v) => !v && hideDiscovery());
-bind("set-night", "night", (v) => {
-  globe.setStyle(v ? "night" : "day");
-  applyOverlay();
-});
-bind("set-overlay", "overlay", () => applyOverlay());
+bind("set-voice", "voice", (v) => booted && luna.setVoiceEnabled(v));
+bind("set-photo", "photo", () => booted && applyGlobeLook());
+$<HTMLSelectElement>("voice-pick").onchange = (e) => {
+  voice.choose((e.target as HTMLSelectElement).value);
+  settings.voiceName = voice.voiceName;
+  saveSettings();
+};
+$("voice-test").onclick = () => {
+  voice.unlocked = true;
+  voice.say("Hi! I'm Luna. Shall we listen to the Earth together?", true);
+};
+$("btn-reset-progress").onclick = (e) => {
+  const b = e.currentTarget as HTMLButtonElement;
+  if (!b.dataset.armed) {
+    b.dataset.armed = "1";
+    b.textContent = "Press again to erase all badges";
+    return;
+  }
+  delete b.dataset.armed;
+  b.textContent = "Start over (erase badges)";
+  progress = emptyProgress();
+  progress.intro = true;
+  saveProg();
+  announce("Badges erased.");
+};
 
 const setText = (s: number) => {
   settings.textScale = Math.min(1.5, Math.max(0.85, Math.round(s * 100) / 100));
   document.documentElement.style.setProperty("--text-scale", String(settings.textScale));
-  savePref("settings2", settings);
+  saveSettings();
 };
 setText(settings.textScale);
 $("btn-text-up").onclick = () => setText(settings.textScale + 0.1);
 $("btn-text-down").onclick = () => setText(settings.textScale - 0.1);
 
-let searchTimer: number | undefined;
-$("search-form").addEventListener("submit", (e) => (e.preventDefault(), search($<HTMLInputElement>("search-input").value)));
-$("search-input").addEventListener("input", (e) => {
-  clearTimeout(searchTimer);
-  const v = (e.target as HTMLInputElement).value;
-  if (!v) $("search-results").hidden = true;
-  else searchTimer = window.setTimeout(() => search(v), 500);
-});
+globe.onImagery = () => void applyGlobeLook();
+globe.onPick = (lat, lon) => void (settings.live && selectRegion(customRegion(lat, lon)));
+globe.onMarker = (id) => void selectRegion(getRegion(id)!);
+startOrbit($("luna"), $("space"), () => globe.screenDisc());
 
-globe.onImagery = () => applyOverlay();
-globe.onPick = (lat, lon) => selectRegion(customRegion(lat, lon));
-globe.onMarker = (id) => selectRegion(getRegion(id)!);
+// Browsers allow speech only after the first tap or key press. Then Luna reads what she is showing.
+const unlock = () => {
+  if (voice.unlocked) return;
+  voice.unlocked = true;
+  setTimeout(() => {
+    if (voice.state === "idle" && !story.isOpen && luna.text) voice.say(luna.text);
+  }, 400);
+};
+addEventListener("pointerdown", unlock, { once: true, capture: true });
+addEventListener("keydown", unlock, { once: true, capture: true });
 
 addEventListener("keydown", (e) => {
   const t = e.target as HTMLElement;
-  if (e.key === "Escape" && !t.closest("dialog[open]")) {
-    hideDiscovery();
-    narrator.stop();
+  if (e.key === "Escape") {
     voice.stop();
-    $("scene-fx").hidden = true;
+    if (!t.closest("dialog[open]") && playground.open) playground.close();
     return;
   }
   if (t.closest("input, select, textarea, dialog[open]") || e.ctrlKey || e.metaKey || e.altKey) return;
@@ -1286,11 +1124,10 @@ addEventListener("keydown", (e) => {
       togglePlay();
       break;
     case "s": case "S": stopAll(); break;
-    case "w": case "W": showSoundExplain(); break;
-    case "t": case "T": narrator.state === "idle" ? narrator.next() : narrator.stop(); break;
+    case "w": case "W": lunaWhy(); break;
+    case "l": case "L": togglePlayground(); break;
     case "n": case "N": toggleBus("nature"); break;
-    case "d": case "D": toggleBus("data"); break;
-    case "m": case "M": toggleBus("regional"); break;
+    case "m": case "M": toggleBus("music"); break;
     case "1": case "2": case "3": selectExperience(EXPERIENCES[+e.key - 1].id); break;
     case "[": cycleRegion(-1); break;
     case "]": cycleRegion(1); break;
@@ -1308,23 +1145,19 @@ addEventListener("keydown", (e) => {
 // Boot
 // ---------------------------------------------------------------------------
 document.body.dataset.exp = state.experience;
-narrator.setExperience(state.experience);
 renderExperiences();
 renderPlaces();
 renderAbout();
 renderEic();
-applyOverlay();
+renderVoices();
+applyGlobeLook();
 flyToRegion();
 updateMix();
 updateBadgeCount();
-missionCard.render();
-// First visit: the opening story starts at once (it needs no data); the data loads behind it.
-if (!progress.intro) story.open("message");
-loadTrack("boot").then(() => {
-  if (progress.intro && !loadPref<boolean>("welcomed", false)) showDiscovery("welcome");
-  savePref("welcomed", true);
-});
+if (!progress.intro) story.open("welcome");
+else luna.say("Welcome back, explorer! Pick a world and a place, then press the big play button. Or tap me to play pretend!");
+loadTrack("boot");
 booted = true;
 
 // Debug hook for automated checks (no effect on the UI).
-(window as unknown as { __earthsona: unknown }).__earthsona = { state, player, registry, engine, narrator, settings, voice, progress: () => progress };
+(window as unknown as { __earthsona: unknown }).__earthsona = { state, player, registry, engine, settings, voice, luna, playground, progress: () => progress };

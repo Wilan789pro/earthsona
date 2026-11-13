@@ -2,7 +2,7 @@ import type { ExperienceId } from "../data/types";
 import type { SoundFrame } from "../sonification/frames";
 import { densityHits, harmonyIntervals, noteFrequency, noteIndex, SCALES } from "../sonification/mappings";
 import type { PaletteId } from "../sonification/palettes";
-import { Ambience, type AmbienceId } from "./ambience";
+import { natureModFor, Ambience, type AmbienceId } from "./ambience";
 
 /**
  * Sonification engine (Web Audio API).
@@ -327,6 +327,15 @@ export class SonificationEngine {
     if (this.running) this.ambience?.start(id);
   }
 
+  /** Let measurements (or Luna's pretend values) shape the nature sound directly. */
+  shapeNature(exp: RenderOptions["experience"], values: SoundFrame["values"]): void {
+    this.ambience?.setMod(natureModFor(exp, values));
+  }
+
+  resetNature(): void {
+    this.ambience?.resetMod();
+  }
+
   stopNature(): void {
     this.ambience?.stop();
   }
@@ -338,6 +347,7 @@ export class SonificationEngine {
   play(frame: SoundFrame, dur: number, o: RenderOptions): void {
     if (!this.ctx || !this.renderer || !this.running) return;
     this.renderer.render(frame, this.ctx.currentTime + 0.03, dur, o);
+    this.shapeNature(o.experience, frame.values);
   }
 }
 

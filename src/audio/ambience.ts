@@ -5,9 +5,49 @@
  * recordings, so there is nothing to license. Each place has its own preset (waves vs surf vs open ocean,
  * rainforest vs boreal forest, tropical rain vs polar wind…).
  *
- * The natural layer does NOT carry data. It is the background that tells you where you are; the data-driven
- * sonification (engine.ts) plays on top of it. It is scheduled in real time, so it is not part of the WAV export.
+ * The measurements SHAPE this layer (see natureModFor): a greener forest has more birds, insects and rustling
+ * leaves; more rain makes the rain heavier and thunder likelier; more sunshine brings more birds; warmer sea
+ * water makes the waves brighter. These are artistic choices, documented in the app. The melody (engine.ts)
+ * follows the same measurements. Scheduled in real time, so it is not part of the WAV export.
  */
+
+/** How the measurements shape the nature sound. 1 = the preset as designed. */
+export interface NatureMod {
+  /** birds, insects, animal calls, leaves (0 = silent forest) */
+  life: number;
+  /** rain hiss, drops and thunder (0 = dry) */
+  rain: number;
+  /** brightness of waves and foam */
+  bright: number;
+}
+const DEFAULT_MOD: NatureMod = { life: 1, rain: 1, bright: 1 };
+const clampN = (x: number, a: number, b: number) => Math.min(b, Math.max(a, x));
+
+/** The documented data → nature rules (absolute values, so the same number always sounds the same). */
+export function natureModFor(exp: "ocean" | "forest" | "pulse", values: Record<string, { value: number | null } | undefined>): Partial<NatureMod> {
+  const v = (k: string) => values[k]?.value ?? null;
+  if (exp === "forest") {
+    const n = v("NDVI");
+    return n === null ? {} : { life: clampN((n - 0.1) / 0.7, 0, 1.2) };
+  }
+  if (exp === "pulse") {
+    const r = v("PRECTOTCORR");
+    const s = v("ALLSKY_SFC_SW_DWN");
+    const out: Partial<NatureMod> = {};
+    if (r !== null) out.rain = clampN(r / 8, 0, 2);
+    if (s !== null) out.life = clampN(s / 20, 0.2, 1.3);
+    return out;
+  }
+  const t = v("SST");
+  return t === null ? {} : { bright: clampN((t - 10) / 20, 0.2, 1.3) };
+}
+
+/** Plain-words version of natureModFor, for Luna and the grown-ups page. */
+export const NATURE_RULES: Record<"ocean" | "forest" | "pulse", string> = {
+  ocean: "Warmer sea water makes the waves sound brighter and fizzier.",
+  forest: "Greener forest means more birds, insects and rustling leaves. With no green, the forest goes quiet.",
+  pulse: "More rain makes the rain sound heavier (and thunder more likely); more sunshine brings more birds.",
+};
 
 export type AmbienceId =
   | "reef-coast"
@@ -141,6 +181,9 @@ export class Ambience {
   private noise: Record<"white" | "pink" | "brown", AudioBuffer>;
   private voice: { gain: GainNode; stop: () => void } | null = null;
   current: AmbienceId | null = null;
+  mod: NatureMod = { ...DEFAULT_MOD };
+  /** Continuous voices that follow the modulation smoothly. */
+  private live: { gain: GainNode; base: number; key: keyof NatureMod }[] = [];
 
   constructor(private ctx: AudioContext, dest: AudioNode) {
     this.out = ctx.createGain();
@@ -157,7 +200,19 @@ export class Ambience {
     if (this.voice && this.current === id) return;
     this.stop(1.5);
     this.current = id;
+    this.live = [];
     this.voice = this.build(AMBIENCE[id]);
+  }
+
+  /** Let the measurements shape the nature sound (called once per data step). */
+  setMod(m: Partial<NatureMod>): void {
+    this.mod = { ...this.mod, ...m };
+    const t = this.ctx.currentTime;
+    for (const l of this.live) l.gain.gain.setTargetAtTime(l.base * this.mod[l.key], t, 0.6);
+  }
+
+  resetMod(): void {
+    this.setMod(DEFAULT_MOD);
   }
 
   stop(fade = 0.8): void {
@@ -209,9 +264,9 @@ export class Ambience {
     if (p.rain) this.rain(p.rain, gain, loopSrc, every);
     if (p.leaves) this.leaves(p.leaves, gain, loopSrc, every);
     if (p.insects) this.insects(p.insects, gain, every, stops);
-    if (p.birds) every(() => this.bird(p.birds!.pitch, gain), () => (60_000 / p.birds!.rate) * rand(0.4, 1.6));
-    if (p.thunder) every(() => this.thunderClap(gain), () => (60_000 / p.thunder!) * rand(0.5, 1.5));
-    if (p.hoots) every(() => this.hoot(gain), () => (60_000 / p.hoots!) * rand(0.5, 1.5));
+    if (p.birds) every(() => this.mod.life > 0.05 && this.bird(p.birds!.pitch, gain), () => (60_000 / (p.birds!.rate * Math.max(0.15, this.mod.life))) * rand(0.4, 1.6));
+    if (p.thunder) every(() => Math.random() < Math.min(1, this.mod.rain) && this.thunderClap(gain), () => (60_000 / (p.thunder! * Math.max(0.3, this.mod.rain))) * rand(0.5, 1.5));
+    if (p.hoots) every(() => Math.random() < this.mod.life && this.hoot(gain), () => (60_000 / p.hoots!) * rand(0.5, 1.5));
     if (p.ice) every(() => this.creak(gain), () => (60_000 / p.ice!) * rand(0.4, 1.6));
 
     return {
@@ -256,13 +311,13 @@ export class Ambience {
       g.gain.setTargetAtTime(peak, t, rise / 3);
       g.gain.setTargetAtTime(peak * 0.15, t + rise, fall / 3);
       f.frequency.cancelScheduledValues(t);
-      f.frequency.setTargetAtTime(400 + w.tone * 1800, t, rise / 3);
+      f.frequency.setTargetAtTime(400 + w.tone * this.mod.bright * 1800, t, rise / 3);
       f.frequency.setTargetAtTime(260, t + rise, fall / 3);
       pan.pan.setTargetAtTime(rand(-0.5, 0.5), t, w.period / 2);
       if (w.crash > 0) {
         foam.gain.cancelScheduledValues(t);
         foam.gain.setTargetAtTime(0, t, 0.3);
-        foam.gain.setTargetAtTime(w.crash * peak * 0.35, t + rise * 0.9, 0.15);
+        foam.gain.setTargetAtTime(w.crash * this.mod.bright * peak * 0.35, t + rise * 0.9, 0.15);
         foam.gain.setTargetAtTime(0, t + rise * 1.1, fall / 4);
       }
     }, () => w.period * 1000 * rand(0.8, 1.25));
@@ -311,10 +366,12 @@ export class Ambience {
     lp.type = "lowpass";
     lp.frequency.value = 7000;
     const g = ctx.createGain();
-    g.gain.value = r.level * 0.22;
+    g.gain.value = r.level * 0.22 * this.mod.rain;
+    this.live.push({ gain: g, base: r.level * 0.22, key: "rain" });
     src("white").connect(hp).connect(lp).connect(g).connect(dest);
     every(() => {
-      const n = Math.max(1, Math.round(r.drops / 8));
+      if (Math.random() > this.mod.rain) return;
+      const n = Math.max(1, Math.round((r.drops * Math.max(1, this.mod.rain)) / 8));
       for (let i = 0; i < n; i++) this.drop(ctx.currentTime + Math.random() * 0.12, r.level, dest);
     }, () => 125 * rand(0.5, 1.5));
   }
@@ -348,7 +405,7 @@ export class Ambience {
     src("white").connect(f).connect(g).connect(dest);
     every(() => {
       const t = ctx.currentTime;
-      const peak = level * rand(0.04, 0.12);
+      const peak = level * this.mod.life * rand(0.04, 0.12);
       g.gain.setTargetAtTime(peak, t, 0.4);
       g.gain.setTargetAtTime(peak * 0.15, t + rand(0.8, 2), 0.6);
     }, () => rand(1500, 4000));
@@ -366,7 +423,8 @@ export class Ambience {
       const amG = ctx.createGain();
       amG.gain.value = 0.5;
       const g = ctx.createGain();
-      g.gain.value = ins.level * 0.03;
+      g.gain.value = ins.level * 0.03 * this.mod.life;
+      this.live.push({ gain: g, base: ins.level * 0.03, key: "life" });
       am.connect(amG).connect(g.gain);
       const p = ctx.createStereoPanner();
       p.pan.value = 0.4;
@@ -376,6 +434,7 @@ export class Ambience {
       stops.push(() => o.stop(), () => am.stop());
     }
     every(() => {
+      if (Math.random() > this.mod.life) return;
       const t = ctx.currentTime;
       const f0 = rand(3800, 6500);
       const pulses = Math.round(rand(3, 9));
