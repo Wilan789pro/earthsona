@@ -9,3 +9,10 @@ dist/
 
 # Local caches (MUR point responses)
 .cache/
+
+# Python backend
+.venv/
+__pycache__/
+*.pyc
+# Kokoro model files (downloaded by backend/download_kokoro.py)
+backend/models/
