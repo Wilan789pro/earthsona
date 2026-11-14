@@ -62,6 +62,12 @@ const state = {
   windows: [] as TimeWindow[],
   chartVar: "",
   token: 0,
+  /** Graph: "journey" = forward only through real dates; "explore" = free selection and comparison. */
+  graphMode: "journey" as "journey" | "explore",
+  /** Furthest date reached in Journey mode (index into state.frames), -1 = not started. */
+  journeyAt: -1,
+  /** Journey position on the team CSV (two dates). */
+  csvAt: -1,
   eic: [] as EicFrame[],
   eicIndex: 0,
   soundOn: false,
@@ -870,6 +876,8 @@ player.onStep((i, f) => {
   updateNowPlaying(f);
   graph.setPlayhead(f.time);
   updateMusicalChange(f, state.frames[i - 1]);
+  state.journeyAt = i;
+  renderJourneyPos();
 });
 
 player.onState((s) => {
@@ -917,6 +925,7 @@ function pause() {
 }
 function stopAll() {
   state.soundOn = false;
+  state.journeyAt = -1;
   if (player.playing || player.index < state.frames.length) player.stop();
   engine.stopNature();
   setPlayingUi();
@@ -1227,6 +1236,7 @@ $<HTMLSelectElement>("rate").onchange = (e) => {
 $<HTMLInputElement>("volume").oninput = (e) => engine.setVolume(+(e.target as HTMLInputElement).value);
 $<HTMLInputElement>("progress").oninput = (e) => {
   const i = +(e.target as HTMLInputElement).value;
+  if (!journeyAllows(i)) return void ((e.target as HTMLInputElement).value = String(Math.max(0, state.journeyAt)));
   player.seek(i);
   const f = state.frames[i];
   if (f) {
@@ -1246,6 +1256,7 @@ $<HTMLSelectElement>("chart-layer").onchange = (e) => ((state.chartVar = (e.targ
 chart.onSeek = (i) => {
   const time = chart.timeAt(i);
   const idx = state.frames.findIndex((f) => f.time >= (time ?? ""));
+  if (!journeyAllows(Math.max(0, idx))) return;
   player.seek(Math.max(0, idx));
   if (!state.soundOn) play();
 };
@@ -1263,7 +1274,10 @@ const bind = (id: string, key: "live" | "loop" | "voice" | "photo" | "smooth", a
 let booted = false;
 bind("set-live", "live", () => booted && loadTrack("period"));
 bind("set-loop", "loop", (v) => (player.loop = v));
-bind("set-smooth", "smooth", () => {});
+bind("set-smooth", "smooth", (v) => {
+  const el = document.getElementById("legend-smooth");
+  if (el) el.hidden = !v;
+});
 bind("set-voice", "voice", (v) => booted && luna.setVoiceEnabled(v));
 bind("set-photo", "photo", () => booted && applyGlobeLook());
 $<HTMLSelectElement>("voice-pick").onchange = (e) => {
@@ -1332,6 +1346,7 @@ addEventListener("keydown", (e) => {
       break;
     case "s": case "S": stopAll(); break;
     case "w": case "W": lunaWhy(); break;
+    case "j": case "J": void journeyNext(); break;
     case "l": case "L": togglePlayground(); break;
     case "n": case "N": toggleBus("nature"); break;
     case "m": case "M": toggleBus("music"); break;
@@ -1450,8 +1465,12 @@ function renderJourney() {
   graph.setSource(src);
   $("j2-title").textContent = src ? `How the ${src.name.toLowerCase()} changed` : "How it changed";
   $("j-src").textContent = src ? src.note : "No real measurements here yet. EARTHSONA never makes up numbers.";
-  $("btn-compare").hidden = !src;
+  $("btn-compare").hidden = !src || state.graphMode !== "explore";
   $("j-compare").hidden = true;
+  $("legend-smooth").hidden = !settings.smooth;
+  state.csvAt = -1;
+  renderGraphTable(src);
+  renderJourneyPos();
   const enough = !!src && src.points.filter((p) => p.value !== null).length >= 3;
   const t = src && enough ? trendOf(src.points, FLAT[src.variable] ?? 0) : null;
   const tr = $("j-trend");
@@ -1535,6 +1554,7 @@ async function previewFrames(frames: SoundFrame[]) {
 }
 
 graph.onSelect = (sel, src) => {
+  if (state.graphMode === "journey") return journeyPick(sel[sel.length - 1], src);
   const pts = sel.map((i) => src.points[i]);
   const cmp = $("j-compare");
   if (sel.length === 2) {
@@ -1575,5 +1595,129 @@ $("btn-compare").onclick = () => {
   $("graph-hint").textContent = on ? "Touch the first date (A), then the second (B)." : "Touch a dot to hear that date.";
   if (!on) $("j-compare").hidden = true;
 };
+
+// ---------------------------------------------------------------------------
+// Graph modes: 🚀 Journey (forward only, one real date at a time) and 🔍 Explore (free + compare)
+// ---------------------------------------------------------------------------
+/** In Journey mode the position may only move forward (Start again resets it). */
+function journeyAllows(i: number): boolean {
+  if (state.graphMode !== "journey" || i >= state.journeyAt) return true;
+  $("graph-hint").textContent = "Journey only goes forward. Press ↺ Start again to begin from the first date, or use 🔍 Explore.";
+  graph.announce("Journey only goes forward.");
+  return false;
+}
+
+/** Plain words for one step: date, value, what changed and what you hear (screen readers + Journey). */
+function describeFrame(f: SoundFrame, prev: SoundFrame | undefined): string {
+  const s = pitchSeries();
+  if (!s) return "";
+  const v = f.values[s.variable];
+  const date = longDate(f.time);
+  if (f.pitch === null || !v || v.value === null) return `${date}: no measurement on this date. You hear a soft tick.`;
+  const ref = prev && prev.pitch !== null ? prev.pitch : f.prevPitch ?? null;
+  const d = ref === null || ref === undefined ? null : semitonesBetween(ref, f.pitch);
+  const change = d === null ? "" : Math.abs(d) < 0.05 ? " Same as last time." : ` ${d > 0 ? "Higher" : "Lower"} than the last measurement.`;
+  const parts = [`note ${noteName(pitchFrequency(state.experience, f.pitch))}`];
+  if (f.density !== null) parts.push(`${densityHits(f.density)} rain beat${densityHits(f.density) === 1 ? "" : "s"}`);
+  if (f.brightness !== null) parts.push(f.brightness > 0.6 ? "bright sound" : f.brightness < 0.3 ? "soft sound" : "warm sound");
+  if (f.drop) parts.push("a falling uh-oh tune for a big drop");
+  return `${date}: ${KID.label(s.variable)} ${fmtValue(v.value, s.unit)}.${change} You hear ${parts.join(", ")}.`;
+}
+
+function renderJourneyPos() {
+  const n = state.frames.length;
+  $("journey-pos").textContent = state.graphMode === "journey" && n ? (state.journeyAt < 0 ? `${n} dates to go` : `Date ${state.journeyAt + 1} of ${n}`) : "";
+}
+
+function setGraphMode(m: "journey" | "explore") {
+  state.graphMode = m;
+  $("gm-journey").setAttribute("aria-checked", String(m === "journey"));
+  $("gm-explore").setAttribute("aria-checked", String(m === "explore"));
+  $("gm-note").textContent = m === "journey" ? "Go forward, one real date at a time." : "Touch any date. Compare two dates.";
+  $("journey-ctls").hidden = m !== "journey";
+  $("btn-compare").hidden = m !== "explore" || !graph.source;
+  if (m === "journey" && graph.compare) {
+    graph.setCompare(false);
+    $("btn-compare").setAttribute("aria-pressed", "false");
+    $("j-compare").hidden = true;
+  }
+  $("graph-hint").textContent = m === "journey" ? "Press Next date to hear each real measurement in order." : "Touch a dot to hear that date.";
+  renderJourneyPos();
+  announce(m === "journey" ? "Journey mode: forward through the real dates." : "Explore mode: touch any date or compare two.");
+}
+
+/** Next real date in Journey mode: graph, date, value, note and sound all move together. */
+async function journeyNext() {
+  if (state.graphMode !== "journey") setGraphMode("journey");
+  if (!state.frames.length) return;
+  const j = Math.max(state.journeyAt + 1, 0);
+  if (j >= state.frames.length) {
+    $("graph-hint").textContent = "That was the last date! Press ↺ Start again to go round once more.";
+    graph.announce("That was the last date.");
+    return;
+  }
+  if (player.playing) player.pause();
+  playground.stop();
+  forestVoices.stop(false);
+  await engine.start();
+  player.seek(j); // emits the step: plays the date and updates every view
+  const text = describeFrame(state.frames[j], state.frames[j - 1]);
+  $("graph-hint").textContent = text;
+  graph.announce(text);
+}
+
+function journeyRestart() {
+  stopAll();
+  state.journeyAt = -1;
+  graph.setPlayhead(null);
+  graph.clearSelection();
+  renderJourneyPos();
+  $("graph-hint").textContent = "Back to the first date. Press Next date, or ▶ to play them all.";
+  graph.announce("Back to the start.");
+}
+
+/** Touching a dot in Journey mode: only dates ahead are allowed. */
+function journeyPick(i: number, src: GraphSource) {
+  if (src.id === "csv") {
+    // our team file: two dates, played through the team's instrument, in order
+    if (i < state.csvAt) return void journeyAllows(-1);
+    state.csvAt = i;
+    void forestVoices.play([i]);
+    return;
+  }
+  const idx = state.frames.findIndex((f) => f.time === src.points[i]?.time);
+  if (idx < 0) return;
+  if (idx <= state.journeyAt) {
+    graph.clearSelection();
+    return void journeyAllows(-1);
+  }
+  state.journeyAt = idx - 1;
+  void journeyNext();
+}
+
+function renderGraphTable(src: GraphSource | null) {
+  const box = $("graph-table");
+  if (!src) return void (box.innerHTML = "<p>No measurements.</p>");
+  const frameAt = new Map(state.frames.map((f) => [f.time, f]));
+  const rows = src.points
+    .map((p) => {
+      const f = src.id === "track" ? frameAt.get(p.time) : undefined;
+      const sound = p.value === null ? "soft tick (no data)" : f && f.pitch !== null ? `note ${noteName(pitchFrequency(state.experience, f.pitch))}` : src.id === "csv" ? "team forest sound" : "—";
+      return `<tr><th scope="row">${esc(longDate(p.time))}</th><td>${p.value === null ? "no measurement" : esc(p.value.toFixed(src.digits))}</td><td>${esc(p.value === null ? "missing" : p.quality ?? "measured")}</td><td>${esc(sound)}</td></tr>`;
+    })
+    .join("");
+  box.innerHTML = `<table class="mapping small"><caption class="sr-only">${esc(src.name)}, ${esc(src.unit)}: every date, its real value and the sound it makes</caption><thead><tr><th scope="col">Date</th><th scope="col">${esc(src.name)} (${esc(src.unit)})</th><th scope="col">Quality</th><th scope="col">Sound</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+graph.describe = (i, src) => {
+  const p = src.points[i];
+  const f = src.id === "track" ? state.frames.find((x) => x.time === p.time) : undefined;
+  if (f) return describeFrame(f, undefined);
+  return p.value === null ? `${longDate(p.time)}: no measurement.` : `${longDate(p.time)}: ${src.name} ${p.value.toFixed(src.digits)}.`;
+};
+$("gm-journey").onclick = () => setGraphMode("journey");
+$("gm-explore").onclick = () => setGraphMode("explore");
+$("btn-next").onclick = () => void journeyNext();
+$("btn-restart").onclick = () => journeyRestart();
 
 (window as unknown as { __earthsona: unknown }).__earthsona = { state, player, registry, engine, settings, voice, luna, playground, progress: () => progress, buildContext, backend: () => backend, forestVoices, graph, globe };

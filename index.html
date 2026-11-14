@@ -129,12 +129,24 @@
             <h2 class="j-h" id="j2-h"><span class="j-step" aria-hidden="true">2</span> <span id="j2-title">How it changed</span></h2>
             <span class="j-trend" id="j-trend"></span>
           </div>
+          <div class="graph-modes" role="radiogroup" aria-label="How to explore the graph">
+            <button class="mode-chip" role="radio" aria-checked="true" id="gm-journey">🚀 Journey</button>
+            <button class="mode-chip" role="radio" aria-checked="false" id="gm-explore">🔍 Explore</button>
+            <span class="small muted" id="gm-note">Go forward, one real date at a time.</span>
+          </div>
           <div class="chips small-chips" id="graph-sources" role="radiogroup" aria-label="Which real data to draw"></div>
           <div class="hg" id="history-graph" tabindex="0"></div>
+          <p class="hg-legend small" aria-label="Graph key"><span><b class="lg-dot" aria-hidden="true">●</b> measured</span> <span><b aria-hidden="true">☁</b> no measurement</span> <span id="legend-smooth" hidden><b aria-hidden="true">~</b> in-between whisper (not measured)</span></p>
           <div class="j-graph-foot">
-            <button class="pill small" id="btn-compare" aria-pressed="false">⚖️ Compare two dates</button>
-            <span class="small muted" id="graph-hint">Touch a dot to hear that date.</span>
+            <span class="journey-ctls" id="journey-ctls">
+              <button class="pill small primary" id="btn-next" title="Next date (J)">Next date ▶</button>
+              <button class="pill small" id="btn-restart">↺ Start again</button>
+              <span class="small" id="journey-pos" aria-live="polite"></span>
+            </span>
+            <button class="pill small" id="btn-compare" aria-pressed="false" hidden>⚖️ Compare two dates</button>
+            <span class="small muted" id="graph-hint" aria-live="polite">Press Next date to hear each real measurement in order.</span>
           </div>
+          <details class="table-view graph-numbers"><summary>Show the numbers</summary><div id="graph-table" class="table-scroll"></div></details>
           <div class="j-compare" id="j-compare" hidden></div>
         </article>
 

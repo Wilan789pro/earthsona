@@ -644,3 +644,15 @@ kbd { font-family: var(--mono); font-size: 0.8rem; border: 2px solid var(--line)
 .pretend-tag.real { background: #2b9bf4; }
 .legend-btn { font: 600 0.8rem var(--head); border: 2px solid var(--line); background: #fff; color: var(--ink); border-radius: 999px; padding: 1px 10px; cursor: pointer; pointer-events: auto; }
 .legend-btn[aria-pressed="true"] { background: var(--grad); color: #fff; border-color: transparent; }
+
+/* ---------- Graph modes: Journey / Explore ---------- */
+.graph-modes { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.mode-chip { font: 600 0.9rem var(--head); padding: 0.3rem 0.9rem; min-height: 2.3rem; border-radius: 999px; cursor: pointer; border: 2px solid var(--line); background: #fff; color: var(--ink); }
+.mode-chip[aria-checked="true"] { background: var(--grad); color: #fff; border-color: transparent; }
+.mode-chip:focus-visible, .pill:focus-visible, .chip:focus-visible, .mode-btn:focus-visible { outline: 3px solid var(--orange); outline-offset: 2px; }
+.journey-ctls { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.journey-ctls[hidden] { display: none; }
+.hg-legend { margin: 0; display: flex; gap: 12px; flex-wrap: wrap; color: var(--ink-2); }
+.hg-legend .lg-dot { color: var(--a2); }
+#graph-hint { flex: 1 1 200px; text-align: right; }
+.graph-numbers summary { cursor: pointer; font-weight: 700; }

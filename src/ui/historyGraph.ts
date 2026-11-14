@@ -56,6 +56,11 @@ export class HistoryGraph {
   private playhead: string | null = null;
   compare = false;
   onSelect: (indices: number[], src: GraphSource) => void = () => {};
+  /** Text read to screen readers when a point is reached with the keyboard (date, value, change, sound). */
+  describe: (i: number, src: GraphSource) => string = (i, src) => {
+    const p = src.points[i];
+    return p.value === null ? `${longDate(p.time)}: no measurement.` : `${longDate(p.time)}: ${src.name} ${p.value.toFixed(src.digits)}.`;
+  };
 
   constructor(private host: HTMLElement) {
     host.addEventListener("keydown", (e) => this.key(e));
@@ -206,7 +211,8 @@ export class HistoryGraph {
         <g class="hg-x">${xs.join("")}</g>
         <text class="hg-unit" x="${PAD.l}" y="${PAD.t - 3}">${esc(s.unit)}</text>
       </svg>
-      <div class="hg-tip" hidden></div>`;
+      <div class="hg-tip" hidden></div>
+      <p class="sr-only hg-live" aria-live="polite"></p>`;
     const svg = this.host.querySelector("svg")!;
     svg.querySelectorAll<SVGElement>("[data-i]").forEach((el) => {
       const i = +el.dataset.i!;
@@ -268,6 +274,13 @@ export class HistoryGraph {
     } else return;
     e.preventDefault();
     this.setHover(valid[Math.max(0, k)]);
+    this.announce(this.describe(valid[Math.max(0, k)], this.src));
+  }
+
+  /** Say something to screen-reader users (polite live region inside the graph). */
+  announce(text: string): void {
+    const live = this.host.querySelector<HTMLElement>(".hg-live");
+    if (live) live.textContent = text;
   }
 }
 
