@@ -19,15 +19,21 @@ export interface StoryHost {
 
 const BASE = import.meta.env.BASE_URL;
 const WELCOME =
-  "Hi! I'm Luna, the Moon. I go round and round the Earth, and I love listening to it. Scientists measure our planet from space, and we turn their numbers into music. Shall we listen together?";
+  "Hi, I'm Luna! I orbit the Earth and I love listening to it. NASA satellites and models measure our planet every day, and EARTHSONA turns those measurements into sound. Explore three missions with me, run your own environmental experiments, and ask me anything along the way.";
 
 export class Story {
   private dlg = $<HTMLDialogElement>("dlg-story");
   private stage = $("story-stage");
   private gameIndex = 0;
+  private closing = false;
 
   constructor(private host: StoryHost) {
-    this.dlg.addEventListener("close", () => this.host.voice.stop());
+    // Closing with Esc or the backdrop silences the story's voice. When close() is called by a button the voice
+    // is stopped right away instead: the "close" event fires later and must not cut off a line said afterwards.
+    this.dlg.addEventListener("close", () => {
+      if (this.closing) this.closing = false;
+      else this.host.voice.stop();
+    });
   }
 
   get isOpen(): boolean {
@@ -51,7 +57,10 @@ export class Story {
 
   close(): void {
     this.host.voice.stop();
-    if (this.dlg.open) this.dlg.close();
+    if (this.dlg.open) {
+      this.closing = true;
+      this.dlg.close();
+    }
   }
 
   restartGame(): void {

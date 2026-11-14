@@ -185,7 +185,7 @@ export class Globe {
       this.label = null;
     }
     if (!text || lat === undefined || lon === undefined) return;
-    const font = "600 40px Fredoka, Nunito, system-ui, sans-serif";
+    const font = "600 40px \"Space Grotesk\", Inter, system-ui, sans-serif";
     const c = document.createElement("canvas");
     const ctx = c.getContext("2d")!;
     ctx.font = font;
@@ -193,14 +193,14 @@ export class Globe {
     c.width = w;
     c.height = 68;
     ctx.font = font;
-    ctx.fillStyle = "#fffdf6";
-    ctx.strokeStyle = "#1d3557";
-    ctx.lineWidth = 5;
+    ctx.fillStyle = "rgba(5, 11, 26, 0.88)";
+    ctx.strokeStyle = "#22d3ee";
+    ctx.lineWidth = 3;
     ctx.beginPath();
     ctx.roundRect(2, 2, w - 4, 64, 18);
     ctx.fill();
     ctx.stroke();
-    ctx.fillStyle = "#1d3557";
+    ctx.fillStyle = "#eef6ff";
     ctx.textBaseline = "middle";
     ctx.fillText(text, 22, 36);
     const tex = new THREE.CanvasTexture(c);

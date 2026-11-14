@@ -42,9 +42,10 @@ export function lunaSvg(mood: Mood = "happy", size = 96): string {
 }
 
 // ---------------------------------------------------------------------------
-// Voice
+// Voice: Kokoro-82M (af_heart) generated on the EARTHSONA backend; browser speech only as a fallback.
 // ---------------------------------------------------------------------------
-type VoiceState = "idle" | "speaking" | "paused";
+export type VoiceState = "idle" | "loading" | "speaking" | "paused";
+export const API_BASE = ((import.meta.env.VITE_API_BASE as string | undefined) ?? "").replace(/\/$/, "");
 const PREFERRED = [
   /(ava|emma|jenny|aria|sonia|libby|maisie|michelle|natasha|clara).*(natural|online)/i,
   /(natural|online).*(english)/i,
@@ -53,22 +54,45 @@ const PREFERRED = [
   /(samantha|karen|moira|tessa|serena|fiona|victoria)/i,
 ];
 
+/** Sentence-sized pieces (≤ ~220 characters) so speech starts quickly. */
+export function splitForSpeech(text: string): string[] {
+  const sentences = text.match(/[^.!?…]+[.!?…]*["”’)]?\s*/g)?.map((s) => s.trim()).filter(Boolean) ?? [text];
+  const out: string[] = [];
+  let cur = "";
+  for (const s of sentences) {
+    if (cur && (cur + " " + s).length > 220) {
+      out.push(cur);
+      cur = s;
+    } else cur = cur ? `${cur} ${s}` : s;
+  }
+  if (cur) out.push(cur);
+  return out.length ? out.map((c) => c.slice(0, 1500)) : [text.slice(0, 1500)];
+}
+
 export class LunaVoice {
   state: VoiceState = "idle";
   enabled = true;
-  /** Becomes true after the first tap: browsers only allow speech after the user interacts. */
+  /** Becomes true after the first tap: browsers only allow audio after the user interacts. */
   unlocked = false;
   text = "";
   chosen = "";
+  /** "kokoro" when the backend can synthesise speech, otherwise "browser". */
+  engine: "kokoro" | "browser" = "browser";
   private queue: string[] = [];
   private timer: number | null = null;
   private voice: SpeechSynthesisVoice | null = null;
+  private audio = new Audio();
+  private abort: AbortController | null = null;
+  private cache = new Map<string, string>();
+  private token = 0;
   readonly supported = typeof window !== "undefined" && "speechSynthesis" in window;
   onState: (s: VoiceState) => void = () => {};
   onDuck: (d: boolean) => void = () => {};
   onVoices: () => void = () => {};
+  onError: (msg: string) => void = () => {};
 
   constructor() {
+    this.audio.preload = "auto";
     if (!this.supported) return;
     const pick = () => {
       const all = this.voices();
@@ -83,19 +107,87 @@ export class LunaVoice {
     return this.supported ? speechSynthesis.getVoices().filter((v) => v.lang.toLowerCase().startsWith("en")) : [];
   }
   get voiceName(): string {
-    return this.voice?.name ?? "";
+    return this.engine === "kokoro" ? "Kokoro af_heart" : this.voice?.name ?? "";
   }
   choose(name: string): void {
     this.chosen = name;
     this.voice = this.voices().find((v) => v.name === name) ?? this.voice;
   }
 
-  /** Say a line (if enabled and allowed). The words are always on screen anyway. */
+  /** Say a line (if enabled and allowed). The words are always on screen anyway. Never overlaps. */
   say(text: string, force = false): void {
     this.stop();
     this.text = text;
-    if (!(this.enabled || force) || !this.unlocked || !this.supported) return;
-    // One sentence at a time: natural pauses, and pause/stop respond quickly.
+    if (!(this.enabled || force) || !this.unlocked) return;
+    const clean = text.replace(/[\u{1F300}-\u{1FAFF}\u2600-\u27BF]/gu, "").trim();
+    if (!clean) return;
+    if (this.engine === "kokoro") void this.kokoro(clean);
+    else this.browser(clean);
+  }
+
+  /** Kokoro: synthesise sentence-sized chunks; play chunk n while chunk n+1 is generated. */
+  private async kokoro(text: string) {
+    const token = ++this.token;
+    this.abort = new AbortController();
+    const signal = this.abort.signal;
+    this.onDuck(true);
+    const chunks = splitForSpeech(text);
+    const fetchChunk = (c: string): Promise<string> => {
+      const hit = this.cache.get(c);
+      if (hit) return Promise.resolve(hit);
+      return fetch(`${API_BASE}/api/luna/tts`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: c }), signal })
+        .then((r) => (r.ok ? r.blob() : Promise.reject(new Error(`TTS ${r.status}`))))
+        .then((b) => {
+          const url = URL.createObjectURL(b);
+          this.cache.set(c, url);
+          if (this.cache.size > 40) {
+            const [k, u] = this.cache.entries().next().value as [string, string];
+            URL.revokeObjectURL(u);
+            this.cache.delete(k);
+          }
+          return url;
+        });
+    };
+    if (!this.cache.has(chunks[0])) this.set("loading");
+    // A stop() aborts pending requests; mark each promise as handled so that is not an "unhandled rejection".
+    const prefetch = (c: string) => {
+      const p = fetchChunk(c);
+      p.catch(() => {});
+      return p;
+    };
+    let next = prefetch(chunks[0]);
+    for (let i = 0; i < chunks.length; i++) {
+      let url: string;
+      try {
+        url = await next;
+      } catch {
+        if (token !== this.token) return; // stopped or replaced
+        this.onError("Luna's server voice is unavailable right now, so she's using this device's voice.");
+        this.browser(chunks.slice(i).join(" "));
+        return;
+      }
+      if (token !== this.token) return;
+      if (i + 1 < chunks.length) next = prefetch(chunks[i + 1]); // prefetch while this one plays
+      this.audio.src = url;
+      try {
+        await this.audio.play();
+      } catch {
+        return this.finish();
+      }
+      this.set("speaking");
+      await new Promise<void>((res) => {
+        const done = () => (this.audio.removeEventListener("ended", done), res());
+        this.audio.addEventListener("ended", done);
+        const check = window.setInterval(() => token !== this.token && (clearInterval(check), done()), 200);
+        this.audio.addEventListener("ended", () => clearInterval(check), { once: true });
+      });
+      if (token !== this.token) return;
+    }
+    this.finish();
+  }
+
+  private browser(text: string) {
+    if (!this.supported) return;
     this.queue = text.match(/[^.!?…]+[.!?…]*["”’)]?\s*/g)?.map((s) => s.trim()).filter(Boolean) ?? [text];
     this.onDuck(true);
     this.set("speaking");
@@ -104,18 +196,15 @@ export class LunaVoice {
 
   private next() {
     const line = this.queue.shift();
-    if (!line) {
-      this.finish();
-      return;
-    }
-    const u = new SpeechSynthesisUtterance(line.replace(/[🌊🌳⛅🎵🌿✨⭐]/gu, ""));
+    if (!line) return this.finish();
+    const u = new SpeechSynthesisUtterance(line);
     if (this.voice) u.voice = this.voice;
     u.lang = this.voice?.lang ?? "en-GB";
-    u.rate = 0.92;
+    u.rate = 0.95;
     u.pitch = 1.04;
     u.onend = () => {
       if (this.state === "idle") return;
-      this.timer = window.setTimeout(() => this.next(), 260);
+      this.timer = window.setTimeout(() => this.next(), 220);
     };
     u.onerror = () => this.finish();
     speechSynthesis.speak(u);
@@ -132,6 +221,16 @@ export class LunaVoice {
   }
 
   togglePause(): void {
+    if (this.engine === "kokoro" && this.audio.src && (this.state === "speaking" || this.state === "paused")) {
+      if (this.state === "speaking") {
+        this.audio.pause();
+        this.set("paused");
+      } else {
+        void this.audio.play();
+        this.set("speaking");
+      }
+      return;
+    }
     if (!this.supported) return;
     if (this.state === "speaking") {
       speechSynthesis.pause();
@@ -143,9 +242,13 @@ export class LunaVoice {
   }
 
   stop(): void {
+    this.token++;
+    this.abort?.abort();
+    this.abort = null;
     if (this.timer !== null) clearTimeout(this.timer);
     this.timer = null;
     this.queue = [];
+    this.audio.pause();
     if (this.state !== "idle") {
       this.state = "idle";
       if (this.supported) speechSynthesis.cancel();
@@ -184,17 +287,41 @@ export class Luna {
     $("voice-toggle").onclick = () => this.setVoiceEnabled(!this.voice.enabled, true);
     $("voice-pause").onclick = () => this.voice.togglePause();
     $("voice-replay").onclick = () => this.voice.replay();
+    $("voice-stop").onclick = () => this.voice.stop();
     voice.onState = (s) => {
       $("bubble").classList.toggle("talking", s === "speaking");
-      $("bubble-face").innerHTML = lunaSvg(s === "speaking" ? "talk" : "happy", 64);
+      $("bubble").classList.toggle("loading", s === "loading");
+      if (!this.isThinking) $("bubble-face").innerHTML = lunaSvg(s === "speaking" ? "talk" : "happy", 64);
       $("voice-pause-icon").setAttribute("href", s === "paused" ? "#i-play" : "#i-pause");
-      ($("voice-pause") as HTMLButtonElement).disabled = s === "idle";
+      $("voice-pause").title = s === "paused" ? "Resume Luna" : "Pause Luna";
+      ($("voice-pause") as HTMLButtonElement).disabled = s === "idle" || s === "loading";
+      ($("voice-stop") as HTMLButtonElement).disabled = s === "idle";
+      if (!this.isThinking) this.status(s === "loading" ? "Preparing Luna's voice…" : s === "paused" ? "Paused" : "");
     };
+    voice.onError = (msg) => this.status(msg, true);
     ($("voice-pause") as HTMLButtonElement).disabled = true;
+    ($("voice-stop") as HTMLButtonElement).disabled = true;
     this.renderVoiceToggle();
   }
 
   onVoiceSetting: (on: boolean) => void = () => {};
+  private isThinking = false;
+
+  /** Small status line under Luna's words (thinking, voice loading, errors). */
+  status(text: string, error = false): void {
+    const el = $("luna-status");
+    el.textContent = text;
+    el.classList.toggle("error", error);
+  }
+
+  /** Thinking indicator while Gemini prepares an answer. */
+  thinking(on: boolean): void {
+    this.isThinking = on;
+    $("bubble").classList.toggle("thinking", on);
+    $("bubble-face").innerHTML = lunaSvg(on ? "sleepy" : "happy", 64);
+    this.status(on ? "Luna is thinking…" : "");
+    ($("luna-send") as HTMLButtonElement).disabled = on;
+  }
 
   setVoiceEnabled(on: boolean, fromButton = false): void {
     this.voice.enabled = on;

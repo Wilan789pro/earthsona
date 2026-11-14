@@ -1,48 +1,52 @@
-# EARTHSONA: Hear the Earth. Understand the Change.
+# EARTHSONA: The Earth Impact Explorer
 
-NASA Space Apps Challenge 2026 · **The Earth Information Jukebox**
+NASA Space Apps Challenge 2026 · **The Earth Information Jukebox** · Team AstroNopes
 
-EARTHSONA is a child-friendly way (ages 6–8) to explore Earth through sound, with **Luna, the Moon** as guide. Pick a world and a place on a 3D Earth, press play, and hear the place's **nature sounds** and a **tune**. **Both are shaped by real environmental measurements**: when the numbers change, the waves, birds, rain and music change too. The sounds are artistic interpretations generated from observations. They are not recordings made by satellites.
+EARTHSONA is an Earth exploration platform for adults. It turns real NASA (and NOAA) Earth observations into sound, lets you run environmental experiments in three missions, and includes **Luna**, a conversational AI guide.
 
-## Luna, the guide
+Pick a mission and a place on a 3D Earth and press play. You hear the place's **nature sounds** and a **tune**, and **both are shaped by real environmental measurements**: when the numbers change, the waves, birds, rain and music change too. The sounds are artistic interpretations generated from observations, not recordings made by satellites.
 
-Luna is a kawaii moon who goes round and round the Earth, on screen too: she orbits the globe and passes behind it. She guides the whole experience in a speech bubble and, after the first tap, **reads it aloud**, so children don't have to read.
+## The three missions
 
-1. **Welcome:** Luna introduces herself (first visit; the logo brings her back).
-2. **Pick a world.** Ocean, Forest or Weather. The globe changes to show only that world:
-   - **Ocean:** the sea in blues, darker where it is deeper (NASA Blue Marble bathymetry), with the land pale;
-   - **Forest:** land greenness (MODIS NDVI), darker green where it is greener;
-   - **Weather:** air temperature (MERRA-2), red where hot and blue/purple where cold.
-3. **Pick a place.** Luna introduces it ("Tell me more" gives a short tip).
-4. **Play.** Luna explains what you hear. **Why does it sound like this?** (or `W`) breaks it into nature, music and the measurements.
-5. **After listening:** Luna reads out real facts (value and date), then asks a question. A right answer earns the world's badge, followed by **Why does it matter?** (Earth Impact Explorer), **Play with Luna**, or the next world.
-6. **Badges:** "What would you do?", a printable certificate and prompts for parents and teachers.
+| Mission | Globe view (real NASA map) | Real data that drives the sound | Laboratory variables (simulation) |
+|---|---|---|---|
+| 🌊 **The Living Ocean** | sea depth, darker where deeper (Blue Marble bathymetry) | sea surface temperature + anomaly | sea surface temperature, ocean acidity (pH), dissolved oxygen, pollution, nutrients, coral reef health |
+| 🌳 **The Living Forest** | land greenness (MODIS NDVI) | NDVI + EVI (MODIS) | sunlight, rainfall, humidity, temperature, atmospheric CO₂, soil moisture |
+| 🌍 **Earth Pulse** (the planet's changing systems) | air temperature (MERRA-2) | air temperature, rain, sunshine (NASA POWER) | global temperature anomaly, CO₂, ice cover, sea level, vegetation cover, extreme-weather intensity |
 
-**Luna's playground** (tap Luna, or press `L`) is the "Try this out" mode:
-- **Pretend:** sliders start at the real latest measurement: how warm the sea is, how much forest is left, and rain, sunshine and air warmth. Moving one **repaints the Earth**:
-  - the sea turns warmer colours and white "bleaching" patches appear;
-  - the forest disappears in patches and the land goes bare;
-  - pretend clouds roll in and the sunlight changes.
-- **Hear it:** the change also reshapes the sound. At 0 % forest the birds and insects go quiet and the tune drops low and thin. Then Luna explains what happened and what *could* happen in real life.
-- **Always labelled:** "Pretend Earth" on the globe and "make-believe, not a forecast" in the panel.
-- **Two real years:** compares two real periods (A / B) with the same music rules and says what changed, not why.
+## Luna, the AI guide
 
-**Voice:**
-- **Device voices:** Luna uses this device's speech voices and prefers warm "Natural"/"Online" neural voices where available.
-- **Natural pacing:** she speaks a little slower, at natural pitch, one sentence at a time with short pauses.
-- **Controls:** the speaker button mutes her; pause and say-again are next to it; Esc stops her. Grown-ups can pick another voice in Settings.
-- **Requirements:** nothing is recorded or sent anywhere. Browsers only allow speech after the first tap.
+Luna is a kawaii moon who orbits the globe on screen. She guides you through each step, and you can **ask her anything** in her chat box.
 
-**Grown-ups' corner:** the science behind the sound:
-- data types (analysis, satellite-derived or model);
-- the chart and data table, and the full data → sound mapping;
-- "What your child heard";
-- sources and citations, settings, and WAV export.
+- **AI answers:** her replies are generated by **Google Gemini** through the EARTHSONA backend.
+- **Context:** each message carries a compact summary of what the app shows:
+  - the mission and place;
+  - the real dataset (variable, unit, latest, highest and lowest values with dates, the kind of data);
+  - during an experiment, every slider with its baseline, the simulation's health indicators and its findings.
 
-**The Impact Explorer** keeps three kinds of statement apart, each with its own label:
-- **real data from the dataset**;
-- **what research says can happen** (linked NOAA, NASA and Drought.gov sources);
-- **not checked for this place**.
+  Luna never has to guess the app state, and she keeps NASA observations, derived data and the simulation apart.
+- **Voice:** she speaks with **Kokoro-82M** (voice `af_heart`), generated on the server sentence by sentence, so she starts talking within a couple of seconds.
+- **Controls:** play, pause, resume, replay and stop, with captions (the bubble text), a speaking animation, a thinking indicator and a "preparing voice" indicator. Audio never overlaps.
+- **Fallback:** if the backend is offline, the guided tour still works with the browser's voice, and the chat box explains how to start the server.
+
+## Laboratories: "What happens if…?"
+
+Tap Luna (or press `L`) to open the current mission's laboratory.
+
+- **Six variables:** each slider shows its **minimum, baseline (yellow tick), maximum and current value**, with a one-line explanation.
+- **Interconnected and gradual:** variables act together through smooth, saturating responses rather than on/off switches (`src/lab/simulation.ts`). Moving one slider never wipes out an ecosystem. Examples:
+  - reduced rain plus heat dries soil and leaves faster than either alone;
+  - more CO₂ only helps when water and temperature allow it;
+  - excess nutrients fuel blooms that use up oxygen;
+  - doubling CO₂ implies about 3 °C of warming (the IPCC best estimate).
+- **What you see:** an animated environment (`src/lab/scene.ts`) eases to each new state: leaf colour and density, soil, rain, wildlife; coral colour and bleaching, water clarity, fish, algae, oxygen bubbles; ice caps, coastlines, vegetation, storms, temperature and CO₂ gauges. "Show on globe" repaints the NASA map instead.
+- **Health and comparison:** health indicators show a baseline marker, "Compare with baseline" switches back and forth, and "Reset to baseline" undoes everything.
+- **Explanations:** "What's happening" text comes from the actual combination of settings. Luna can explain it in depth ("Ask Luna about this").
+- **Hear this experiment** plays the latest real measurement, then the simulated version.
+- **Two real years** compares two real periods with the same sound rules.
+- **Labelling:** everything in the lab is labelled **Simulation (simplified educational model, not a NASA observation, not a forecast)**, next to a separate **Observed data** line showing the real value.
+
+**Grown-ups' corner** (the science): data types, charts and tables, the full data → sound mapping, sources and citations, settings and WAV export. **Why does it matter?** (the Earth Impact Explorer) keeps real data, general research and "not checked for this place" apart.
 
 ## The nine featured experiences
 
@@ -84,20 +88,21 @@ The script finds granules with CMR, samples one day per week and requests one gr
 
 ```bash
 npm install
-npm run dev          # http://localhost:5173
+npm run dev          # http://localhost:5173 (start the backend too for Luna's chat and voice, see below)
 npm test             # unit tests (parsers against real saved responses, mappings, the nine experiences)
 npm run build        # static site in dist/ (relative paths; runs offline)
 npm run fetch-data   # refresh bundled data, imagery and EIC visuals (needs internet)
 ```
 
-Node 18+ is required. No API keys or logins are needed. Copy `.env.example` to `.env` only to change the ERDDAP server. **Never commit `.env`**, and never put secrets in `VITE_*` variables (they are compiled into the public bundle).
+Node 18+ and Python 3.11+ are required. The frontend needs no keys; Luna's backend needs a Gemini API key in `backend/.env`. **Never commit `.env`**, and never put secrets in `VITE_*` variables (they are compiled into the public bundle).
 
 ## Honesty rules built into the code
 
 - **No invented data in the experience.** If a layer has no real data, it stays silent and a notice says so. With no data at all, only the nature sound plays. The registry's simulated fallback is never played (it remains only for developer tests).
 - Missing, cloudy or snowy dates are a soft "no data" tick; a single gap between two values is bridged and labelled "interpolated".
 - The nature sounds and the music are shaped by the documented rules above, using **absolute** values, so the same number always sounds the same (unit-tested). The regional profile changes instruments and arrangement only, never what a value sounds like.
-- **Luna's pretend changes** (globe paint and sound) are labelled "Pretend Earth" and "make-believe, not a forecast"; they start from the real measurement, and the real data never changes.
+- **Laboratory outputs are simulations:** they are labelled "Simulation" on the globe and in the lab, start from documented relationships (not fitted to any dataset), and never change or replace the real data shown next to them.
+- **Luna (Gemini)** is instructed to use only the app context she is given, never invent numbers, datasets or citations, and say whether something is an observation, derived data or a simulation.
 - **No forest-loss claims:** NDVI/EVI measure greenness, not trees.
 - **EIC visuals:** each comes from the official EIC gallery or EIC Daily Visualizations, and its caption says how it relates to the sound (same dataset? same variable? which period?).
 - **Natural sounds** are synthesised in the browser, so no recordings or licences are involved. The regional music is an original synthesised homage, not a recording.
@@ -125,6 +130,39 @@ The script:
 2. List its id under an experience.
 3. Run `npm run fetch-data`.
 
+## Luna backend (Gemini + Kokoro)
+
+`backend/` is a small FastAPI service:
+- **Gemini:** Luna's answers come from Google Gemini through the official `google-genai` SDK.
+- **Kokoro:** her voice is Kokoro-82M (ONNX build, voice `af_heart`).
+- **The key stays on the server:** it lives in `backend/.env`, which is git-ignored, and is never sent to the browser or written to logs.
+- **The browser only talks to `/api`:** in development, Vite proxies `/api` to `http://127.0.0.1:8000`.
+
+```powershell
+cd backend
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe download_kokoro.py                     # Kokoro model files (~120 MB, once) into backend/models
+Copy-Item .env.example .env        # then put your key after GEMINI_API_KEY=
+.\.venv\Scripts\python.exe check_gemini.py                       # checks key + model, sends one real request
+.\.venv\Scripts\python.exe -m uvicorn main:app --port 8000 --reload
+```
+
+In a second terminal, run `npm run dev` in the project folder, then open http://localhost:5173.
+
+`GEMINI_MODEL` is configurable. `check_gemini.py` lists the models your key can use if the configured one isn't available. On 2026-11-14 `gemini-3.8-flash` was overloaded (503 and 504 errors), so `gemini-3.5-flash` is used.
+
+Endpoints:
+- `GET /api/health` reports whether the backend is up, the model name, and whether a key is configured (never the key itself).
+- `POST /api/luna/chat` takes `{message, session_id, context?}`, where `context` holds the mission, place, experiment, slider values with their baselines, simulation outputs and a short dataset summary. It returns `{reply, session_id, model, audio}`.
+- `POST /api/luna/tts` takes `{text}` and returns `audio/wav` spoken by Kokoro (cached; the model is preloaded at startup).
+
+There are limits on message size, context size and requests per minute; the chat keeps 10 turns of memory per session and has a 30 s Gemini timeout, retrying when the service is temporarily overloaded.
+
+Errors come back as `{error, message}`. The possible error kinds are `missing_key`, `invalid_key`, `quota`, `model_not_found`, `unavailable`, `timeout`, `network`, `rate_limited`, `upstream` and, for voice, `tts_not_installed` and `tts_failed`.
+
+CORS allows the Vite dev server (`localhost:5173`); change it with `CORS_ORIGINS`.
+
 ## Architecture
 
 ```
@@ -139,8 +177,12 @@ src/audio/engine.ts             music from the data (StepRenderer), nature shapi
 src/audio/player.ts             play / pause / stop / replay / seek
 src/ui/kid.ts                   child-friendly words and time windows
 src/ui/narrator.ts              Luna's short "Tell me more" tips
-src/ui/luna.ts                  Luna: kawaii moon SVG, orbit, speech bubble, warm voice
-src/ui/playground.ts            Luna's playground: pretend sliders (globe + sound) and two real years
+src/ui/luna.ts                  Luna: kawaii moon SVG, orbit, speech bubble, Kokoro voice (browser voice fallback)
+src/ui/playground.ts            mission laboratories: six sliders, presets, health meters, compare/reset, two real years
+src/lab/simulation.ts           interconnected six-variable models per mission (simplified, documented)
+src/lab/scene.ts                animated environment for each laboratory
+src/ui/lunaChat.ts              chat client for Luna's backend (session, context, errors)
+backend/                        FastAPI: Gemini chat (services/gemini_service.py, luna_service.py), Kokoro TTS (tts_service.py)
 src/globeThemes.ts              each world's globe map from NASA images + pretend repainting
 src/ui/missions.ts              Luna's lines, challenges, Impact Explorer chains, mini-game, progress
 src/ui/impact.ts                Earth Impact Explorer (real-data box + general science)

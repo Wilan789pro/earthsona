@@ -23,12 +23,15 @@ import { renderImpact } from "./ui/impact";
 import { Story } from "./ui/story";
 import { Playground } from "./ui/playground";
 import { THEME_SIZE, loadThemeLayers, paintClouds, paintTheme, type Pretend } from "./globeThemes";
+import { LabScene } from "./lab/scene";
+import { VARS } from "./lab/simulation";
+import { backendStatus, sendToLuna, type ChatContext } from "./ui/lunaChat";
 
 // ---------------------------------------------------------------------------
 // State
 // ---------------------------------------------------------------------------
 const COLORS: Record<ExperienceId, string> = { ocean: "#2b9bf4", forest: "#2fb35e", pulse: "#ff9f1c" };
-const WORLD_NAME: Record<ExperienceId, string> = { ocean: "Ocean", forest: "Forest", pulse: "Weather" };
+const WORLD_NAME: Record<ExperienceId, string> = { ocean: "Ocean", forest: "Forest", pulse: "Earth Pulse" };
 
 interface Settings { live: boolean; loop: boolean; textScale: number; nature: boolean; music: boolean; voice: boolean; voiceName: string; photo: boolean }
 const settings = loadPref<Settings>("settings3", { live: false, loop: false, textScale: 1, nature: true, music: true, voice: true, voiceName: "", photo: false });
@@ -916,7 +919,7 @@ const story = new Story({
   voice,
   start: () => {
     voice.unlocked = true;
-    luna.say("Yay! First, pick a world: the ocean, the forest, or the weather. I'll show you each one on the Earth.", { mood: "wow" });
+    luna.say("Let's begin! Pick a mission: the Living Ocean, the Living Forest or Earth Pulse. I'll show each one on the globe. You can tap me for the lab, or type a question for me any time.", { mood: "wow" });
     document.querySelector<HTMLElement>("#experience-list [aria-checked='true']")?.focus();
   },
 });
@@ -926,6 +929,8 @@ const playground = new Playground({
   luna,
   engine,
   pretendGlobe: (p, rain, sun) => void applyGlobeLook(p, rain, sun),
+  showScene: (visual, instant) => showScene(visual, instant),
+  askLuna: (message) => void askLuna(message),
   beforePlay: async () => {
     player.pause();
     await engine.start();
@@ -938,9 +943,105 @@ const playground = new Playground({
     engine.resetNature();
   },
   onClose: () => {
-    luna.say("Back to the real Earth! Everything you see now is real NASA data again.");
+    luna.say("Back to the real Earth! Everything on the globe is real NASA data again.");
     $("places-h").focus();
   },
+});
+
+// ---------------------------------------------------------------------------
+// Lab environment scene (simulation) in the stage
+// ---------------------------------------------------------------------------
+const labScene = new LabScene($<HTMLCanvasElement>("scene"));
+function showScene(visual: Record<string, number> | null, instant = false) {
+  const canvas = $("scene");
+  if (!visual) {
+    canvas.hidden = true;
+    labScene.stop();
+    $("globe").style.visibility = "";
+    $("legend").hidden = false;
+    return;
+  }
+  canvas.hidden = false;
+  $("globe").style.visibility = "hidden";
+  $("legend").hidden = true;
+  labScene.set(state.experience, visual, instant);
+  labScene.start();
+}
+
+// ---------------------------------------------------------------------------
+// Conversation with Luna (Gemini via the EARTHSONA backend)
+// ---------------------------------------------------------------------------
+let backend = { online: false, chat: false, tts: false } as Awaited<ReturnType<typeof backendStatus>>;
+
+/** Structured, compact description of what the app shows right now. Luna never has to guess. */
+function buildContext(): ChatContext {
+  const ctx: ChatContext = { mission: state.experience, place: state.region.name };
+  const pitch = pitchSeries();
+  if (pitch && state.track) {
+    const ok = (pitch.points as CleanPoint[]).filter((p) => p.value !== null && !p.bridged);
+    const last = ok[ok.length - 1];
+    const max = ok.reduce((a, b) => ((b.value as number) > (a.value as number) ? b : a), ok[0]);
+    const min = ok.reduce((a, b) => ((b.value as number) < (a.value as number) ? b : a), ok[0]);
+    const kind = dataTypeFor(pitch.variable, pitch.source.name);
+    const f = state.frames[Math.min(player.index, state.frames.length - 1)];
+    ctx.dataset = {
+      variable: pitch.variable,
+      label: pitch.label,
+      unit: pitch.unit,
+      dataset: pitch.dataset ?? pitch.source.name,
+      organisation: pitch.source.kind === "noaa" ? "NOAA" : "NASA",
+      kind_of_data: kind.label,
+      period: state.track.period.label,
+      latest: last ? { value: last.value, date: last.time } : null,
+      highest: max ? { value: max.value, date: max.time } : null,
+      lowest: min ? { value: min.value, date: min.time } : null,
+      now_playing: state.soundOn && f ? { value: f.values[pitch.variable]?.value ?? null, date: f.time } : null,
+      other_layers: state.track.layers.filter((l) => l.result.series !== pitch).map((l) => l.result.series.label),
+    };
+  }
+  const snap = playground.snapshot();
+  if (snap) {
+    ctx.experiment = `${MISSIONS[snap.mission].title} laboratory (simplified educational simulation)`;
+    ctx.sliders = Object.fromEntries(VARS[snap.mission].map((d) => [d.label, { value: +snap.values[d.key].toFixed(2), baseline: d.baseline, unit: d.unit, min: d.min, max: d.max }]));
+    ctx.simulation = {
+      ecosystem_health: snap.result.health,
+      baseline_health: snap.baselineResult.health,
+      indicators: Object.fromEntries(snap.result.indicators.map((i) => [i.label, { value: +i.value.toFixed(2), baseline: +(snap.baselineResult.indicators.find((b) => b.key === i.key)?.value ?? 0).toFixed(2), better_when: i.good }])),
+      note: "Outputs of EARTHSONA's simplified model, not observations.",
+    };
+    ctx.observations = snap.result.findings;
+  } else {
+    ctx.experiment = state.soundOn ? "listening to the sonification" : "exploring the globe";
+  }
+  return ctx;
+}
+
+async function askLuna(message: string) {
+  const text = message.trim();
+  if (!text) return;
+  if (!backend.chat) backend = await backendStatus();
+  if (!backend.chat) {
+    luna.status(backend.online ? "Luna's AI isn't configured on the server (GEMINI_API_KEY missing)." : "Luna's server isn't running. Start the backend to chat with her (see README).", true);
+    return;
+  }
+  voice.stop();
+  luna.thinking(true);
+  $("bubble-extra").innerHTML = `<p class="you-asked"><span>You asked</span> ${esc(text)}</p>`;
+  const res = await sendToLuna(text, buildContext());
+  luna.thinking(false);
+  if (res.ok) {
+    luna.say(res.reply, { extra: `<p class="you-asked"><span>You asked</span> ${esc(text)}</p>`, repeat: true });
+  } else if (res.kind !== "cancelled") {
+    luna.status(res.message, true);
+  }
+}
+
+$("luna-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const input = $<HTMLInputElement>("luna-input");
+  const v = input.value;
+  input.value = "";
+  void askLuna(v);
 });
 
 function togglePlayground() {
@@ -1155,9 +1256,21 @@ flyToRegion();
 updateMix();
 updateBadgeCount();
 if (!progress.intro) story.open("welcome");
-else luna.say("Welcome back, explorer! Pick a world and a place, then press the big play button. Or tap me to play pretend!");
+else luna.say("Welcome back! Pick a mission and a place, press play to hear the real data, tap me to open the lab, or ask me anything below.");
 loadTrack("boot");
+// Detect Luna's backend; retry a few times (the page can be busy right after loading).
+void (async () => {
+  for (let attempt = 0; attempt < 4; attempt++) {
+    backend = await backendStatus();
+    if (backend.online) break;
+    await new Promise((r) => setTimeout(r, 2500));
+  }
+  voice.engine = backend.tts ? "kokoro" : "browser";
+  renderVoices();
+  if (!backend.online) luna.status("Luna's AI server is offline: guided tour only. Start the backend to chat with her.", true);
+  else if (!backend.chat) luna.status("Luna's AI isn't configured (GEMINI_API_KEY missing on the server).", true);
+})();
 booted = true;
 
 // Debug hook for automated checks (no effect on the UI).
-(window as unknown as { __earthsona: unknown }).__earthsona = { state, player, registry, engine, settings, voice, luna, playground, progress: () => progress };
+(window as unknown as { __earthsona: unknown }).__earthsona = { state, player, registry, engine, settings, voice, luna, playground, progress: () => progress, buildContext, backend: () => backend };

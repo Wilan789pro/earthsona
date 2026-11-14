@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>EARTHSONA · Hear the Earth. Understand the Change.</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='44' fill='%232b9bf4' stroke='%231d3557' stroke-width='8'/%3E%3Cpath d='M28 38c10-8 18 2 14 10s6 14 14 8 14-2 12 10' fill='none' stroke='%233cc46b' stroke-width='10' stroke-linecap='round'/%3E%3C/svg%3E" />
-    <meta name="description" content="EARTHSONA: listen to planet Earth with Luna the moon. Real NASA measurements turned into nature sounds and music for children." />
+    <meta name="description" content="EARTHSONA – The Earth Impact Explorer: hear real NASA Earth observations as sound, run environmental experiments and talk with Luna, an AI guide." />
   </head>
   <body>
     <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -44,6 +44,7 @@
         <h2 id="stage-h" class="sr-only">The Earth and Luna</h2>
         <div class="space" id="space">
           <div id="globe" class="globe-host"></div>
+          <canvas id="scene" class="scene-canvas" hidden aria-label="Simulated environment for the current experiment" role="img"></canvas>
           <button class="luna" id="luna" aria-label="Luna the moon. Press to play with the Earth" title="Play with Luna!"></button>
           <span class="pretend-tag" id="pretend-tag" hidden>Pretend Earth</span>
           <button class="reset-view" id="btn-reset" title="Turn the Earth back (R)">Turn back</button>
@@ -56,11 +57,18 @@
             <p class="bubble-text" id="bubble-text" aria-live="polite"></p>
             <div class="bubble-extra" id="bubble-extra"></div>
             <div class="bubble-actions" id="bubble-actions"></div>
+            <p class="luna-status" id="luna-status" aria-live="polite"></p>
+            <form class="ask" id="luna-form" autocomplete="off">
+              <label for="luna-input" class="sr-only">Ask Luna</label>
+              <input id="luna-input" type="text" maxlength="2000" placeholder="Ask Luna anything about this mission or experiment…" />
+              <button class="pill primary small" type="submit" id="luna-send">Ask</button>
+            </form>
           </div>
           <div class="bubble-ctls" role="group" aria-label="Luna's voice">
             <button class="round" id="voice-toggle" title="Luna talks out loud"><svg aria-hidden="true"><use href="#i-sound" id="voice-icon" /></svg><span class="sr-only" id="voice-label">Turn Luna's voice off</span></button>
             <button class="round" id="voice-pause" title="Pause Luna"><svg aria-hidden="true"><use href="#i-pause" id="voice-pause-icon" /></svg><span class="sr-only">Pause Luna</span></button>
             <button class="round" id="voice-replay" title="Say it again"><svg aria-hidden="true"><use href="#i-replay" /></svg><span class="sr-only">Say it again</span></button>
+            <button class="round" id="voice-stop" title="Stop Luna"><svg aria-hidden="true"><use href="#i-stop" /></svg><span class="sr-only">Stop Luna</span></button>
           </div>
         </section>
         <p class="caption-line" id="stage-caption"></p>
@@ -169,9 +177,9 @@
 
       <section id="pane-settings" role="tabpanel" aria-labelledby="tab-settings" hidden>
         <div class="settings">
-          <label class="switch"><input type="checkbox" id="set-voice" /><span><strong>Luna talks out loud</strong><br /><span class="muted small">Luna reads her speech bubble aloud after the first tap. Her words are always shown too. Esc or the mute button stops her.</span></span></label>
+          <label class="switch"><input type="checkbox" id="set-voice" /><span><strong>Luna talks out loud</strong><br /><span class="muted small">Luna's voice is generated on the EARTHSONA server with Kokoro-82M (voice af_heart). Her words are always shown as captions. Esc or the stop button silences her.</span></span></label>
           <label class="ctl">Luna's voice <select id="voice-pick"></select></label>
-          <p class="muted small" id="voice-hint">Voices come from this device. The most natural ones are usually called “Natural” or “Online” (Microsoft Edge) or “Google UK English Female” (Chrome).</p>
+          <p class="muted small" id="voice-hint">Used only if the server voice is unavailable: a voice built into this device.</p>
           <button class="pill small" id="voice-test">Hear Luna</button>
           <label class="switch"><input type="checkbox" id="set-photo" /><span><strong>Show the NASA photo of Earth</strong><br /><span class="muted small">Instead of each world's own map (ocean depth, forest greenness, air temperature).</span></span></label>
           <label class="switch"><input type="checkbox" id="set-live" /><span><strong>Use live data (requires internet)</strong><br /><span class="muted small">Lets you click any point on the globe. If a request fails, EARTHSONA plays nature sounds only; it never makes up numbers.</span></span></label>

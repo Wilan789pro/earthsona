@@ -5,100 +5,111 @@ import type { ExperienceId, RegionDef } from "../data/types";
 import { labFrames, trackToFrames, type SoundFrame } from "../sonification/frames";
 import type { PaletteId } from "../sonification/palettes";
 import type { Pretend } from "../globeThemes";
+import { PRESETS, VARS, baselineOf, changesFromBaseline, fmt, simulate, type SimResult, type Values } from "../lab/simulation";
 import { $, announce, esc } from "./dom";
-import { fmtValue } from "./format";
-import { timeWindows, type TimeWindow } from "./kid";
+import { fmtDate, fmtValue } from "./format";
+import { KID, timeWindows, type TimeWindow } from "./kid";
 import { lunaSvg, type Luna } from "./luna";
 
 /**
- * Luna's playground ("Try this out").
- *  Pretend: sliders start at the REAL latest measurement for this place. Moving them repaints the globe
- *  (a drawing, labelled "Pretend Earth") and changes the music and the nature sound. Luna then explains
- *  what changed and what could happen in real life — always saying it is pretend, never a forecast.
+ * The mission laboratory ("Try this out"), opened by tapping Luna.
+ *  Experiment: six interacting variables per mission (src/lab/simulation.ts). The scene and the globe change
+ *  gradually; health indicators compare against the baseline; explanations depend on the exact combination.
+ *  Everything here is a simplified educational SIMULATION, kept visibly apart from the real NASA data.
  *  Two real years: plays two real periods with the same rules and describes the difference (not the cause).
  */
-type Var = "SST" | "SSTA" | "NDVI" | "EVI" | "T2M" | "PRECTOTCORR" | "ALLSKY_SFC_SW_DWN";
-type Vals = Partial<Record<Var, number>>;
+type RealVar = "SST" | "SSTA" | "NDVI" | "EVI" | "T2M" | "PRECTOTCORR" | "ALLSKY_SFC_SW_DWN";
+type Vals = Partial<Record<RealVar, number>>;
+
+export interface LabSnapshot {
+  mission: ExperienceId;
+  values: Values;
+  baseline: Values;
+  result: SimResult;
+  baselineResult: SimResult;
+}
 
 export interface PlaygroundHost {
   state: () => { experience: ExperienceId; region: RegionDef; track: Track | null; palette: PaletteId; layers: LayerToggles };
   luna: Luna;
   engine: SonificationEngine;
-  /** Repaint the globe with a pretend change (null = back to the real map). */
   pretendGlobe: (p: Pretend | null, rain?: number, sun?: number) => void;
+  /** Show the animated environment (true) or the globe (false) in the stage. */
+  showScene: (visual: Record<string, number> | null, instant?: boolean) => void;
+  askLuna: (message: string) => void;
   beforePlay: () => Promise<void>;
   afterPlay: () => void;
   onClose: () => void;
 }
 
-interface Slider {
-  key: string;
-  label: string;
-  min: number;
-  max: number;
-  step: number;
-  fmt: (v: number) => string;
-}
-
-const SLIDERS: Record<ExperienceId, Slider[]> = {
-  ocean: [{ key: "seaWarmth", label: "How warm is the sea?", min: -3, max: 4, step: 0.5, fmt: (v) => (v === 0 ? "like the real sea" : `${v > 0 ? "+" : "−"}${Math.abs(v)} °C ${v > 0 ? "warmer" : "cooler"}`) }],
-  forest: [{ key: "green", label: "How much forest is left?", min: 0, max: 1, step: 0.05, fmt: (v) => (v >= 1 ? "all of it" : v <= 0 ? "none at all" : `${Math.round(v * 100)}%`) }],
-  pulse: [
-    { key: "rain", label: "How much rain?", min: 0, max: 3, step: 0.25, fmt: (v) => (v === 1 ? "like the real rain" : v === 0 ? "no rain at all" : `${v}× the real rain`) },
-    { key: "sun", label: "How much sunshine?", min: 0.25, max: 1.75, step: 0.25, fmt: (v) => (v === 1 ? "like the real sun" : `${v}× the real sunshine`) },
-    { key: "airWarmth", label: "How warm is the air?", min: -10, max: 10, step: 1, fmt: (v) => (v === 0 ? "like the real air" : `${v > 0 ? "+" : "−"}${Math.abs(v)} °C`) },
-  ],
-};
-const DEFAULTS: Record<string, number> = { seaWarmth: 0, green: 1, rain: 1, sun: 1, airWarmth: 0 };
-const PITCH_VAR: Record<ExperienceId, Var> = { ocean: "SST", forest: "NDVI", pulse: "T2M" };
+const PITCH_VAR: Record<ExperienceId, RealVar> = { ocean: "SST", forest: "NDVI", pulse: "T2M" };
+const TITLE: Record<ExperienceId, string> = { forest: "Living Forest lab", ocean: "Living Ocean lab", pulse: "Earth Pulse lab" };
 
 export class Playground {
   open = false;
-  private s: Record<string, number> = { ...DEFAULTS };
+  private v: Values = {};
   private real: Vals = {};
+  private realDates: Partial<Record<RealVar, string>> = {};
   private timer: number | null = null;
-  private tab: "pretend" | "years" = "pretend";
+  private tween = 0;
+  private tab: "lab" | "years" = "lab";
+  private view: "scene" | "globe" = "scene";
+  private comparing = false;
   private windows: TimeWindow[] = [];
   private a = "";
   private b = "";
   private raf = 0;
+  private exp: ExperienceId = "forest";
 
   constructor(private host: PlaygroundHost) {}
 
+  /** Current experiment, for Luna's context (null when the lab is closed). */
+  snapshot(): LabSnapshot | null {
+    if (!this.open) return null;
+    const base = baselineOf(this.exp);
+    return { mission: this.exp, values: { ...this.v }, baseline: base, result: simulate(this.exp, this.v), baselineResult: simulate(this.exp, base) };
+  }
+
   show(): void {
     this.open = true;
-    this.s = { ...DEFAULTS };
+    this.exp = this.host.state().experience;
+    this.v = baselineOf(this.exp);
     $("real-panel").hidden = true;
     $("playground").hidden = false;
-    $("pretend-tag").hidden = true;
     this.render();
-    const { experience } = this.host.state();
-    const intro = {
-      ocean: "Let's pretend! Move the slider to make the sea warmer or cooler, and watch the Earth change. Then press play to hear it.",
-      forest: "Let's pretend! Slide to take the forest away, and watch the land change. Then press play to hear what happens.",
-      pulse: "Let's pretend! Change the rain, the sunshine and the warmth, and watch the Earth. Then press play to hear it.",
-    }[experience];
-    this.host.luna.say(intro, { mood: "wow" });
-    ($("playground").querySelector("input, button") as HTMLElement | null)?.focus();
+    this.update(true);
+    this.host.luna.say(
+      {
+        forest: "Welcome to the Living Forest lab! Change sunlight, rain, humidity, temperature, CO₂ and soil moisture, and watch how the forest responds. Everything here is a simplified simulation.",
+        ocean: "Welcome to the Living Ocean lab! Adjust temperature, acidity, oxygen, pollution, nutrients and reef health, and see how the reef reacts. Remember, this is a simulation.",
+        pulse: "Welcome to the Earth Pulse lab! Explore how temperature, CO₂, ice, sea level, vegetation and extreme weather connect. It's a simplified model, not a forecast.",
+      }[this.exp],
+      { mood: "wow" },
+    );
+    (document.querySelector("#playground input[type=range]") as HTMLElement | null)?.focus();
   }
 
   close(): void {
     this.stop();
+    cancelAnimationFrame(this.tween);
     this.open = false;
     $("playground").hidden = true;
     $("real-panel").hidden = false;
     $("pretend-tag").hidden = true;
     this.host.pretendGlobe(null);
+    this.host.showScene(null);
     this.host.onClose();
   }
 
-  /** The world, place or data changed while the playground is open. */
   refresh(): void {
     if (!this.open) return;
-    this.s = { ...DEFAULTS };
-    this.host.pretendGlobe(null);
-    $("pretend-tag").hidden = true;
+    const exp = this.host.state().experience;
+    if (exp !== this.exp) {
+      this.exp = exp;
+      this.v = baselineOf(exp);
+    }
     this.render();
+    this.update(true);
   }
 
   stop(): void {
@@ -110,90 +121,130 @@ export class Playground {
   }
 
   // ---------------------------------------------------------------------------
-  private render() {
-    const { experience, region, track } = this.host.state();
+  private readReal() {
+    const { track } = this.host.state();
     this.real = {};
+    this.realDates = {};
     for (const l of track?.layers ?? []) {
       const pts = (l.result.series.points as CleanPoint[]).filter((p) => p.value !== null && !p.bridged);
       const last = pts[pts.length - 1];
-      if (last) this.real[l.def.variable as Var] = last.value as number;
+      if (last) {
+        this.real[l.def.variable as RealVar] = last.value as number;
+        this.realDates[l.def.variable as RealVar] = fmtDate(last.time, l.result.series, true);
+      }
     }
+  }
+
+  private render() {
+    const { region, track } = this.host.state();
+    const exp = this.exp;
+    this.readReal();
     const axis = (track?.layers[0].result.series.points ?? []) as CleanPoint[];
     this.windows = timeWindows(axis.map((p) => p.time)).filter((w) => w.key !== "all");
     const keys = this.windows.map((w) => w.key);
     if (!keys.includes(this.a)) this.a = keys[0] ?? "";
     if (!keys.includes(this.b) || this.b === this.a) this.b = keys[keys.length - 1] ?? "";
+    const pv = PITCH_VAR[exp];
+    const pitch = track?.layers.find((l) => l.def.variable === pv)?.result.series;
+    const realLine = pitch && this.real[pv] !== undefined
+      ? `${KID.label(pv)} at ${esc(region.short ?? region.name)}: <strong>${esc(fmtValue(this.real[pv]!, pitch.unit))}</strong> (${esc(this.realDates[pv] ?? "")}, ${esc(pitch.source.kind === "noaa" ? "NOAA" : "NASA")})`
+      : "No real measurements are loaded for this place.";
+
+    const sliders = VARS[exp]
+      .map((d) => {
+        const pct = ((d.baseline - d.min) / (d.max - d.min)) * 100;
+        return `<div class="lab-var">
+          <div class="lab-var-top"><label for="lv-${d.key}">${esc(d.label)}</label><output id="lv-${d.key}-out">${esc(fmt(this.v[d.key], d))}</output></div>
+          <div class="lab-range" style="--base:${pct}%">
+            <input type="range" id="lv-${d.key}" data-key="${d.key}" min="${d.min}" max="${d.max}" step="${d.step}" value="${this.v[d.key]}" aria-describedby="lv-${d.key}-help" />
+            <span class="base-tick" aria-hidden="true"></span>
+          </div>
+          <div class="lab-scale small"><span>${esc(fmt(d.min, d))}</span><span>baseline ${esc(fmt(d.baseline, d))}</span><span>${esc(fmt(d.max, d))}</span></div>
+          <p class="small muted" id="lv-${d.key}-help">${esc(d.help)}</p>
+        </div>`;
+      })
+      .join("");
 
     const box = $("playground");
-    const sliders = SLIDERS[experience]
-      .map(
-        (sl) => `<div class="pg-slider">
-          <label for="pg-${sl.key}">${esc(sl.label)}</label>
-          <input type="range" id="pg-${sl.key}" min="${sl.min}" max="${sl.max}" step="${sl.step}" value="${this.s[sl.key]}" aria-valuetext="${esc(sl.fmt(this.s[sl.key]))}, pretend" />
-          <output id="pg-${sl.key}-out" for="pg-${sl.key}">${esc(sl.fmt(this.s[sl.key]))}</output>
-        </div>`,
-      )
-      .join("");
-    const noData = !track;
     box.innerHTML = `
       <div class="pg-head">
-        <span class="pg-luna" aria-hidden="true">${lunaSvg("wow", 56)}</span>
-        <div><h2 id="pg-title" class="side-h">Luna's playground</h2><p class="small muted">${esc(region.short ?? region.name)}</p></div>
-        <button class="round" id="pg-close" title="Back to the real Earth"><svg aria-hidden="true"><use href="#i-close" /></svg><span class="sr-only">Back to the real Earth</span></button>
+        <span class="pg-luna" aria-hidden="true">${lunaSvg("wow", 52)}</span>
+        <div><h2 id="pg-title" class="side-h">${TITLE[exp]}</h2><p class="small muted">${esc(region.short ?? region.name)}</p></div>
+        <button class="round" id="pg-close" title="Back to the real Earth"><svg aria-hidden="true"><use href="#i-close" /></svg><span class="sr-only">Close the lab</span></button>
       </div>
-      <div class="tabs small-tabs" role="tablist" aria-label="Playground">
-        <button role="tab" id="pg-tab-pretend" aria-selected="${this.tab === "pretend"}" aria-controls="pg-pretend">Pretend</button>
+      <div class="tabs small-tabs" role="tablist" aria-label="Lab">
+        <button role="tab" id="pg-tab-lab" aria-selected="${this.tab === "lab"}" aria-controls="pg-lab">Experiment</button>
         <button role="tab" id="pg-tab-years" aria-selected="${this.tab === "years"}" aria-controls="pg-years">Two real years</button>
       </div>
-      <section id="pg-pretend" role="tabpanel" ${this.tab === "pretend" ? "" : "hidden"}>
-        <p class="pretend-note">This is make-believe. The real measurements don't change, and it is not a forecast.</p>
-        ${noData ? `<p>There are no real measurements for this place to start from. Pick another place.</p>` : sliders}
-        <div class="pg-buttons">
-          <button class="pill primary" id="pg-play-pretend" ${noData ? "disabled" : ""}>▶ Hear my pretend Earth</button>
-          <button class="pill" id="pg-play-real" ${noData ? "disabled" : ""}>▶ Hear the real Earth</button>
-          <button class="pill quiet" id="pg-reset" ${noData ? "disabled" : ""}>Put it back</button>
+      <section id="pg-lab" role="tabpanel" ${this.tab === "lab" ? "" : "hidden"}>
+        <div class="data-split">
+          <p class="obs"><span class="kind-tag k-measured">Observed data</span> ${realLine}</p>
+          <p class="sim"><span class="kind-tag k-sim">Simulation</span> Simplified educational model. Not a NASA observation, not a forecast.</p>
         </div>
+        <h3 class="lab-h">What happens if…</h3>
+        <div class="chips presets">${PRESETS[exp].map((p, i) => `<button class="chip" data-preset="${i}">${esc(p.label)}</button>`).join("")}</div>
+        <div class="health-card" aria-live="polite">
+          <div class="health-top"><span>${exp === "pulse" ? "Climate stability" : "Ecosystem health"}</span><strong id="lab-health">–</strong></div>
+          <div class="meter big"><span id="lab-health-bar"></span><i id="lab-health-base"></i></div>
+          <div id="lab-indicators" class="indicators"></div>
+        </div>
+        <div class="lab-actions">
+          <button class="pill primary" id="lab-play">▶ Hear this experiment</button>
+          <button class="pill" id="lab-ask">Ask Luna about this</button>
+          <button class="pill" id="lab-compare" aria-pressed="false">Compare with baseline</button>
+          <button class="pill quiet" id="lab-reset">Reset to baseline</button>
+          <button class="pill quiet" id="lab-view">${this.view === "scene" ? "Show on globe" : "Show environment"}</button>
+        </div>
+        <h3 class="lab-h">What's happening</h3>
+        <ul id="lab-findings" class="findings"></ul>
+        <h3 class="lab-h">The six variables</h3>
+        ${sliders}
       </section>
       <section id="pg-years" role="tabpanel" ${this.tab === "years" ? "" : "hidden"}>
-        <p class="small">Both are real measurements, played with the same music rules.</p>
+        <p class="small">Both are real measurements, played with the same sound rules.</p>
         ${this.windows.length < 2 ? `<p>Only one time is available here.</p>` : `
         <div class="ab-row"><span class="ab-tag a">A</span><div class="chips" role="radiogroup" aria-label="Time A">${this.windows.map((w) => `<button class="chip" role="radio" aria-checked="${w.key === this.a}" data-a="${esc(w.key)}">${esc(w.label)}</button>`).join("")}</div></div>
         <div class="ab-row"><span class="ab-tag b">B</span><div class="chips" role="radiogroup" aria-label="Time B">${this.windows.map((w) => `<button class="chip" role="radio" aria-checked="${w.key === this.b}" data-b="${esc(w.key)}">${esc(w.label)}</button>`).join("")}</div></div>
-        <div class="pg-buttons">
-          <button class="pill" id="pg-a">▶ A</button><button class="pill" id="pg-b">▶ B</button><button class="pill primary" id="pg-ab">▶ A then B</button>
-        </div>`}
+        <div class="pg-buttons"><button class="pill" id="pg-a">▶ A</button><button class="pill" id="pg-b">▶ B</button><button class="pill primary" id="pg-ab">▶ A then B</button></div>`}
       </section>`;
 
     $("pg-close").onclick = () => this.close();
-    $("pg-tab-pretend").onclick = () => ((this.tab = "pretend"), this.stop(), this.render());
+    $("pg-tab-lab").onclick = () => ((this.tab = "lab"), this.stop(), this.render(), this.update(true));
     $("pg-tab-years").onclick = () => {
       this.tab = "years";
       this.stop();
-      this.s = { ...DEFAULTS };
+      this.render();
+      this.host.showScene(null);
       this.host.pretendGlobe(null);
       $("pretend-tag").hidden = true;
-      this.render();
-      this.host.luna.say("Pick two real times, A and B. Listen to both. Can you hear the difference?");
+      this.host.luna.say("Pick two real time periods, A and B, and listen to both. Both are real measurements.");
     };
-    for (const sl of SLIDERS[experience]) {
-      const input = document.getElementById(`pg-${sl.key}`) as HTMLInputElement | null;
-      if (!input) continue;
+    box.querySelectorAll<HTMLInputElement>("input[data-key]").forEach((input) => {
       input.oninput = () => {
-        this.s[sl.key] = +input.value;
-        $(`pg-${sl.key}-out`).textContent = sl.fmt(+input.value);
-        input.setAttribute("aria-valuetext", `${sl.fmt(+input.value)}, pretend`);
-        this.paint();
-        this.host.luna.caption(this.liveLine());
+        cancelAnimationFrame(this.tween);
+        this.v[input.dataset.key!] = +input.value;
+        this.update();
       };
-      input.onchange = () => this.host.luna.say(this.liveLine(), { mood: "wow" });
-    }
-    document.getElementById("pg-play-pretend")?.addEventListener("click", () => this.playPretend());
-    document.getElementById("pg-play-real")?.addEventListener("click", () => this.playValues(this.real, "real"));
-    document.getElementById("pg-reset")?.addEventListener("click", () => {
-      this.s = { ...DEFAULTS };
+      input.onchange = () => this.narrate();
+    });
+    box.querySelectorAll<HTMLButtonElement>("[data-preset]").forEach((b) => (b.onclick = () => this.applyPreset(+b.dataset.preset!)));
+    document.getElementById("lab-reset")?.addEventListener("click", () => this.animateTo(baselineOf(exp), "Back to the baseline."));
+    document.getElementById("lab-play")?.addEventListener("click", () => this.playExperiment());
+    document.getElementById("lab-ask")?.addEventListener("click", () => {
+      const ch = changesFromBaseline(exp, this.v);
+      this.host.askLuna(ch.length ? `I changed ${ch.join("; ")}. What is happening to the ${exp === "pulse" ? "climate system" : exp} and why?` : "I'm at the baseline. What should I try changing first, and what do you expect to happen?");
+    });
+    document.getElementById("lab-compare")?.addEventListener("click", (e) => {
+      this.comparing = !this.comparing;
+      (e.currentTarget as HTMLElement).setAttribute("aria-pressed", String(this.comparing));
+      (e.currentTarget as HTMLElement).textContent = this.comparing ? "Back to my experiment" : "Compare with baseline";
+      this.update();
+      announce(this.comparing ? "Showing the baseline" : "Showing your experiment");
+    });
+    document.getElementById("lab-view")?.addEventListener("click", () => {
+      this.view = this.view === "scene" ? "globe" : "scene";
       this.render();
-      this.paint();
-      this.host.luna.say("All back to the real Earth!");
+      this.update(true);
     });
     box.querySelectorAll<HTMLButtonElement>("[data-a]").forEach((b) => (b.onclick = () => ((this.a = b.dataset.a!), this.render())));
     box.querySelectorAll<HTMLButtonElement>("[data-b]").forEach((b) => (b.onclick = () => ((this.b = b.dataset.b!), this.render())));
@@ -202,108 +253,134 @@ export class Playground {
     document.getElementById("pg-ab")?.addEventListener("click", () => this.playYears(["A", "B"]));
   }
 
-  private changed(): boolean {
-    return Object.keys(DEFAULTS).some((k) => this.s[k] !== DEFAULTS[k]);
-  }
-
-  private paint() {
-    cancelAnimationFrame(this.raf);
-    this.raf = requestAnimationFrame(() => {
-      const { experience } = this.host.state();
-      const p: Pretend = experience === "ocean" ? { seaWarmth: this.s.seaWarmth } : experience === "forest" ? { green: this.s.green } : { airWarmth: this.s.airWarmth };
-      const on = this.changed();
-      $("pretend-tag").hidden = !on;
-      this.host.pretendGlobe(on ? p : null, experience === "pulse" ? this.s.rain : undefined, experience === "pulse" ? this.s.sun : undefined);
-    });
-  }
-
-  /** The pretend values, built from the real latest measurement. */
-  private pretendValues(): Vals {
-    const { experience } = this.host.state();
-    const r = this.real;
-    const v: Vals = { ...r };
-    if (experience === "ocean") {
-      if (r.SST !== undefined) v.SST = r.SST + this.s.seaWarmth;
-      if (r.SSTA !== undefined) v.SSTA = r.SSTA + this.s.seaWarmth;
-    } else if (experience === "forest") {
-      if (r.NDVI !== undefined) v.NDVI = r.NDVI * this.s.green;
-      if (r.EVI !== undefined) v.EVI = r.EVI * this.s.green;
+  /** Recompute the simulation and refresh meters, findings, scene and globe. */
+  private update(instant = false) {
+    if (this.tab !== "lab") return;
+    const exp = this.exp;
+    const base = baselineOf(exp);
+    const shown = this.comparing ? base : this.v;
+    const r = simulate(exp, shown);
+    const rb = simulate(exp, base);
+    for (const d of VARS[exp]) {
+      const out = document.getElementById(`lv-${d.key}-out`);
+      if (out) out.textContent = fmt(this.v[d.key], d);
+      const inp = document.getElementById(`lv-${d.key}`) as HTMLInputElement | null;
+      if (inp && +inp.value !== this.v[d.key]) inp.value = String(this.v[d.key]);
+      inp?.setAttribute("aria-valuetext", `${fmt(this.v[d.key], d)}, baseline ${fmt(d.baseline, d)}`);
+    }
+    const h = document.getElementById("lab-health");
+    if (!h) return;
+    h.textContent = `${r.health} / 100${this.comparing ? " (baseline)" : ` · baseline ${rb.health}`}`;
+    const bar = $("lab-health-bar");
+    bar.style.width = `${r.health}%`;
+    bar.style.background = r.health > 66 ? "var(--good)" : r.health > 40 ? "var(--warn)" : "var(--bad)";
+    $("lab-health-base").style.left = `${rb.health}%`;
+    $("lab-indicators").innerHTML = r.indicators
+      .map((ind) => {
+        const b = rb.indicators.find((x) => x.key === ind.key)!;
+        const bad = ind.good === "high" ? 1 - ind.value : ind.value;
+        const col = bad < 0.33 ? "var(--good)" : bad < 0.6 ? "var(--warn)" : "var(--bad)";
+        return `<div class="ind"><span class="small">${esc(ind.label)}</span><div class="meter"><span style="width:${Math.round(ind.value * 100)}%;background:${col}"></span><i style="left:${Math.round(b.value * 100)}%" title="baseline"></i></div></div>`;
+      })
+      .join("");
+    $("lab-findings").innerHTML = r.findings.map((f) => `<li>${esc(f)}</li>`).join("");
+    const changed = changesFromBaseline(exp, this.v).length > 0 && !this.comparing;
+    $("pretend-tag").hidden = !changed;
+    $("pretend-tag").textContent = "Simulation";
+    if (this.view === "scene") {
+      this.host.showScene(r.visual, instant);
+      this.host.pretendGlobe(null);
     } else {
-      if (r.PRECTOTCORR !== undefined) v.PRECTOTCORR = r.PRECTOTCORR * this.s.rain;
-      if (r.ALLSKY_SFC_SW_DWN !== undefined) v.ALLSKY_SFC_SW_DWN = r.ALLSKY_SFC_SW_DWN * this.s.sun;
-      if (r.T2M !== undefined) v.T2M = r.T2M + this.s.airWarmth;
+      this.host.showScene(null);
+      cancelAnimationFrame(this.raf);
+      this.raf = requestAnimationFrame(() => this.paintGlobe(r, rb, changed));
+    }
+  }
+
+  private paintGlobe(r: SimResult, rb: SimResult, changed: boolean) {
+    if (!changed) return this.host.pretendGlobe(null);
+    const v = this.comparing ? baselineOf(this.exp) : this.v;
+    if (this.exp === "ocean") this.host.pretendGlobe({ seaWarmth: v.sst });
+    else if (this.exp === "forest") this.host.pretendGlobe({ green: Math.min(1, r.visual.green / Math.max(0.05, rb.visual.green)) });
+    else this.host.pretendGlobe({ airWarmth: (v.temp - 1.1) * 3 }, 1 + (v.extreme - 1) * 0.8, 1);
+  }
+
+  private narrate() {
+    const r = simulate(this.exp, this.v);
+    this.host.luna.say(r.findings[0], { mood: r.health < 50 ? "wow" : "happy" });
+  }
+
+  private applyPreset(i: number) {
+    const p = PRESETS[this.exp][i];
+    this.animateTo({ ...baselineOf(this.exp), ...p.values }, `What happens if ${p.label.replace(/^…/, "")}`);
+  }
+
+  /** Move sliders smoothly to a target (gradual change, about 1.5 s). */
+  private animateTo(target: Values, label: string) {
+    cancelAnimationFrame(this.tween);
+    this.comparing = false;
+    const from = { ...this.v };
+    const t0 = performance.now();
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const tick = () => {
+      const k = reduce ? 1 : Math.min(1, (performance.now() - t0) / 1500);
+      const e = k < 0.5 ? 2 * k * k : 1 - (-2 * k + 2) ** 2 / 2;
+      for (const key of Object.keys(target)) this.v[key] = from[key] + (target[key] - from[key]) * e;
+      if (k >= 1) for (const d of VARS[this.exp]) this.v[d.key] = Math.round(target[d.key] / d.step) * d.step;
+      this.update();
+      if (k < 1) this.tween = requestAnimationFrame(tick);
+      else {
+        const r = simulate(this.exp, this.v);
+        this.host.luna.say(`${label} ${r.findings.join(" ")}`, { mood: r.health < 50 ? "wow" : "happy" });
+      }
+    };
+    tick();
+  }
+
+  /** Sound for the experiment: the simulation's outputs shift the latest REAL value (labelled as simulation). */
+  private experimentValues(): Vals {
+    const exp = this.exp;
+    const r = simulate(exp, this.v);
+    const rb = simulate(exp, baselineOf(exp));
+    const v: Vals = { ...this.real };
+    if (exp === "forest") {
+      const f = Math.min(1.2, r.visual.green / Math.max(0.05, rb.visual.green));
+      if (v.NDVI !== undefined) v.NDVI *= f;
+      if (v.EVI !== undefined) v.EVI *= f;
+    } else if (exp === "ocean") {
+      if (v.SST !== undefined) v.SST += this.v.sst;
+      if (v.SSTA !== undefined) v.SSTA += this.v.sst;
+    } else {
+      if (v.T2M !== undefined) v.T2M += this.v.temp - 1.1;
+      if (v.PRECTOTCORR !== undefined) v.PRECTOTCORR *= 0.5 + 0.5 * this.v.extreme;
     }
     return v;
   }
 
-  /** A short live caption while sliding (not spoken until the slider is let go). */
-  private liveLine(): string {
-    const { experience } = this.host.state();
-    if (!this.changed()) return "That's the real Earth.";
-    if (experience === "ocean") return this.s.seaWarmth > 0 ? `The sea is getting warmer… ${this.s.seaWarmth >= 1.5 ? "Look, white spots: corals are bleaching!" : "See the colour change?"}` : "Brrr, the sea is getting cooler!";
-    if (experience === "forest") return this.s.green <= 0.05 ? "Oh no, the forest is all gone. The land is bare and brown." : this.s.green < 0.6 ? "Big patches of forest are disappearing…" : "A little bit of forest is gone.";
-    const bits: string[] = [];
-    if (this.s.rain === 0) bits.push("No rain at all!");
-    else if (this.s.rain >= 2) bits.push("Lots and lots of rain!");
-    else if (this.s.rain !== 1) bits.push(this.s.rain > 1 ? "More rain…" : "Less rain…");
-    if (this.s.sun !== 1) bits.push(this.s.sun > 1 ? "Extra sunshine!" : "Less sunshine.");
-    if (this.s.airWarmth !== 0) bits.push(this.s.airWarmth > 0 ? "The air is hotter." : "The air is colder.");
-    return bits.join(" ");
-  }
-
-  /** What happened, in Luna's words. Pretend-only consequences, framed as "could", with no numbers invented. */
-  private explain(): string {
-    const { experience } = this.host.state();
-    if (!this.changed()) return "That was the real Earth's song, made from the latest real measurement.";
-    if (experience === "ocean") {
-      const w = this.s.seaWarmth;
-      if (w > 0)
-        return `We pretended the sea was ${w} degrees warmer. The music went higher and sounded more tense, and the waves got brighter. ${w >= 1.5 ? "In real life, when the sea stays this warm for weeks, corals can get stressed and turn white. That's called bleaching, and fish can lose their homes." : "Even a little warmer matters to sea creatures."} Remember, this was pretend!`;
-      return `We pretended the sea was ${-w} degrees cooler. The music went lower and calmer. Pretend only!`;
-    }
-    if (experience === "forest") {
-      const g = this.s.green;
-      if (g <= 0.05) return "We pretended the forest was all gone. Did you hear? The birds and insects went quiet, and the music dropped low and thin. In real life, animals would lose their food and homes. Good thing it's only pretend!";
-      return `We pretended only ${Math.round(g * 100)} percent of the green was left. There were fewer birds and insects, and the music got lower and thinner. Animals need forests for food and shelter. This was pretend!`;
-    }
-    const out: string[] = ["We pretended the weather changed."];
-    if (this.s.rain === 0) out.push("With no rain, the rain sound stopped and the beats went quiet. If it stays dry for a long time, plants get thirsty. That can become a drought.");
-    else if (this.s.rain >= 2) out.push("With lots of rain, the beats got busy and the storm got loud. Lots of rain in a short time can cause floods.");
-    else if (this.s.rain !== 1) out.push(`With ${this.s.rain > 1 ? "more" : "less"} rain, the beats got ${this.s.rain > 1 ? "busier" : "calmer"}.`);
-    if (this.s.sun !== 1) out.push(`With ${this.s.sun > 1 ? "more" : "less"} sunshine, the music got ${this.s.sun > 1 ? "brighter" : "duller"}${this.s.sun > 1 ? " and more birds sang" : ""}.`);
-    if (this.s.airWarmth !== 0) out.push(`The air was ${this.s.airWarmth > 0 ? "hotter, so the notes went higher" : "colder, so the notes went lower"}.`);
-    out.push("Only pretend!");
-    return out.join(" ");
-  }
-
-  private async playPretend() {
-    await this.playValues(this.pretendValues(), "pretend");
-  }
-
-  private async playValues(v: Vals, kind: "real" | "pretend") {
+  private async playExperiment() {
     this.stop();
+    if (!Object.keys(this.real).length) {
+      this.host.luna.say("There are no real measurements here to start the sound from. Try a place with data.");
+      return;
+    }
     await this.host.beforePlay();
-    const { experience, palette, layers } = this.host.state();
-    const frames = labFrames(v, PITCH_VAR[experience], 10);
-    const step = 0.35;
-    if (kind === "real") {
-      // Show the real map while the real values play.
-      this.host.pretendGlobe(null);
-      $("pretend-tag").hidden = true;
-    } else this.paint();
-    this.host.luna.caption(kind === "real" ? "Listen: this is the real Earth." : "Listen: this is your pretend Earth!");
-    announce(kind === "real" ? "Playing the real Earth" : "Playing your pretend Earth");
+    const { palette, layers } = this.host.state();
+    const exp = this.exp;
+    const seq = [...labFrames(this.real, PITCH_VAR[exp], 6), ...labFrames(this.real, PITCH_VAR[exp], 2).map((f) => ({ ...f, pitch: null })), ...labFrames(this.experimentValues(), PITCH_VAR[exp], 8)];
+    this.host.luna.caption("Listen: first the latest real measurement, then your simulated experiment.");
     let i = 0;
     const tick = () => {
-      this.host.engine.play({ ...frames[i], index: i }, step, { experience, palette, layers });
+      const f = seq[i];
+      if (f.pitch !== null || i === 0) this.host.engine.play({ ...f, index: i }, 0.35, { experience: exp, palette, layers });
       i++;
-      if (i < frames.length) this.timer = window.setTimeout(tick, step * 1000);
+      if (i < seq.length) this.timer = window.setTimeout(tick, 350);
       else
         this.timer = window.setTimeout(() => {
           this.stop();
-          if (kind === "real" && this.changed()) this.paint();
-          this.host.luna.say(kind === "real" ? "That was the real Earth's song, made from the latest real measurement." : this.explain(), { mood: kind === "pretend" ? "wow" : "happy", repeat: true });
-        }, 1200);
+          const r = simulate(exp, this.v);
+          const ch = changesFromBaseline(exp, this.v);
+          this.host.luna.say(ch.length ? `You heard the real sound first, then your experiment. ${r.findings[0]}` : "You heard the baseline twice: nothing has been changed yet. Try a slider or a 'What happens if' scenario.", { repeat: true });
+        }, 900);
     };
     tick();
   }
@@ -364,6 +441,6 @@ export class Playground {
     const line = small
       ? `In ${lb}, ${what[2]} was about the same as in ${la}, so the tunes sit at the same height.`
       : `On average, ${what[2]} was ${d > 0 ? what[0] : what[1]} in ${lb} than in ${la}: ${fmtValue(B.v, B.unit)} instead of ${fmtValue(A.v, A.unit)}. That's why B's tune sits ${d > 0 ? "higher" : "lower"}.`;
-    this.host.luna.say(`${line} One year can be different from another for lots of reasons, like weather and seasons.`, { repeat: true });
+    this.host.luna.say(`${line} These are real measurements; one year can differ from another for many reasons, including weather and seasons.`, { repeat: true });
   }
 }
