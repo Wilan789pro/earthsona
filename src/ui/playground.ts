@@ -8,6 +8,8 @@ import type { PaletteId } from "../sonification/palettes";
 import type { Pretend } from "../globeThemes";
 import { PRESETS, VARS, baselineOf, changesFromBaseline, fmt, simulate, type SimResult, type Values } from "../lab/simulation";
 import { activeRules, combinedSound, type Rule } from "../lab/scenarios";
+import { explainCombination } from "../lab/explain";
+import { semitonesBetween } from "../sonification/mappings";
 import oceanSnapshot from "../data/oceanSnapshot.json";
 import { FOREST_DATA } from "./forestVoices";
 import { $, announce, esc } from "./dom";
@@ -35,6 +37,10 @@ export interface LabSnapshot {
   result: SimResult;
   baselineResult: SimResult;
   rules: string[];
+  /** Luna's combined, child-friendly explanation of every change (WHAT IF? only). */
+  explanation: string;
+  /** Sliders changed from the real start, in words. */
+  changed: string[];
 }
 
 export interface PlaygroundHost {
@@ -122,7 +128,8 @@ export class Playground {
   snapshot(): LabSnapshot | null {
     if (!this.open) return null;
     const r = simulate(this.exp, this.v, this.base);
-    return { mission: this.exp, mode: this.mode, values: { ...this.v }, baseline: { ...this.base }, result: r, baselineResult: simulate(this.exp, this.base, this.base), rules: this.mode === "whatif" ? activeRules(this.exp, r).map((x) => x.consequence) : [] };
+    const ex = this.mode === "whatif" ? this.explain() : null;
+    return { mission: this.exp, mode: this.mode, values: { ...this.v }, baseline: { ...this.base }, result: r, baselineResult: simulate(this.exp, this.base, this.base), rules: this.mode === "whatif" ? activeRules(this.exp, r).map((x) => x.consequence) : [], explanation: ex?.text ?? "", changed: ex?.changed.map((c) => c.words) ?? [] };
   }
 
   show(): void {
@@ -453,8 +460,10 @@ export class Playground {
       return;
     }
     const shown = rules.slice(0, 3);
+    const ex = this.explain();
+    const summary = ex.changed.length ? `<p class="lab-summary"><span aria-hidden="true">🌙</span> ${esc(ex.text)}</p>` : "";
     box.innerHTML = shown.length
-      ? `<h3 class="rules-h">What could happen</h3><ul class="rules">${shown
+      ? `${summary}<h3 class="rules-h">What could happen</h3><ul class="rules">${shown
           .map((x) => `<li class="rule m-${x.mood}"><p>${esc(x.kid)}</p><span class="rule-tag">👀 ${esc(x.visual)}</span><span class="rule-tag">🎵 ${esc(x.sound.text)}</span><a class="rule-src small" href="${esc(x.source.url)}" target="_blank" rel="noopener">Source: ${esc(x.source.label)}</a></li>`)
           .join("")}</ul>`
       : `<p class="small rule-hint">Move a slider to see what could happen.</p>`;
@@ -481,15 +490,28 @@ export class Playground {
     this.talkTimer = window.setTimeout(() => this.narrate(), 900);
   }
 
-  private narrate() {
+  /** The combined explanation of EVERY changed slider, all active rules and the resulting sound. */
+  private explain() {
     const r = simulate(this.exp, this.v, this.base);
     const rules = activeRules(this.exp, r);
-    const key = rules.map((x) => x.id).join(",");
+    const fx = combinedSound(rules);
+    // how far the data note itself moved (e.g. greenness falls → lower note), on top of the rule responses
+    let shift = 0;
+    if (Object.keys(this.real).length) {
+      const a = labFrames(this.real, PITCH_VAR[this.exp], 1)[0].pitch;
+      const b = labFrames(this.experimentValues(), PITCH_VAR[this.exp], 1)[0].pitch;
+      if (a !== null && b !== null) shift = semitonesBetween(a, b);
+    }
+    return { ...explainCombination(this.exp, this.v, this.base, rules, fx, shift), rules };
+  }
+
+  private narrate() {
+    const ex = this.explain();
+    const key = `${ex.rules.map((x) => x.id).join(",")}|${ex.changed.map((c) => c.words).join(",")}`;
     if (key === this.lastRules) return; // same situation: no need to repeat herself
     this.lastRules = key;
-    const top = rules[0];
-    if (!top) return;
-    this.host.luna.say(top.kid, { mood: top.mood, polite: true });
+    if (!ex.changed.length) return;
+    this.host.luna.say(ex.text, { mood: ex.mood, polite: true });
   }
 
   private applyPreset(i: number) {
@@ -516,10 +538,10 @@ export class Playground {
       this.update();
       if (k < 1) this.tween = requestAnimationFrame(tick);
       else {
-        const r = simulate(this.exp, this.v, this.base);
-        const top = this.mode === "whatif" ? activeRules(this.exp, r)[0] : null;
-        this.lastRules = this.mode === "whatif" ? activeRules(this.exp, r).map((x) => x.id).join(",") : "";
-        this.host.luna.say(top ? `${label} ${top.kid}` : label, { mood: top?.mood ?? "happy", polite: true });
+        if (this.mode !== "whatif") return void this.host.luna.say(label, { mood: "happy", polite: true });
+        const ex = this.explain();
+        this.lastRules = `${ex.rules.map((x) => x.id).join(",")}|${ex.changed.map((c) => c.words).join(",")}`;
+        this.host.luna.say(ex.changed.length ? `${label} ${ex.text}` : label, { mood: ex.mood, polite: true });
       }
     };
     tick();

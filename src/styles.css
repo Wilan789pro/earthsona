@@ -662,3 +662,4 @@ kbd { font-family: var(--mono); font-size: 0.8rem; border: 2px solid var(--line)
   background: linear-gradient(135deg, #ffd25e, #ff9a3d); box-shadow: 0 6px 16px rgba(255, 140, 40, 0.45); }
 .stage-play svg { width: 1.5rem; height: 1.5rem; }
 body.playing .stage-play { background: var(--grad); }
+.lab-summary { margin: 6px 0; padding: 10px 12px; border-radius: 16px; background: #f3e6ff; border: 2px dashed #b56cff; font-weight: 700; }

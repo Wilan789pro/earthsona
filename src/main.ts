@@ -1075,12 +1075,16 @@ function buildContext(): ChatContext {
   const snap = playground.snapshot();
   if (snap) {
     ctx.experiment = `${MISSIONS[snap.mission].title} laboratory (simplified educational simulation)`;
-    ctx.sliders = Object.fromEntries(VARS[snap.mission].map((d) => [d.label, { value: +snap.values[d.key].toFixed(2), baseline: d.baseline, unit: d.unit, min: d.min, max: d.max }]));
+    ctx.sliders = Object.fromEntries(VARS[snap.mission].map((d) => [d.label, { value: +snap.values[d.key].toFixed(2), baseline: +snap.baseline[d.key].toFixed(2), unit: d.unit, min: d.min, max: d.max }]));
     ctx.simulation = {
       ecosystem_health: snap.result.health,
       baseline_health: snap.baselineResult.health,
       indicators: Object.fromEntries(snap.result.indicators.map((i) => [i.label, { value: +i.value.toFixed(2), baseline: +(snap.baselineResult.indicators.find((b) => b.key === i.key)?.value ?? 0).toFixed(2), better_when: i.good }])),
-      note: "Outputs of EARTHSONA's simplified model, not observations.",
+      note: "Outputs of EARTHSONA's simplified model, not observations. Baselines are the place's real starting values where available.",
+      mode: snap.mode === "real" ? "REAL EARTH DATA (sliders locked to real values)" : "WHAT IF? (pretend scenario)",
+      changed_sliders: snap.changed,
+      active_rules: snap.rules,
+      combined_explanation_shown: snap.explanation,
     };
     ctx.observations = snap.result.findings;
   } else {
