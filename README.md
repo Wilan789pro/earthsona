@@ -2,17 +2,67 @@
 
 NASA Space Apps Challenge 2026 · **The Earth Information Jukebox** · Team AstroNopes
 
-EARTHSONA is an Earth exploration platform for adults. It turns real NASA (and NOAA) Earth observations into sound, lets you run environmental experiments in three missions, and includes **Luna**, a conversational AI guide.
+EARTHSONA is an interactive adventure for children aged 6–8.
+- **Explore with Luna:** they explore the Earth with **Luna**, a friendly Moon who guides them, and **hear real NASA Earth observations turned into music**.
+- **The story:** it begins with a short film. The Commander reports strange sounds from Earth, and the young astronaut (the explorer, that is, the child) opens her tablet… which becomes the app.
 
-Pick a mission and a place on a 3D Earth and press play. You hear the place's **nature sounds** and a **tune**, and **both are shaped by real environmental measurements**: when the numbers change, the waves, birds, rain and music change too. The sounds are artistic interpretations generated from observations, not recordings made by satellites.
+When the measurements change, the nature sounds and the music change too. The sounds are artistic interpretations generated from observations, not recordings made by satellites.
+
+## Forest Voices: our own vegetation data + our own SuperCollider sounds
+
+**The data:** `Datasets/EARTHSONA_Mauritius_Vegetation.csv`, read-only (never modified).
+- **What it is:** a Google Earth Engine export of **NASA MODIS MOD13Q1.061** (Terra, 250 m, 16-day composites) at −20.2, 57.5 in central Mauritius.
+- **Columns:** `NDVI` and `EVI` (already scaled, unitless), `SummaryQA` (0 good · 1 marginal · 2 snow/ice · 3 cloudy), `date`, coordinates and metadata. `.geo` is an empty geometry, so latitude/longitude are used.
+- **Observations:** 2, dated 2024-01-01 (NDVI 0.860, EVI 0.683) and 2024-01-17 (NDVI 0.910, EVI 0.364). Both have QA *marginal*.
+- **Quality:** no missing values or duplicates.
+- **Caution:** EVI nearly halves in 16 days while NDVI rises, which is more likely haze or cloud edges in marginal pixels than a real change. The app says so.
+- **Validation** (`src/data/forestCsv.ts`): rows with missing or out-of-range values, cloudy or snowy QA, bad dates or duplicates are rejected with a reason, never filled in.
+
+**The sound:** the team's SuperCollider instrument `cultural_sound/*.scd` is **ported to the browser** (`src/audio/cultural.ts`). SuperCollider can't run in a web page, so the port keeps:
+- the same four recordings;
+- the same `PitchShift` (0.1 s windows, 4 overlapping grains, pitch changes without changing speed);
+- the same envelope and level;
+- the same scheduler of overlapping starts.
+
+Adaptations: the recordings' leading silence is trimmed so the beats land on time, and grain loudness is compensated.
+
+**Data → music** (`src/sonification/forestVoices.ts`):
+- **NDVI (greenness) → pitch:** 0.5 = original pitch, 0 = one octave lower, 1 = one octave higher, like the script's temperature → pitch.
+- **EVI (leafiness) → sounds per second:** 0.25–3.0, like the script's wind → repeats.
+- **Marginal quality → softer, duller sound.**
+- **Listening to A then B:** the pitch glides between the dates, and a triangle marks each date.
+
+With the real file, A plays at pitch ×1.648 and 2.13 sounds/s; B plays at ×1.764 (1.2 semitones higher) and 1.25 sounds/s. Luna explains the difference and the haze caveat. The same samples are the cultural layer for the Mauritius places (ocean drum, forest shaker, triangle) and for Kyoto ("yoooo" from `EarthPulseJapan.scd`), pitched by each place's data.
+
+> **Licensing:** please confirm the four recordings in `cultural_sound/` were made by the team (or are licensed) before publishing.
+
+## Luna
+
+Luna sits beside her speech bubble and is always visible: the old orbit, which hid her behind the globe, is gone. She has gentle idle blinking and breathing, and **seven expressions** tied to what is happening:
+- **happy:** welcome, listening;
+- **curious:** new mission or place;
+- **surprised:** a discovery in the data;
+- **thoughtful:** explaining;
+- **concerned:** an experiment that harms the forest, or no data;
+- **encouraging:** "try again";
+- **proud:** badges.
+
+She speaks with Kokoro (`af_heart`), and you can ask her anything (Gemini, tuned for children aged 6–8).
+
+## The labs (simple)
+
+**Experiment with Luna** opens one row per variable: a big icon, a friendly name (☀️ Sunshine, 🌧️ Rain, 🌡️ Heat…), a slider and a word ("less / normal / more").
+- **One meter:** "How is the forest feeling?" with a face.
+- **Buttons:** Listen, Ask Luna and Back to normal, plus three "Try:" ideas.
+- **Grown-up details:** numbers, ranges, indicators and findings are tucked in here.
 
 ## The three missions
 
 | Mission | Globe view (real NASA map) | Real data that drives the sound | Laboratory variables (simulation) |
 |---|---|---|---|
-| 🌊 **The Living Ocean** | sea depth, darker where deeper (Blue Marble bathymetry) | sea surface temperature + anomaly | sea surface temperature, ocean acidity (pH), dissolved oxygen, pollution, nutrients, coral reef health |
-| 🌳 **The Living Forest** | land greenness (MODIS NDVI) | NDVI + EVI (MODIS) | sunlight, rainfall, humidity, temperature, atmospheric CO₂, soil moisture |
-| 🌍 **Earth Pulse** (the planet's changing systems) | air temperature (MERRA-2) | air temperature, rain, sunshine (NASA POWER) | global temperature anomaly, CO₂, ice cover, sea level, vegetation cover, extreme-weather intensity |
+| 🌊 **Ocean Symphony** | sea depth, darker where deeper (Blue Marble bathymetry) | sea surface temperature + anomaly | sea surface temperature, ocean acidity (pH), dissolved oxygen, pollution, nutrients, coral reef health |
+| 🌳 **Forest Voices** | land greenness (MODIS NDVI) | NDVI + EVI (MODIS) | sunlight, rainfall, humidity, temperature, atmospheric CO₂, soil moisture |
+| 🌍 **Earth's Pulse** | air temperature (MERRA-2) | air temperature, rain, sunshine (NASA POWER) | global temperature anomaly, CO₂, ice cover, sea level, vegetation cover, extreme-weather intensity |
 
 ## Luna, the AI guide
 
@@ -187,6 +237,12 @@ src/globeThemes.ts              each world's globe map from NASA images + preten
 src/ui/missions.ts              Luna's lines, challenges, Impact Explorer chains, mini-game, progress
 src/ui/impact.ts                Earth Impact Explorer (real-data box + general science)
 src/ui/story.ts                 welcome, "What would you do?", badges + printable certificate
+src/data/forestCsv.ts           the team's vegetation CSV: parse + validate (read-only)
+src/sonification/forestVoices.ts  NDVI/EVI → the SuperCollider instrument's pitch and starts
+src/audio/cultural.ts           browser port of cultural_sound/*.scd (samples + granular PitchShift + scheduler)
+src/ui/forestVoices.ts          Forest Voices panel (two real dates, A/B, Luna's explanation, science)
+src/ui/intro.ts                 introduction film → the app grows out of the explorer's tablet
+public/media/intro.mp4          the team's 52 s introduction film
 src/main.ts                     layout and wiring
 ```
 

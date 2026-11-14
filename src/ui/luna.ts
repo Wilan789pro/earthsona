@@ -1,45 +1,105 @@
 import { $, esc } from "./dom";
 
 /**
- * Luna — the Moon, EARTHSONA's guide. She goes round the Earth (on screen too), speaks in a speech bubble
- * and, when "Luna talks out loud" is on, reads it aloud. Clicking her opens her playground.
- *
- * Voice: the browser's own speech voices (no audio files, nothing sent anywhere). To sound warm rather than
- * robotic we prefer the "Natural"/"Online" neural voices where the device has them, speak a little slower,
- * keep the pitch natural (high pitch sounds artificial) and say one sentence at a time with short pauses.
+ * Luna — the Moon, EARTHSONA's guide. She sits beside her speech bubble (always visible, never hidden behind
+ * the globe), shows how she feels about what is happening, and speaks with Kokoro (af_heart).
+ * The explorer — the astronaut girl from the introduction video — is the child playing.
  */
 
 // ---------------------------------------------------------------------------
-// Drawing
+// Drawing: one consistent character, seven expressions (+ talking mouth that keeps the expression's eyes)
 // ---------------------------------------------------------------------------
 let uid = 0;
-export type Mood = "happy" | "talk" | "wow" | "sleepy";
+export type Mood = "happy" | "curious" | "surprised" | "thoughtful" | "concerned" | "encouraging" | "proud" | "sleepy" | "talk" | "wow";
 
-export function lunaSvg(mood: Mood = "happy", size = 96): string {
+const INK = "#3b2f4a";
+const eye = (cx: number, cy: number, rx = 5.6, ry = 6.6, look = [0, 0]) =>
+  `<ellipse cx="${cx + look[0]}" cy="${cy + look[1]}" rx="${rx}" ry="${ry}" fill="${INK}"/><circle cx="${cx + 2 + look[0]}" cy="${cy - 2.5 + look[1]}" r="2.2" fill="#fff"/><circle cx="${cx - 1.4 + look[0]}" cy="${cy + 3 + look[1]}" r="1" fill="#fff"/>`;
+const closedHappy = (cx: number, cy: number) => `<path d="M${cx - 6} ${cy + 2}q6 -8 12 0" stroke="${INK}" stroke-width="3.4" fill="none" stroke-linecap="round"/>`;
+const brow = (d: string) => `<path d="${d}" stroke="${INK}" stroke-width="3" fill="none" stroke-linecap="round"/>`;
+
+const FACES: Record<Exclude<Mood, "talk" | "wow">, { eyes: string; brows: string; mouth: string; extra?: string; tilt?: number }> = {
+  happy: { eyes: eye(40, 49) + eye(68, 49), brows: "", mouth: `<path d="M47 62q7 7 14 0" stroke="${INK}" stroke-width="3.2" fill="none" stroke-linecap="round"/>` },
+  curious: {
+    eyes: eye(40, 50, 5.2, 6.2, [2, -1]) + eye(68, 48, 6.4, 7.4, [2, -1]),
+    brows: brow("M33 39q7 -2 13 1") + brow("M61 34q7 -5 14 0"),
+    mouth: `<ellipse cx="57" cy="65" rx="3.4" ry="3" fill="#7a2e3b"/>`,
+    extra: `<text x="88" y="42" font-family="system-ui,sans-serif" font-weight="800" font-size="16" fill="#ff8a3d" stroke="${INK}" stroke-width=".8">?</text>`,
+    tilt: -6,
+  },
+  surprised: {
+    eyes: eye(40, 48, 6.8, 7.8) + eye(68, 48, 6.8, 7.8),
+    brows: brow("M32 35q8 -6 15 0") + brow("M61 35q8 -6 15 0"),
+    mouth: `<ellipse cx="54" cy="67" rx="5.4" ry="6.4" fill="#7a2e3b"/>`,
+    extra: `<path d="M14 26l-6-6M18 18l-3-8M96 50l8-2" stroke="#ff8a3d" stroke-width="2.6" stroke-linecap="round"/>`,
+  },
+  thoughtful: {
+    eyes: eye(40, 49, 5.4, 6.4, [-2, -3]) + eye(68, 49, 5.4, 6.4, [-2, -3]),
+    brows: brow("M33 39q7 -1 13 2") + brow("M61 39q7 -3 13 0"),
+    mouth: `<path d="M50 65q5 1 10 -2" stroke="${INK}" stroke-width="3" fill="none" stroke-linecap="round"/>`,
+    extra: `<circle cx="90" cy="40" r="3" fill="#7fd6ff" stroke="${INK}" stroke-width="1.4"/><circle cx="98" cy="30" r="4.2" fill="#7fd6ff" stroke="${INK}" stroke-width="1.4"/>`,
+    tilt: 4,
+  },
+  concerned: {
+    eyes: eye(40, 51, 5, 6) + eye(68, 51, 5, 6),
+    brows: brow("M33 42q6 -5 13 -6") + brow("M62 36q7 1 13 6"),
+    mouth: `<path d="M47 68q7 -6 14 0" stroke="${INK}" stroke-width="3.2" fill="none" stroke-linecap="round"/>`,
+    extra: `<path d="M84 34q4 6 0 9q-4 -3 0 -9z" fill="#7fd6ff" stroke="${INK}" stroke-width="1.4"/>`,
+  },
+  encouraging: {
+    eyes: closedHappy(40, 49) + eye(68, 49),
+    brows: brow("M61 38q7 -4 14 0"),
+    mouth: `<path d="M45 61q9 11 18 0z" fill="#7a2e3b"/><path d="M49 64q5 3 10 0" fill="#ff9aa8"/>`,
+    extra: `<path d="M94 58l2 5 5 1-4 3 1 5-4-3-4 3 1-5-4-3 5-1z" fill="#ffd23f" stroke="${INK}" stroke-width="1.2"/>`,
+  },
+  proud: {
+    eyes: closedHappy(40, 48) + closedHappy(68, 48),
+    brows: "",
+    mouth: `<path d="M43 60q11 15 22 0z" fill="#7a2e3b"/><path d="M48 64q6 4 12 0" fill="#ff9aa8"/>`,
+    extra: `<path d="M8 40l2 5 5 1-4 3 1 5-4-3-4 3 1-5-4-3 5-1zM96 66l2 4 4 1-3 2 1 4-4-2-3 2 1-4-3-2 4-1z" fill="#ffd23f" stroke="${INK}" stroke-width="1.2"/>`,
+  },
+  sleepy: {
+    eyes: `<path d="M34 50q6 5 12 0M62 50q6 5 12 0" stroke="${INK}" stroke-width="3.4" fill="none" stroke-linecap="round"/>`,
+    brows: "",
+    mouth: `<ellipse cx="54" cy="65" rx="3" ry="2.4" fill="#7a2e3b"/>`,
+  },
+};
+
+/** Draw Luna. `talking` swaps in an animated mouth but keeps the expression's eyes and brows. */
+export function lunaSvg(mood: Mood = "happy", size = 96, talking = false): string {
+  const m = mood === "wow" ? "surprised" : mood === "talk" ? "happy" : mood;
+  const talk = talking || mood === "talk";
+  const f = FACES[m];
   const id = `ln${++uid}`;
-  const eyes =
-    mood === "sleepy"
-      ? `<path d="M34 50q6 5 12 0M62 50q6 5 12 0" stroke="#3b2f4a" stroke-width="3.4" fill="none" stroke-linecap="round"/>`
-      : mood === "wow"
-        ? `<circle cx="40" cy="49" r="7" fill="#3b2f4a"/><circle cx="68" cy="49" r="7" fill="#3b2f4a"/><circle cx="42.5" cy="46" r="2.6" fill="#fff"/><circle cx="70.5" cy="46" r="2.6" fill="#fff"/>`
-        : `<ellipse cx="40" cy="49" rx="5.6" ry="6.6" fill="#3b2f4a"/><ellipse cx="68" cy="49" rx="5.6" ry="6.6" fill="#3b2f4a"/><circle cx="42" cy="46.5" r="2.2" fill="#fff"/><circle cx="70" cy="46.5" r="2.2" fill="#fff"/><circle cx="38.6" cy="52" r="1" fill="#fff"/><circle cx="66.6" cy="52" r="1" fill="#fff"/>`;
-  const mouth =
-    mood === "wow"
-      ? `<ellipse cx="54" cy="66" rx="5" ry="6" fill="#7a2e3b"/>`
-      : mood === "talk"
-        ? `<g class="luna-mouth"><path d="M47 62q7 9 14 0z" fill="#7a2e3b"/><path d="M50 66q4 2.5 8 0" fill="#ff9aa8"/></g>`
-        : `<path d="M47 62q7 7 14 0" stroke="#3b2f4a" stroke-width="3.2" fill="none" stroke-linecap="round"/>`;
-  return `<svg class="luna-svg luna-${mood}" viewBox="0 0 108 108" width="${size}" height="${size}" aria-hidden="true">
+  const mouth = talk ? `<g class="luna-mouth"><path d="M47 62q7 9 14 0z" fill="#7a2e3b"/><path d="M50 66q4 2.5 8 0" fill="#ff9aa8"/></g>` : f.mouth;
+  return `<svg class="luna-svg luna-${m}${talk ? " is-talking" : ""}" viewBox="-6 -6 120 120" width="${size}" height="${size}" aria-hidden="true">
     <defs>
       <radialGradient id="${id}" cx="38%" cy="32%" r="72%"><stop offset="0" stop-color="#fffbe6"/><stop offset=".7" stop-color="#fbe9a8"/><stop offset="1" stop-color="#efd27a"/></radialGradient>
     </defs>
-    <circle cx="54" cy="54" r="44" fill="url(#${id})" stroke="#3b2f4a" stroke-width="3.5"/>
-    <circle cx="28" cy="34" r="6" fill="#efd78f"/><circle cx="80" cy="30" r="4" fill="#efd78f"/><circle cx="82" cy="74" r="7" fill="#efd78f"/><circle cx="26" cy="74" r="3.5" fill="#efd78f"/>
-    <ellipse cx="30" cy="60" rx="7" ry="4.5" fill="#ffb3c1" opacity=".85"/><ellipse cx="78" cy="60" rx="7" ry="4.5" fill="#ffb3c1" opacity=".85"/>
-    ${eyes}${mouth}
-    <path class="luna-star" d="M84 8l3 6 6.5 1-4.7 4.4 1.1 6.4L84 22.8l-5.9 3 1.1-6.4L74.5 15l6.5-1z" fill="#ffd23f" stroke="#3b2f4a" stroke-width="2" stroke-linejoin="round"/>
+    <g class="luna-body" transform="rotate(${f.tilt ?? 0} 54 54)">
+      <circle cx="54" cy="54" r="44" fill="url(#${id})" stroke="${INK}" stroke-width="3.5"/>
+      <circle cx="28" cy="34" r="6" fill="#efd78f"/><circle cx="80" cy="28" r="4" fill="#efd78f"/><circle cx="82" cy="76" r="7" fill="#efd78f"/><circle cx="26" cy="76" r="3.5" fill="#efd78f"/>
+      <ellipse cx="30" cy="61" rx="7" ry="4.5" fill="#ffb3c1" opacity=".85"/><ellipse cx="78" cy="61" rx="7" ry="4.5" fill="#ffb3c1" opacity=".85"/>
+      <g class="luna-eyes">${f.eyes}</g>${f.brows}${mouth}
+      <path class="luna-star" d="M84 8l3 6 6.5 1-4.7 4.4 1.1 6.4L84 22.8l-5.9 3 1.1-6.4L74.5 15l6.5-1z" fill="#ffd23f" stroke="${INK}" stroke-width="2" stroke-linejoin="round"/>
+    </g>
+    ${f.extra ?? ""}
   </svg>`;
 }
+
+/** Which feeling fits which moment (used everywhere, so Luna reacts consistently). */
+export const MOOD_FOR = {
+  welcome: "happy",
+  newWorld: "curious",
+  newPlace: "curious",
+  listening: "happy",
+  discovery: "surprised",
+  explain: "thoughtful",
+  problem: "concerned",
+  tryAgain: "encouraging",
+  success: "proud",
+  thinking: "thoughtful",
+} as const satisfies Record<string, Mood>;
 
 // ---------------------------------------------------------------------------
 // Voice: Kokoro-82M (af_heart) generated on the EARTHSONA backend; browser speech only as a fallback.
@@ -283,7 +343,7 @@ export interface SayOpts {
 export class Luna {
   private last = "";
   constructor(readonly voice: LunaVoice) {
-    $("bubble-face").innerHTML = lunaSvg("happy", 64);
+    this.draw();
     $("voice-toggle").onclick = () => this.setVoiceEnabled(!this.voice.enabled, true);
     $("voice-pause").onclick = () => this.voice.togglePause();
     $("voice-replay").onclick = () => this.voice.replay();
@@ -291,7 +351,7 @@ export class Luna {
     voice.onState = (s) => {
       $("bubble").classList.toggle("talking", s === "speaking");
       $("bubble").classList.toggle("loading", s === "loading");
-      if (!this.isThinking) $("bubble-face").innerHTML = lunaSvg(s === "speaking" ? "talk" : "happy", 64);
+      this.draw();
       $("voice-pause-icon").setAttribute("href", s === "paused" ? "#i-play" : "#i-pause");
       $("voice-pause").title = s === "paused" ? "Resume Luna" : "Pause Luna";
       ($("voice-pause") as HTMLButtonElement).disabled = s === "idle" || s === "loading";
@@ -306,6 +366,27 @@ export class Luna {
 
   onVoiceSetting: (on: boolean) => void = () => {};
   private isThinking = false;
+  /** How Luna feels right now (see MOOD_FOR). */
+  mood: Mood = "happy";
+  onMood: (m: Mood) => void = () => {};
+
+  setMood(m: Mood): void {
+    if (m === "wow") m = "surprised";
+    if (m === this.mood) return;
+    this.mood = m;
+    const dock = $("luna");
+    dock.classList.remove("mood-pop");
+    void dock.offsetWidth;
+    dock.classList.add("mood-pop");
+    dock.dataset.mood = m;
+    this.draw();
+    this.onMood(m);
+  }
+
+  private draw(): void {
+    const talking = this.voice.state === "speaking";
+    $("luna").innerHTML = lunaSvg(this.isThinking ? "thoughtful" : this.mood, 112, talking && !this.isThinking);
+  }
 
   /** Small status line under Luna's words (thinking, voice loading, errors). */
   status(text: string, error = false): void {
@@ -318,7 +399,7 @@ export class Luna {
   thinking(on: boolean): void {
     this.isThinking = on;
     $("bubble").classList.toggle("thinking", on);
-    $("bubble-face").innerHTML = lunaSvg(on ? "sleepy" : "happy", 64);
+    this.draw();
     this.status(on ? "Luna is thinking…" : "");
     ($("luna-send") as HTMLButtonElement).disabled = on;
   }
@@ -341,6 +422,7 @@ export class Luna {
 
   /** Show a line in the bubble and (if allowed) say it. */
   say(text: string, o: SayOpts = {}): void {
+    if (o.mood) this.setMood(o.mood);
     const bubble = $("bubble");
     bubble.hidden = false;
     $("bubble-text").textContent = text;
@@ -378,42 +460,4 @@ export class Luna {
 /** Short HTML list for bubble extras. */
 export function bubbleList(items: string[]): string {
   return `<ul class="bubble-list">${items.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>`;
-}
-
-// ---------------------------------------------------------------------------
-// Orbit: Luna goes round the Earth on screen. She passes behind the globe (the globe canvas is
-// transparent outside the planet), pauses when you point at her, and is a normal button for keyboards.
-// ---------------------------------------------------------------------------
-export function startOrbit(el: HTMLElement, space: HTMLElement, disc: () => { cx: number; cy: number; r: number }): { pause: (p: boolean) => void } {
-  let angle = -0.6;
-  let paused = false;
-  let last = performance.now();
-  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const hold = () => (paused = true);
-  const go = () => (paused = false);
-  el.addEventListener("pointerenter", hold);
-  el.addEventListener("pointerleave", go);
-  el.addEventListener("focus", hold);
-  el.addEventListener("blur", go);
-  let manual = false;
-  const tick = (now: number) => {
-    const dt = Math.min(64, now - last);
-    last = now;
-    if (!paused && !manual && !reduce) angle += dt * 0.00018;
-    const { cx, cy, r } = disc();
-    const box = space.getBoundingClientRect();
-    const size = el.offsetWidth || 72;
-    const rx = Math.min(r * 1.32, box.width / 2 - size * 0.55);
-    const ry = Math.min(r * 0.42, box.height / 2 - size * 0.55);
-    const s = Math.sin(angle);
-    const behind = s < 0 && Math.abs(Math.cos(angle)) * rx < r * 0.95;
-    const x = cx + Math.cos(angle) * rx;
-    const y = cy + s * ry + (reduce ? -r * 0.9 : 0);
-    const scale = 0.82 + 0.18 * ((s + 1) / 2);
-    el.style.transform = `translate(${x - size / 2}px, ${y - size / 2}px) scale(${scale})`;
-    el.classList.toggle("behind", behind);
-    requestAnimationFrame(tick);
-  };
-  requestAnimationFrame(tick);
-  return { pause: (p: boolean) => (manual = p) };
 }

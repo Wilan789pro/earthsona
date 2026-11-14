@@ -3,6 +3,7 @@ import type { SoundFrame } from "../sonification/frames";
 import { densityHits, harmonyIntervals, noteFrequency, noteIndex, SCALES } from "../sonification/mappings";
 import type { PaletteId } from "../sonification/palettes";
 import { natureModFor, Ambience, type AmbienceId } from "./ambience";
+import { CulturalSampler, type SampleName } from "./cultural";
 
 /**
  * Sonification engine (Web Audio API).
@@ -31,6 +32,8 @@ export interface RenderOptions {
   experience: ExperienceId;
   palette: PaletteId;
   layers: LayerToggles;
+  /** The team's SuperCollider sample for this place (cultural_sound/); replaces the synthesised accents. */
+  cultural?: SampleName | null;
 }
 
 export class StepRenderer {
@@ -60,7 +63,7 @@ export class StepRenderer {
     }
     if (o.layers.texture && f.texture !== null) this.pad(at, dur, o.experience, f.texture, pan);
     if (o.layers.rhythm && f.density !== null) this.density(at, dur, densityHits(f.density), o.palette, pan);
-    if (o.palette === "sega" && o.layers.arrangement) {
+    if (o.palette === "sega" && o.layers.arrangement && !o.cultural) {
       const rp = this.ctx.createStereoPanner();
       rp.pan.value = pan.pan.value * 0.5;
       rp.connect(this.regionalOut);
@@ -68,7 +71,7 @@ export class StepRenderer {
       if (o.experience === "forest") this.woodAccents(f.index, at, dur, rp);
       else this.segaArrangement(f.index, at, dur, rp);
     }
-    if (o.palette === "sega" && o.layers.brightness && f.brightness !== null) this.triangle(at + (dur * 2) / 3, 0.02 + f.brightness * 0.1, pan);
+    if (o.palette === "sega" && !o.cultural && o.layers.brightness && f.brightness !== null) this.triangle(at + (dur * 2) / 3, 0.02 + f.brightness * 0.1, pan);
   }
 
   // --- voices ---------------------------------------------------------------
@@ -264,6 +267,9 @@ export class SonificationEngine {
   private master: GainNode | null = null;
   private duck: GainNode | null = null;
   private renderer: StepRenderer | null = null;
+  /** The team's SuperCollider instrument, ported: on the data bus (Forest Voices) and the regional bus. */
+  cultural: CulturalSampler | null = null;
+  regionalSampler: CulturalSampler | null = null;
   private buses: Partial<Record<Bus, GainNode>> = {};
   private ambience: Ambience | null = null;
   private volume = 0.7;
@@ -292,6 +298,12 @@ export class SonificationEngine {
         this.buses[b] = g;
       }
       this.renderer = new StepRenderer(this.ctx, this.buses.data!, this.buses.regional!);
+      this.cultural = new CulturalSampler(this.ctx, this.buses.data!);
+      this.regionalSampler = new CulturalSampler(this.ctx, this.buses.regional!);
+      for (const n of ["forest", "ocean", "triangle", "pulse"] as SampleName[]) {
+        void this.cultural.load(n);
+        void this.regionalSampler.load(n);
+      }
       this.ambience = new Ambience(this.ctx, this.buses.nature!);
     }
     if (this.ctx.state !== "running") await this.ctx.resume();
@@ -311,6 +323,11 @@ export class SonificationEngine {
     this.enabled[bus] = on;
     const g = this.buses[bus];
     if (this.ctx && g) g.gain.setTargetAtTime(on ? BUS_LEVEL[bus] : 0, this.ctx.currentTime, 0.15);
+  }
+
+  /** The node to connect extra sources to (after start()). Respects the bus's on/off switch. */
+  output(bus: Bus): AudioNode {
+    return this.buses[bus]!;
   }
 
   busOn(bus: Bus): boolean {
@@ -346,7 +363,15 @@ export class SonificationEngine {
 
   play(frame: SoundFrame, dur: number, o: RenderOptions): void {
     if (!this.ctx || !this.renderer || !this.running) return;
-    this.renderer.render(frame, this.ctx.currentTime + 0.03, dur, o);
+    const at = this.ctx.currentTime + 0.03;
+    this.renderer.render(frame, at, dur, o);
+    // Cultural layer: the team's sample, pitched by the same data note (±1 octave like the SuperCollider
+    // instrument), with extra overlapping starts when the rhythm layer (rain) asks for them.
+    if (o.cultural && this.regionalSampler && frame.pitch !== null && o.layers.arrangement) {
+      const ratio = 2 ** ((frame.pitch * 24 - 12) / 12);
+      const starts = Math.max(1, frame.density !== null ? Math.min(4, densityHits(frame.density)) : 1);
+      for (let i = 0; i < starts; i++) this.regionalSampler.play(o.cultural, at + (i * dur) / starts, ratio, 1, null, frame.pan * 0.6);
+    }
     this.shapeNature(o.experience, frame.values);
   }
 }

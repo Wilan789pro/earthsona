@@ -43,7 +43,36 @@ export interface PlaygroundHost {
 }
 
 const PITCH_VAR: Record<ExperienceId, RealVar> = { ocean: "SST", forest: "NDVI", pulse: "T2M" };
-const TITLE: Record<ExperienceId, string> = { forest: "Living Forest lab", ocean: "Living Ocean lab", pulse: "Earth Pulse lab" };
+const TITLE: Record<ExperienceId, string> = { forest: "Forest lab", ocean: "Ocean lab", pulse: "Earth's Pulse lab" };
+/** Child-friendly label + icon for every lab variable (the scientific name stays in Grown-up details). */
+const FRIENDLY: Record<string, { icon: string; name: string }> = {
+  "forest.sun": { icon: "☀️", name: "Sunshine" },
+  "forest.rain": { icon: "🌧️", name: "Rain" },
+  "forest.humidity": { icon: "💧", name: "Damp air" },
+  "forest.temp": { icon: "🌡️", name: "Heat" },
+  "forest.co2": { icon: "🫧", name: "CO₂ gas" },
+  "forest.soil": { icon: "🟫", name: "Wet soil" },
+  "ocean.sst": { icon: "🌡️", name: "Sea warmth" },
+  "ocean.ph": { icon: "🧪", name: "Sea acidity" },
+  "ocean.oxygen": { icon: "🫧", name: "Oxygen" },
+  "ocean.pollution": { icon: "🗑️", name: "Rubbish" },
+  "ocean.nutrients": { icon: "🌱", name: "Plant food" },
+  "ocean.reef": { icon: "🪸", name: "Coral reef" },
+  "pulse.temp": { icon: "🌡️", name: "Earth's warmth" },
+  "pulse.co2": { icon: "🏭", name: "CO₂ in the air" },
+  "pulse.ice": { icon: "🧊", name: "Ice" },
+  "pulse.sea": { icon: "🌊", name: "Sea level" },
+  "pulse.veg": { icon: "🌳", name: "Plants" },
+  "pulse.extreme": { icon: "⛈️", name: "Wild weather" },
+};
+const FEEL: Record<ExperienceId, string> = { forest: "How is the forest feeling?", ocean: "How is the reef feeling?", pulse: "How is our planet feeling?" };
+const face = (h: number) => (h >= 80 ? "😄" : h >= 60 ? "🙂" : h >= 40 ? "😐" : h >= 20 ? "😟" : "😢");
+/** "less / normal / more" in words, relative to the baseline. */
+function amount(x: number, d: { min: number; max: number; baseline: number }): string {
+  const span = x >= d.baseline ? d.max - d.baseline : d.baseline - d.min;
+  const r = span ? (x - d.baseline) / span : 0;
+  return Math.abs(r) < 0.08 ? "normal" : r > 0.6 ? "lots more" : r > 0 ? "more" : r < -0.6 ? "much less" : "less";
+}
 
 export class Playground {
   open = false;
@@ -152,23 +181,27 @@ export class Playground {
 
     const sliders = VARS[exp]
       .map((d) => {
+        const f = FRIENDLY[`${exp}.${d.key}`] ?? { icon: "•", name: d.label };
         const pct = ((d.baseline - d.min) / (d.max - d.min)) * 100;
-        return `<div class="lab-var">
-          <div class="lab-var-top"><label for="lv-${d.key}">${esc(d.label)}</label><output id="lv-${d.key}-out">${esc(fmt(this.v[d.key], d))}</output></div>
+        return `<div class="kid-var">
+          <span class="kid-ico" aria-hidden="true">${f.icon}</span>
+          <label for="lv-${d.key}">${esc(f.name)}</label>
           <div class="lab-range" style="--base:${pct}%">
-            <input type="range" id="lv-${d.key}" data-key="${d.key}" min="${d.min}" max="${d.max}" step="${d.step}" value="${this.v[d.key]}" aria-describedby="lv-${d.key}-help" />
+            <input type="range" id="lv-${d.key}" data-key="${d.key}" min="${d.min}" max="${d.max}" step="${d.step}" value="${this.v[d.key]}" title="${esc(d.help)}" />
             <span class="base-tick" aria-hidden="true"></span>
           </div>
-          <div class="lab-scale small"><span>${esc(fmt(d.min, d))}</span><span>baseline ${esc(fmt(d.baseline, d))}</span><span>${esc(fmt(d.max, d))}</span></div>
-          <p class="small muted" id="lv-${d.key}-help">${esc(d.help)}</p>
+          <output id="lv-${d.key}-word" class="kid-word">${amount(this.v[d.key], d)}</output>
         </div>`;
       })
+      .join("");
+    const grown = VARS[exp]
+      .map((d) => `<tr><th scope="row">${esc(d.label)}</th><td><output id="lv-${d.key}-out">${esc(fmt(this.v[d.key], d))}</output></td><td>${esc(fmt(d.min, d))} – ${esc(fmt(d.max, d))}</td><td>${esc(fmt(d.baseline, d))}</td></tr>`)
       .join("");
 
     const box = $("playground");
     box.innerHTML = `
       <div class="pg-head">
-        <span class="pg-luna" aria-hidden="true">${lunaSvg("wow", 52)}</span>
+        <span class="pg-luna" aria-hidden="true">${lunaSvg("curious", 52)}</span>
         <div><h2 id="pg-title" class="side-h">${TITLE[exp]}</h2><p class="small muted">${esc(region.short ?? region.name)}</p></div>
         <button class="round" id="pg-close" title="Back to the real Earth"><svg aria-hidden="true"><use href="#i-close" /></svg><span class="sr-only">Close the lab</span></button>
       </div>
@@ -177,28 +210,37 @@ export class Playground {
         <button role="tab" id="pg-tab-years" aria-selected="${this.tab === "years"}" aria-controls="pg-years">Two real years</button>
       </div>
       <section id="pg-lab" role="tabpanel" ${this.tab === "lab" ? "" : "hidden"}>
-        <div class="data-split">
-          <p class="obs"><span class="kind-tag k-measured">Observed data</span> ${realLine}</p>
-          <p class="sim"><span class="kind-tag k-sim">Simulation</span> Simplified educational model. Not a NASA observation, not a forecast.</p>
-        </div>
-        <h3 class="lab-h">What happens if…</h3>
-        <div class="chips presets">${PRESETS[exp].map((p, i) => `<button class="chip" data-preset="${i}">${esc(p.label)}</button>`).join("")}</div>
-        <div class="health-card" aria-live="polite">
-          <div class="health-top"><span>${exp === "pulse" ? "Climate stability" : "Ecosystem health"}</span><strong id="lab-health">–</strong></div>
-          <div class="meter big"><span id="lab-health-bar"></span><i id="lab-health-base"></i></div>
-          <div id="lab-indicators" class="indicators"></div>
+        <p class="kid-note">Move a slider and watch what happens! This is a pretend world for experimenting.</p>
+        <div class="kid-vars">${sliders}</div>
+        <div class="feel-card" aria-live="polite">
+          <span class="feel-face" id="lab-face" aria-hidden="true">😄</span>
+          <div class="feel-body">
+            <span class="feel-q">${FEEL[exp]}</span>
+            <div class="meter big"><span id="lab-health-bar"></span><i id="lab-health-base" title="normal"></i></div>
+            <strong id="lab-health" class="small">–</strong>
+          </div>
         </div>
         <div class="lab-actions">
-          <button class="pill primary" id="lab-play">▶ Hear this experiment</button>
-          <button class="pill" id="lab-ask">Ask Luna about this</button>
-          <button class="pill" id="lab-compare" aria-pressed="false">Compare with baseline</button>
-          <button class="pill quiet" id="lab-reset">Reset to baseline</button>
-          <button class="pill quiet" id="lab-view">${this.view === "scene" ? "Show on globe" : "Show environment"}</button>
+          <button class="pill primary" id="lab-play">▶ Listen</button>
+          <button class="pill" id="lab-ask">Ask Luna</button>
+          <button class="pill quiet" id="lab-reset">↺ Back to normal</button>
         </div>
-        <h3 class="lab-h">What's happening</h3>
-        <ul id="lab-findings" class="findings"></ul>
-        <h3 class="lab-h">The six variables</h3>
-        ${sliders}
+        <p class="lab-try small"><strong>Try:</strong> ${PRESETS[exp].slice(0, 3).map((p, i) => `<button class="chip" data-preset="${i}">${esc(p.label.replace(/^…/, ""))}</button>`).join(" ")}</p>
+        <details class="grown">
+          <summary>Grown-up details</summary>
+          <div class="data-split">
+            <p class="obs"><span class="kind-tag k-measured">Observed data</span> ${realLine}</p>
+            <p class="sim"><span class="kind-tag k-sim">Simulation</span> Simplified educational model. Not a NASA observation, not a forecast.</p>
+          </div>
+          <div class="table-scroll flat"><table class="mapping"><thead><tr><th>Variable</th><th>Now</th><th>Range</th><th>Normal</th></tr></thead><tbody>${grown}</tbody></table></div>
+          <div id="lab-indicators" class="indicators"></div>
+          <h4>What's happening</h4>
+          <ul id="lab-findings" class="findings"></ul>
+          <div class="lab-actions">
+            <button class="pill small" id="lab-compare" aria-pressed="false">Compare with normal</button>
+            <button class="pill small quiet" id="lab-view">${this.view === "scene" ? "Show on globe" : "Show the picture"}</button>
+          </div>
+        </details>
       </section>
       <section id="pg-years" role="tabpanel" ${this.tab === "years" ? "" : "hidden"}>
         <p class="small">Both are real measurements, played with the same sound rules.</p>
@@ -228,7 +270,7 @@ export class Playground {
       input.onchange = () => this.narrate();
     });
     box.querySelectorAll<HTMLButtonElement>("[data-preset]").forEach((b) => (b.onclick = () => this.applyPreset(+b.dataset.preset!)));
-    document.getElementById("lab-reset")?.addEventListener("click", () => this.animateTo(baselineOf(exp), "Back to the baseline."));
+    document.getElementById("lab-reset")?.addEventListener("click", () => this.animateTo(baselineOf(exp), "Back to normal!"));
     document.getElementById("lab-play")?.addEventListener("click", () => this.playExperiment());
     document.getElementById("lab-ask")?.addEventListener("click", () => {
       const ch = changesFromBaseline(exp, this.v);
@@ -237,7 +279,7 @@ export class Playground {
     document.getElementById("lab-compare")?.addEventListener("click", (e) => {
       this.comparing = !this.comparing;
       (e.currentTarget as HTMLElement).setAttribute("aria-pressed", String(this.comparing));
-      (e.currentTarget as HTMLElement).textContent = this.comparing ? "Back to my experiment" : "Compare with baseline";
+      (e.currentTarget as HTMLElement).textContent = this.comparing ? "Back to my experiment" : "Compare with normal";
       this.update();
       announce(this.comparing ? "Showing the baseline" : "Showing your experiment");
     });
@@ -264,13 +306,16 @@ export class Playground {
     for (const d of VARS[exp]) {
       const out = document.getElementById(`lv-${d.key}-out`);
       if (out) out.textContent = fmt(this.v[d.key], d);
+      const word = document.getElementById(`lv-${d.key}-word`);
+      if (word) word.textContent = amount(this.v[d.key], d);
       const inp = document.getElementById(`lv-${d.key}`) as HTMLInputElement | null;
       if (inp && +inp.value !== this.v[d.key]) inp.value = String(this.v[d.key]);
       inp?.setAttribute("aria-valuetext", `${fmt(this.v[d.key], d)}, baseline ${fmt(d.baseline, d)}`);
     }
     const h = document.getElementById("lab-health");
     if (!h) return;
-    h.textContent = `${r.health} / 100${this.comparing ? " (baseline)" : ` · baseline ${rb.health}`}`;
+    h.textContent = this.comparing ? `${r.health} out of 100 (normal)` : `${r.health} out of 100 · normal is ${rb.health}`;
+    $("lab-face").textContent = face(r.health);
     const bar = $("lab-health-bar");
     bar.style.width = `${r.health}%`;
     bar.style.background = r.health > 66 ? "var(--good)" : r.health > 40 ? "var(--warn)" : "var(--bad)";
@@ -307,7 +352,8 @@ export class Playground {
 
   private narrate() {
     const r = simulate(this.exp, this.v);
-    this.host.luna.say(r.findings[0], { mood: r.health < 50 ? "wow" : "happy" });
+    this.host.luna.setMood(r.health < 45 ? "concerned" : r.health > 80 ? "happy" : "thoughtful");
+    this.host.luna.say(r.findings[0], { mood: r.health < 45 ? "concerned" : r.health > 80 ? "happy" : "thoughtful" });
   }
 
   private applyPreset(i: number) {
@@ -331,7 +377,7 @@ export class Playground {
       if (k < 1) this.tween = requestAnimationFrame(tick);
       else {
         const r = simulate(this.exp, this.v);
-        this.host.luna.say(`${label} ${r.findings.join(" ")}`, { mood: r.health < 50 ? "wow" : "happy" });
+        this.host.luna.say(`${label} ${r.findings[0]}`, { mood: r.health < 45 ? "concerned" : r.health > 80 ? "happy" : "surprised" });
       }
     };
     tick();

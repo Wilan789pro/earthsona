@@ -19,13 +19,15 @@ export interface StoryHost {
 
 const BASE = import.meta.env.BASE_URL;
 const WELCOME =
-  "Hi, I'm Luna! I orbit the Earth and I love listening to it. NASA satellites and models measure our planet every day, and EARTHSONA turns those measurements into sound. Explore three missions with me, run your own environmental experiments, and ask me anything along the way.";
+  "Hi, explorer! I'm Luna, the Moon. I go round and round the Earth, and I love listening to it. Satellites measure our planet every day, and we can turn those numbers into music. Shall we find out what Earth is telling us?";
 
 export class Story {
   private dlg = $<HTMLDialogElement>("dlg-story");
   private stage = $("story-stage");
   private gameIndex = 0;
   private closing = false;
+  /** Replay the introduction film (set by main). */
+  onReplayIntro: (() => void) | null = null;
 
   constructor(private host: StoryHost) {
     // Closing with Esc or the backdrop silences the story's voice. When close() is called by a button the voice
@@ -84,6 +86,7 @@ export class Story {
         <p class="scene-line" data-line>${esc(WELCOME)}</p>
         <div class="row-btns">
           <button class="pill primary big" id="st-go" data-autofocus>Let's go!</button>
+          <button class="pill quiet" id="st-intro">🎬 Watch the story again</button>
           ${this.hear(WELCOME)}
         </div>
         <p class="small muted">Luna talks out loud. Press the speaker button any time to make her quiet.</p>
@@ -98,7 +101,7 @@ export class Story {
       return `<div class="scene scene-plain">
         <button class="pill quiet scene-skip" data-close-story>Close</button>
         <div class="scene-card center">
-          <span>${lunaSvg("wow", 110)}</span>
+          <span>${lunaSvg("proud", 110)}</span>
           <h2 id="story-h">You're an Earth helper!</h2>
           <p class="scene-line" data-line>${esc(end)}</p>
           <div class="row-btns center"><button class="pill" id="game-again">Play again</button><button class="pill primary" data-close-story data-autofocus>Back to the Earth</button></div>
@@ -132,7 +135,7 @@ export class Story {
     return `<div class="scene scene-plain">
       <button class="pill quiet scene-skip" data-close-story>Close</button>
       <div class="scene-card">
-        <div class="finale-top"><span>${lunaSvg("wow", 96)}</span><div><p class="eyebrow">${n === 3 ? "Mission complete!" : "Your badges"}</p><h2 id="story-h">${n === 3 ? "You did it!" : `${n} of 3 badges`}</h2></div></div>
+        <div class="finale-top"><span>${lunaSvg(n === 3 ? "proud" : "encouraging", 96)}</span><div><p class="eyebrow">${n === 3 ? "Mission complete!" : "Your badges"}</p><h2 id="story-h">${n === 3 ? "You did it!" : `${n} of 3 badges`}</h2></div></div>
         ${badgeRow(p)}
         <p class="scene-line" data-line>${esc(line)}</p>
         ${earned.length ? `<h3>What you discovered</h3><ul class="found">${earned.map((m) => `<li><strong>${esc(m.badge)}</strong>: ${esc(m.invite.replace("Let's discover", "you discovered").replace("!", "."))}</li>`).join("")}${p.game ? "<li>You found ways to help in “What would you do?”.</li>" : ""}</ul>` : ""}
@@ -167,6 +170,11 @@ export class Story {
       this.open(b.dataset.storyScene as SceneId);
     }));
     if (scene === "welcome") {
+      const replay = document.getElementById("st-intro");
+      if (replay) replay.onclick = () => {
+        this.close();
+        this.onReplayIntro?.();
+      };
       $("st-go").onclick = () => {
         const p = this.host.progress();
         p.intro = true;

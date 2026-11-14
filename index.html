@@ -20,6 +20,18 @@
       <symbol id="i-star" viewBox="0 0 24 24"><path fill="currentColor" stroke="#1d3557" stroke-width="1.6" stroke-linejoin="round" d="m12 2.8 2.8 5.8 6.3.9-4.6 4.4 1.1 6.3L12 17.2l-5.6 3 1.1-6.3L2.9 9.5l6.3-.9L12 2.8Z"/></symbol>
     </svg>
 
+    <!-- ============ INTRODUCTION (the explorer's story, ends on her tablet → the app) ============ -->
+    <div class="intro" id="intro" hidden>
+      <video id="intro-video" src="./media/intro.mp4" playsinline preload="auto" aria-label="Introduction: the Commander and the young astronaut discover that Earth is making sounds"></video>
+      <div class="intro-start" id="intro-start">
+        <p class="intro-title">EARTHSONA</p>
+        <p class="intro-sub">Hear the Earth. Understand the change.</p>
+        <button class="intro-play" id="intro-play"><span aria-hidden="true">▶</span> Start the adventure</button>
+        <button class="intro-skip-link" id="intro-skip-now">Skip the story</button>
+      </div>
+      <button class="intro-skip" id="intro-skip" hidden>Skip ⏭</button>
+    </div>
+
     <a class="skip" href="#places-h">Skip to the places</a>
 
     <div class="app">
@@ -45,14 +57,13 @@
         <div class="space" id="space">
           <div id="globe" class="globe-host"></div>
           <canvas id="scene" class="scene-canvas" hidden aria-label="Simulated environment for the current experiment" role="img"></canvas>
-          <button class="luna" id="luna" aria-label="Luna the moon. Press to play with the Earth" title="Play with Luna!"></button>
           <span class="pretend-tag" id="pretend-tag" hidden>Pretend Earth</span>
           <button class="reset-view" id="btn-reset" title="Turn the Earth back (R)">Turn back</button>
           <p class="legend" id="legend"></p>
         </div>
 
         <section class="bubble" id="bubble" aria-label="Luna says">
-          <div class="bubble-face" id="bubble-face" aria-hidden="true"></div>
+          <button class="luna-dock" id="luna" aria-label="Luna, your guide. Press to say hello" title="Say hello to Luna"></button>
           <div class="bubble-body">
             <p class="bubble-text" id="bubble-text" aria-live="polite"></p>
             <div class="bubble-extra" id="bubble-extra"></div>
@@ -77,6 +88,7 @@
       <!-- ============ SIDE ============ -->
       <aside class="side" id="side">
         <section id="real-panel" class="panel-inner">
+          <section id="fv-panel" class="fv-panel" hidden aria-labelledby="fv-h"></section>
           <h2 class="side-h" id="places-h" tabindex="-1">Pick a place</h2>
           <ul id="place-list" class="places"></ul>
 
@@ -92,6 +104,8 @@
             <div class="chips" id="period-chips" role="radiogroup" aria-label="Every month or every day"></div>
             <div class="chips" id="year-chips" role="radiogroup" aria-labelledby="years-h"></div>
           </div>
+
+          <button class="lab-cta" id="btn-lab"><span class="lab-cta-icon" aria-hidden="true">🧪</span><span><strong>Experiment with Luna</strong><small>Change the rain, the sun and more, and hear what happens</small></span></button>
 
           <figure class="eic" id="eic" hidden>
             <div class="eic-img"><img id="eic-img" alt="" decoding="async" /><p class="eic-offline small" id="eic-offline" hidden></p></div>

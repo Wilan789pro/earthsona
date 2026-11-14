@@ -39,7 +39,7 @@ export interface Mission {
 export const MISSIONS: Record<ExperienceId, Mission> = {
   ocean: {
     id: "ocean",
-    title: "The Living Ocean",
+    title: "Ocean Symphony",
     icon: "🌊",
     invite: "Let's discover how warm the ocean is!",
     badge: "Ocean Explorer",
@@ -67,7 +67,7 @@ export const MISSIONS: Record<ExperienceId, Mission> = {
   },
   forest: {
     id: "forest",
-    title: "The Living Forest",
+    title: "Forest Voices",
     icon: "🌳",
     invite: "Let's discover how green the land looks!",
     badge: "Forest Explorer",
@@ -95,7 +95,7 @@ export const MISSIONS: Record<ExperienceId, Mission> = {
   },
   pulse: {
     id: "pulse",
-    title: "Earth Pulse",
+    title: "Earth's Pulse",
     icon: "💓",
     invite: "Let's discover Earth's temperature, rain and sunshine!",
     badge: "Earth's Pulse Explorer",

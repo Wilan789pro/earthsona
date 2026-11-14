@@ -17,7 +17,10 @@ import { LIMITATIONS, ROLE_DOCS, SCALES, VARIABLE_WORDS, densityHits, harmonyInt
 import { PALETTES, type PaletteId } from "./sonification/palettes";
 import { KID, timeWindows, type TimeWindow } from "./ui/kid";
 import { TIPS } from "./ui/narrator";
-import { Luna, LunaVoice, bubbleList, lunaSvg, startOrbit } from "./ui/luna";
+import { Luna, LunaVoice, bubbleList } from "./ui/luna";
+import { runIntro } from "./ui/intro";
+import { FOREST_DATA, ForestVoices } from "./ui/forestVoices";
+import type { SampleName } from "./audio/cultural";
 import { MISSIONS, badgeCount, emptyProgress, loadProgress, saveProgress, type Progress } from "./ui/missions";
 import { renderImpact } from "./ui/impact";
 import { Story } from "./ui/story";
@@ -31,7 +34,10 @@ import { backendStatus, sendToLuna, type ChatContext } from "./ui/lunaChat";
 // State
 // ---------------------------------------------------------------------------
 const COLORS: Record<ExperienceId, string> = { ocean: "#2b9bf4", forest: "#2fb35e", pulse: "#ff9f1c" };
-const WORLD_NAME: Record<ExperienceId, string> = { ocean: "Ocean", forest: "Forest", pulse: "Earth Pulse" };
+const WORLD_NAME: Record<ExperienceId, string> = { ocean: "Ocean Symphony", forest: "Forest Voices", pulse: "Earth's Pulse" };
+const WORLD_SUB: Record<ExperienceId, string> = { ocean: "How warm is the sea?", forest: "How green is the land?", pulse: "Rain, sun and warmth" };
+/** The team's SuperCollider samples (cultural_sound/) used as each place's cultural layer. */
+const CULTURAL: Record<string, SampleName> = { "mauritius-waters": "ocean", "black-river-gorges": "forest", "port-louis": "triangle", kyoto: "pulse" };
 
 interface Settings { live: boolean; loop: boolean; textScale: number; nature: boolean; music: boolean; voice: boolean; voiceName: string; photo: boolean }
 const settings = loadPref<Settings>("settings3", { live: false, loop: false, textScale: 1, nature: true, music: true, voice: true, voiceName: "", photo: false });
@@ -72,7 +78,8 @@ let progress: Progress = loadProgress();
 const saveProg = () => (saveProgress(progress), updateBadgeCount());
 
 const palette = (): PaletteId => (state.region.music === "sega" ? "sega" : "neutral");
-const renderOpts = () => ({ experience: state.experience, palette: palette(), layers: state.layers });
+const culturalSample = (): SampleName | null => (settings.music ? CULTURAL[state.region.id] ?? null : null);
+const renderOpts = () => ({ experience: state.experience, palette: palette(), layers: state.layers, cultural: culturalSample() });
 const placeShort = (r: RegionDef) => r.short ?? r.name.split(",")[0];
 const pitchSeries = () => state.track?.layers.find((l) => l.def.roles.includes("pitch"))?.result.series ?? null;
 
@@ -94,7 +101,7 @@ function renderExperiences() {
     b.setAttribute("role", "radio");
     b.setAttribute("aria-checked", String(e.id === state.experience));
     b.tabIndex = e.id === state.experience ? 0 : -1;
-    b.innerHTML = `${WORLD_ICON[e.id]}<span>${WORLD_NAME[e.id]}</span><span class="sr-only"> (${esc(MISSIONS[e.id].title)}, key ${i + 1})</span>`;
+    b.innerHTML = `<span class="world-art" aria-hidden="true">${WORLD_ICON[e.id]}</span><span class="world-text"><strong>${WORLD_NAME[e.id]}</strong><small>${WORLD_SUB[e.id]}</small></span><span class="sr-only"> (key ${i + 1})</span>`;
     b.onclick = () => selectExperience(e.id);
     b.onkeydown = (ev) => {
       if (!["ArrowDown", "ArrowUp", "ArrowRight", "ArrowLeft"].includes(ev.key)) return;
@@ -114,6 +121,8 @@ async function bundledFor(exp: ExperienceId, regionId: string) {
 }
 
 function musicTag(r: RegionDef): string {
+  if (CULTURAL[r.id] && r.music === "sega") return "Our Sega sounds 🎵";
+  if (CULTURAL[r.id]) return "Our team's sound 🎵";
   return r.music === "sega" ? "Sega-inspired music" : "Nature + music";
 }
 
@@ -155,6 +164,8 @@ function selectExperience(id: ExperienceId): Promise<void> | void {
   applyGlobeLook();
   renderEic();
   flyToRegion();
+  forestVoices.stop(false);
+  showForestVoices();
   return loadTrack("world");
 }
 
@@ -390,7 +401,9 @@ function facts(w: TimeWindow): { hi?: string; lo?: string } {
 const HI_LO: Record<ExperienceId, [string, string]> = { ocean: ["warmest sea", "coolest"], forest: ["greenest", "least green"], pulse: ["warmest air", "coldest"] };
 
 function lunaWorld() {
-  luna.say(MISSIONS[state.experience].lines[0], { mood: "wow" });
+  if (state.experience === "forest" && FOREST_DATA.observations.length)
+    luna.say(`${MISSIONS.forest.lines[0]} We also have our very own forest data from Mauritius. Press Listen in Forest Voices to hear it!`, { mood: "curious" });
+  else luna.say(MISSIONS[state.experience].lines[0], { mood: "curious" });
   $("places-h").classList.add("nudge");
   setTimeout(() => $("places-h").classList.remove("nudge"), 2400);
 }
@@ -399,11 +412,12 @@ function lunaPlace(reason: "place" | "period" = "place") {
   const r = state.region;
   const m = MISSIONS[state.experience];
   if (!state.track) {
-    luna.say(`${r.kidIntro ?? r.name} There are no measurements here yet, so you'll hear just the nature sounds.`, { actions: [{ label: "▶ Play", primary: true, onClick: () => play() }] });
+    luna.say(`${r.kidIntro ?? r.name} There are no measurements here yet, so you'll hear just the nature sounds.`, { mood: "concerned", actions: [{ label: "▶ Play", primary: true, onClick: () => play() }] });
     return;
   }
   const intro = reason === "period" ? `Now we're listening to ${KID.periodLabel(getExperience(state.experience).periods[state.periodIndex].key, "a new time").toLowerCase()}.` : r.kidIntro ?? "";
   luna.say(`${intro} ${m.lines[2]}`.trim(), {
+    mood: "curious",
     actions: [
       { label: "▶ Play", primary: true, onClick: () => play() },
       { label: "Tell me more", onClick: () => lunaTip() },
@@ -418,10 +432,11 @@ function lunaTime() {
   const f = facts(w);
   const [hi, lo] = HI_LO[state.experience];
   if (!f.hi) {
-    luna.say(`In ${w.label}, clouds got in the way, so there's not much to hear.`);
+    luna.say(`In ${w.label}, clouds got in the way, so there's not much to hear.`, { mood: "concerned" });
     return;
   }
   luna.say(`${w.key === "all" ? "Over all the years" : `In ${w.label}`}, the ${hi} was ${f.hi}, and the ${lo} was ${f.lo}. Press play to hear it!`, {
+    mood: "surprised",
     actions: [{ label: "▶ Play", primary: true, onClick: () => play() }],
   });
 }
@@ -430,7 +445,7 @@ let tipIndex = -1;
 function lunaTip() {
   const tips = TIPS[state.experience];
   tipIndex = (tipIndex + 1) % tips.length;
-  luna.say(tips[tipIndex], { actions: [{ label: "Another one", onClick: () => lunaTip() }, { label: "▶ Play", primary: true, onClick: () => play() }] });
+  luna.say(tips[tipIndex], { mood: "thoughtful", actions: [{ label: "Another one", onClick: () => lunaTip() }, { label: "▶ Play", primary: true, onClick: () => play() }] });
 }
 
 function lunaListening() {
@@ -443,7 +458,7 @@ function lunaListening() {
         pulse: "Listen! Warm air makes high notes, rain makes busy beats and heavy rain sounds, and sunshine makes it bright.",
       }[exp] + (sega ? " The drums are inspired by Sega music from Mauritius." : "")
     : "Listen to the nature sounds of this place. There are no measurements here yet, so there's no tune.";
-  luna.say(line, { actions: [{ label: "Why does it sound like this?", onClick: () => lunaWhy() }] });
+  luna.say(line, { mood: "happy", actions: [{ label: "Why does it sound like this?", onClick: () => lunaWhy() }] });
 }
 
 function lunaWhy() {
@@ -452,7 +467,9 @@ function lunaWhy() {
   const pitch = pitchSeries();
   const items = [
     `Nature: ${AMBIENCE[ambienceFor(r.ambience)].title.toLowerCase()}, made by the computer. ${NATURE_RULES[exp]}`,
-    r.music === "sega"
+    CULTURAL[r.id]
+      ? "Music: our team's own recorded sounds (made in SuperCollider), played higher or lower by the measurements, with a tune made from the data."
+      : r.music === "sega"
       ? "Music: an original tune inspired by Sega from Mauritius (a ravanne-like drum, maravanne-like shaker and triangle). Its melody comes from the measurements."
       : "Music: a gentle tune whose melody comes from the measurements." + (r.musicStatus === "pending" ? " We haven't added music from this place's own culture yet: we want to make it with local musicians." : ""),
     pitch ? `The measurements: ${KID.label(pitch.variable).toLowerCase()} from ${pitch.source.kind === "noaa" ? "NOAA" : "NASA"}. ${dataTypeFor(pitch.variable, pitch.source.name).kid}` : "There are no measurements here yet.",
@@ -464,6 +481,7 @@ function lunaWhy() {
       pulse: "Everything you hear is shaped by the real temperature, rain and sunshine: the rain sounds and the music!",
     }[exp],
     {
+      mood: "thoughtful",
       extra: bubbleList(items) + `<p class="small muted">These sounds are made by EARTHSONA from the numbers. They are not recordings from space.</p>`,
       actions: [{ label: "Show me the science", onClick: () => openGrownups("tab-science") }],
     },
@@ -477,14 +495,14 @@ function lunaFinished() {
   const [hi, lo] = HI_LO[exp];
   const found = f.hi ? `Wow! The ${hi} here was ${f.hi}, and the ${lo} was ${f.lo}.` : "That was lovely!";
   if (progress[exp].badge) {
-    luna.say(`${found} You already have the ${MISSIONS[exp].badge} badge.`, { actions: afterBadgeActions() });
+    luna.say(`${found} You already have the ${MISSIONS[exp].badge} badge.`, { mood: "proud", actions: afterBadgeActions() });
     return;
   }
   const c = MISSIONS[exp].challenge;
   const choices = () => c.options.map((o) => ({ label: o.t, onClick: () => answer(o) }));
   const answer = (o: { ok: boolean; why: string }) => {
     if (!o.ok) {
-      luna.say(o.why, { actions: choices() });
+      luna.say(o.why, { mood: "encouraging", actions: choices() });
       return;
     }
     const mp = progress[exp];
@@ -494,12 +512,12 @@ function lunaFinished() {
     saveProg();
     celebrate();
     luna.say(`${o.why} You earned the ${MISSIONS[exp].badge} badge!`, {
-      mood: "wow",
+      mood: "proud",
       extra: `<p class="small"><strong>${esc(MISSIONS[exp].lines[6])}</strong></p>` + bubbleList(MISSIONS[exp].actions),
       actions: afterBadgeActions(),
     });
   };
-  luna.say(`${found} ${MISSIONS[exp].lines[5]} ${c.q}`, { mood: "wow", actions: choices() });
+  luna.say(`${found} ${MISSIONS[exp].lines[5]} ${c.q}`, { mood: "surprised", actions: choices() });
 }
 
 function afterBadgeActions() {
@@ -919,7 +937,7 @@ const story = new Story({
   voice,
   start: () => {
     voice.unlocked = true;
-    luna.say("Let's begin! Pick a mission: the Living Ocean, the Living Forest or Earth Pulse. I'll show each one on the globe. You can tap me for the lab, or type a question for me any time.", { mood: "wow" });
+    luna.say("Hooray, you're here! Pick a mission: Ocean Symphony, Forest Voices or Earth's Pulse. I'll show you each one on the Earth!", { mood: "happy" });
     document.querySelector<HTMLElement>("#experience-list [aria-checked='true']")?.focus();
   },
 });
@@ -943,7 +961,7 @@ const playground = new Playground({
     engine.resetNature();
   },
   onClose: () => {
-    luna.say("Back to the real Earth! Everything on the globe is real NASA data again.");
+    luna.say("Back to the real Earth! Everything on the globe is real NASA data again.", { mood: "happy" });
     $("places-h").focus();
   },
 });
@@ -1030,7 +1048,7 @@ async function askLuna(message: string) {
   const res = await sendToLuna(text, buildContext());
   luna.thinking(false);
   if (res.ok) {
-    luna.say(res.reply, { extra: `<p class="you-asked"><span>You asked</span> ${esc(text)}</p>`, repeat: true });
+    luna.say(res.reply, { mood: "thoughtful", extra: `<p class="you-asked"><span>You asked</span> ${esc(text)}</p>`, repeat: true });
   } else if (res.kind !== "cancelled") {
     luna.status(res.message, true);
   }
@@ -1043,6 +1061,34 @@ $("luna-form").addEventListener("submit", (e) => {
   input.value = "";
   void askLuna(v);
 });
+
+// ---------------------------------------------------------------------------
+// Forest Voices: the team's Mauritius vegetation CSV through the team's SuperCollider instrument
+// ---------------------------------------------------------------------------
+const forestVoices = new ForestVoices({
+  engine,
+  luna,
+  beforePlay: async () => {
+    playground.stop();
+    if (state.soundOn) stopAll();
+    await engine.start();
+    engine.resetNature();
+    engine.startNature("island-forest");
+  },
+  afterPlay: () => {
+    engine.stopNature();
+    engine.resetNature();
+  },
+  showPoint: (lat, lon, label) => {
+    globe.flyTo(lat, lon);
+    globe.setLabel(label, lat, lon);
+  },
+});
+function showForestVoices() {
+  const on = state.experience === "forest";
+  $("fv-panel").hidden = !on;
+  if (on) forestVoices.render();
+}
 
 function togglePlayground() {
   if (playground.open) playground.close();
@@ -1091,10 +1137,25 @@ document.querySelectorAll("dialog").forEach((d) => d.addEventListener("click", (
 $("dlg-impact").addEventListener("close", () => voice.stop());
 
 $("btn-home").onclick = () => story.open("welcome");
+story.onReplayIntro = () => playIntro();
 $("btn-badges").onclick = () => story.open("finale");
 $("btn-grownups").onclick = () => openGrownups();
-$("luna").innerHTML = lunaSvg("happy", 72);
-$("luna").onclick = () => togglePlayground();
+let helloCount = 0;
+$("luna").onclick = () => {
+  const lines = [
+    "Hi again! I'm right here. Shall we listen to the Earth?",
+    "Want to try an experiment? Press Experiment with Luna!",
+    "Tip: pick a different year and see if the music changes!",
+  ];
+  luna.say(lines[helloCount++ % lines.length], {
+    mood: helloCount % 2 ? "happy" : "encouraging",
+    actions: [
+      { label: "▶ Play", primary: true, onClick: () => play() },
+      { label: "Experiment", onClick: () => togglePlayground() },
+    ],
+  });
+};
+$("btn-lab").onclick = () => togglePlayground();
 $("source-badge").onclick = () => (renderSourceDetails(), ($("dlg-source") as HTMLDialogElement).showModal());
 $("btn-play").onclick = togglePlay;
 $("btn-stop").onclick = () => {
@@ -1196,7 +1257,7 @@ $("btn-text-down").onclick = () => setText(settings.textScale - 0.1);
 globe.onImagery = () => void applyGlobeLook();
 globe.onPick = (lat, lon) => void (settings.live && selectRegion(customRegion(lat, lon)));
 globe.onMarker = (id) => void selectRegion(getRegion(id)!);
-startOrbit($("luna"), $("space"), () => globe.screenDisc());
+
 
 // Browsers allow speech only after the first tap or key press. Then Luna reads what she is showing.
 const unlock = () => {
@@ -1255,7 +1316,15 @@ applyGlobeLook();
 flyToRegion();
 updateMix();
 updateBadgeCount();
-if (!progress.intro) story.open("welcome");
+showForestVoices();
+const playIntro = () => {
+  globe.paused = true;
+  runIntro(
+    () => story.open("welcome"),
+    () => (globe.paused = false), // the Earth is already turning when the app grows out of the tablet
+  );
+};
+if (!progress.intro) playIntro();
 else luna.say("Welcome back! Pick a mission and a place, press play to hear the real data, tap me to open the lab, or ask me anything below.");
 loadTrack("boot");
 // Detect Luna's backend; retry a few times (the page can be busy right after loading).
@@ -1273,4 +1342,4 @@ void (async () => {
 booted = true;
 
 // Debug hook for automated checks (no effect on the UI).
-(window as unknown as { __earthsona: unknown }).__earthsona = { state, player, registry, engine, settings, voice, luna, playground, progress: () => progress, buildContext, backend: () => backend };
+(window as unknown as { __earthsona: unknown }).__earthsona = { state, player, registry, engine, settings, voice, luna, playground, progress: () => progress, buildContext, backend: () => backend, forestVoices };
