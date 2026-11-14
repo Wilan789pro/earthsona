@@ -114,7 +114,7 @@ export class Globe {
     const w = Math.max(1, host.clientWidth);
     const h = Math.max(1, host.clientHeight);
     this.camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 1000);
-    this.camera.position.set(0, 0, 15);
+    this.camera.position.set(0, 0, 14); // the whole disc fits the (now much larger) stage
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
     this.renderer.setSize(w, h);
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -379,7 +379,7 @@ export class Globe {
   }
 
   reset(): void {
-    this.target = new THREE.Vector3(0, 0, 15 * Math.max(1, 1.15 / this.camera.aspect));
+    this.target = new THREE.Vector3(0, 0, 14 * Math.max(1, 1.15 / this.camera.aspect));
     this.controls.target.set(0, 0, 0);
   }
 
@@ -517,7 +517,12 @@ export class Globe {
     if (this.clouds.visible) this.clouds.rotation.y += 0.0003;
     this.ring.scale.setScalar(1 + Math.sin(performance.now() * 0.006) * 0.25);
     if (this.target) {
-      this.camera.position.lerp(this.target, 0.06);
+      // Fly AROUND the Earth (direction and distance eased separately), never straight through it.
+      const r0 = this.camera.position.length();
+      const r1 = this.target.length();
+      const dir = this.camera.position.clone().normalize().lerp(this.target.clone().normalize(), 0.08);
+      if (dir.lengthSq() < 1e-6) dir.set(0, 0, 1);
+      this.camera.position.copy(dir.normalize().multiplyScalar(r0 + (r1 - r0) * 0.08));
       this.controls.target.lerp(new THREE.Vector3(), 0.06);
       if (this.camera.position.distanceTo(this.target) < 0.05) this.target = null;
     }

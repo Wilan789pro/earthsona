@@ -900,6 +900,8 @@ function setPlayingUi() {
   document.body.classList.toggle("playing", on);
   $("play-icon").setAttribute("href", on ? "#i-pause" : "#i-play");
   $("btn-play").setAttribute("aria-label", on ? "Pause (Space)" : "Play (Space)");
+  $("stage-play-icon").setAttribute("href", on ? "#i-pause" : "#i-play");
+  $("stage-play").setAttribute("aria-label", on ? "Pause the sound (Space)" : "Play the sound of this place (Space)");
   $("audio-status").textContent = on ? (player.playing ? "PLAYING" : "NATURE ONLY") : player.index > 0 && player.index < state.frames.length ? "PAUSED" : "STOPPED";
 }
 
@@ -1211,6 +1213,7 @@ $("luna").onclick = () => {
 $("btn-lab").onclick = () => togglePlayground();
 $("source-badge").onclick = () => (renderSourceDetails(), ($("dlg-source") as HTMLDialogElement).showModal());
 $("btn-play").onclick = togglePlay;
+$("stage-play").onclick = togglePlay;
 $("btn-stop").onclick = () => {
   const listened = state.frames.length > 0 && state.heard >= state.frames.length * 0.3;
   stopAll();
