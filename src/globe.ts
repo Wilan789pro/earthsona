@@ -9,7 +9,62 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
  *  - fits its own layout cell (ResizeObserver), so no UI floats over it
  *  - selected-place label, region markers, click-to-pick lat/lon, keyboard rotate/zoom
  * The prototype's random "clouds" were removed: over real imagery they would look like observations.
+ *  - realistic mode (setRealistic): a day/night shader that lights Blue Marble from where the Sun really is
+ *    right now (subsolar point from the date and time), shows Black Marble city lights on the night side,
+ *    a sun glint on the oceans and a blue atmosphere rim. No clouds are drawn: we have no real global
+ *    cloud layer, and pretend clouds appear only in the lab, labelled as such.
  */
+
+/** Where the Sun is overhead right now (degrees). NOAA-style approximation, accurate to ~1°. */
+export function subsolarPoint(d = new Date()): { lat: number; lon: number } {
+  const start = Date.UTC(d.getUTCFullYear(), 0, 0);
+  const day = (d.getTime() - start) / 86_400_000;
+  const g = (2 * Math.PI * (day - 1)) / 365;
+  const decl = 0.006918 - 0.399912 * Math.cos(g) + 0.070257 * Math.sin(g) - 0.006758 * Math.cos(2 * g) + 0.000907 * Math.sin(2 * g) - 0.002697 * Math.cos(3 * g) + 0.00148 * Math.sin(3 * g);
+  const eqTimeMin = 229.18 * (0.000075 + 0.001868 * Math.cos(g) - 0.032077 * Math.sin(g) - 0.014615 * Math.cos(2 * g) - 0.040849 * Math.sin(2 * g));
+  const utcMin = d.getUTCHours() * 60 + d.getUTCMinutes() + d.getUTCSeconds() / 60;
+  let lon = -(utcMin + eqTimeMin - 720) / 4;
+  lon = ((lon + 540) % 360) - 180;
+  return { lat: (decl * 180) / Math.PI, lon };
+}
+
+const REAL_VERT = `
+varying vec2 vUv; varying vec3 vNormalW; varying vec3 vPosW;
+void main(){
+  vUv = uv;
+  vNormalW = normalize(mat3(modelMatrix) * normal);
+  vec4 w = modelMatrix * vec4(position, 1.0);
+  vPosW = w.xyz;
+  gl_Position = projectionMatrix * viewMatrix * w;
+}`;
+const REAL_FRAG = `
+uniform sampler2D dayMap; uniform sampler2D nightMap; uniform sampler2D dataMap; uniform float dataMix; uniform vec3 sunDir; uniform float sunPower; uniform float hasNight;
+varying vec2 vUv; varying vec3 vNormalW; varying vec3 vPosW;
+void main(){
+  vec3 n = normalize(vNormalW);
+  vec3 v = normalize(cameraPosition - vPosW);
+  float ndl = dot(n, normalize(sunDir));
+  float day = smoothstep(-0.12, 0.22, ndl);
+  vec3 dayCol = texture2D(dayMap, vUv).rgb;
+  // optional data colours (e.g. MERRA-2 air temperature), on the sunlit side only
+  vec4 data = texture2D(dataMap, vUv);
+  vec3 dayData = mix(dayCol, data.rgb, data.a * dataMix);
+  vec3 nightCol = texture2D(nightMap, vUv).rgb * hasNight;
+  // night side: city lights plus a little of the day map so children can still see the continents
+  vec3 night = nightCol * 1.1 + dayCol * 0.05;
+  vec3 lit = dayData * (0.3 + 0.9 * max(ndl, 0.0)) * (0.55 + 0.45 * sunPower);
+  vec3 col = mix(night, lit, day);
+  // ocean glint: the shaded-relief map's oceans are blue-dominant
+  float ocean = smoothstep(0.04, 0.16, dayCol.b - max(dayCol.r, dayCol.g));
+  vec3 h = normalize(normalize(sunDir) + v);
+  col += vec3(1.0, 0.95, 0.85) * pow(max(dot(n, h), 0.0), 60.0) * ocean * day * 0.55 * sunPower;
+  // atmosphere: blue rim, brighter on the day side, warm at the sunset line
+  float rim = pow(1.0 - max(dot(n, v), 0.0), 3.0);
+  vec3 sky = mix(vec3(1.0, 0.55, 0.3), vec3(0.35, 0.65, 1.0), smoothstep(-0.05, 0.3, ndl));
+  col += sky * rim * (0.06 + 0.94 * smoothstep(-0.35, 0.15, ndl)) * 0.9;
+  gl_FragColor = vec4(col, 1.0);
+  #include <colorspace_fragment>
+}`;
 export const GLOBE_RADIUS = 5;
 
 export interface GlobeMarker {
@@ -38,6 +93,15 @@ export class Globe {
   private clouds!: THREE.Mesh;
   private sun!: THREE.DirectionalLight;
   private ambient!: THREE.AmbientLight;
+  private phong!: THREE.MeshPhongMaterial;
+  private realMat: THREE.ShaderMaterial | null = null;
+  private realistic = false;
+  private subsolar = subsolarPoint();
+  private subsolarAt = performance.now();
+  /** True while the realistic day/night view is shown. */
+  get isRealistic(): boolean {
+    return this.realistic && this.earth.material === this.realMat;
+  }
   /** True once real NASA imagery is on the globe. */
   realImagery = false;
   onImagery: (real: boolean) => void = () => {};
@@ -79,7 +143,8 @@ export class Globe {
 
   /** Use a painted world look (see globeThemes.ts); null goes back to the NASA photo. */
   setTheme(canvas: HTMLCanvasElement | null): void {
-    const m = this.earth.material as THREE.MeshPhongMaterial;
+    if (canvas && this.realistic) this.setRealistic(false);
+    const m = this.phong;
     if (!canvas) {
       this.themeTex = null;
       this.setStyle(this.style);
@@ -123,6 +188,83 @@ export class Globe {
   setSunlight(level: number): void {
     this.sun.intensity = 1.1 * level;
     this.ambient.intensity = 1.2 + 0.9 * level;
+    if (this.realMat) this.realMat.uniforms.sunPower.value = level;
+  }
+
+  /** Realistic day/night Earth (see the header comment). Needs the Blue Marble texture; waits for it if necessary. */
+  setRealistic(on: boolean): void {
+    this.realistic = on;
+    if (!on) {
+      this.earth.material = this.phong;
+      return;
+    }
+    if (!this.textures.day) return; // applied when the texture arrives
+    if (!this.realMat) {
+      this.realMat = new THREE.ShaderMaterial({
+        uniforms: {
+          dayMap: { value: this.textures.day },
+          nightMap: { value: this.textures.night ?? this.textures.day },
+          hasNight: { value: this.textures.night ? 1 : 0 },
+          sunDir: { value: new THREE.Vector3(1, 0, 0) },
+          sunPower: { value: 1 },
+          dataMap: { value: this.blank() },
+          dataMix: { value: 0 },
+        },
+        vertexShader: REAL_VERT,
+        fragmentShader: REAL_FRAG,
+      });
+    }
+    this.earth.material = this.realMat;
+    this.pendingData?.();
+    this.pendingData = null;
+    this.updateSun();
+  }
+
+  /** Keep the shader's sun at the real subsolar point (it moves 1° every 4 minutes). */
+  private updateSun(): void {
+    if (!this.realMat) return;
+    if (performance.now() - this.subsolarAt > 60_000) {
+      this.subsolar = subsolarPoint();
+      this.subsolarAt = performance.now();
+    }
+    const local = latLonToVector3(this.subsolar.lat, this.subsolar.lon, 1);
+    const world = local.applyQuaternion(this.earth.getWorldQuaternion(new THREE.Quaternion()));
+    (this.realMat.uniforms.sunDir.value as THREE.Vector3).copy(world.normalize());
+  }
+
+  setOverlayOpacity(o: number): void {
+    (this.overlay.material as THREE.MeshBasicMaterial).opacity = o;
+  }
+
+  /** Data colours blended INTO the realistic shader (lit with day and night). null removes them. */
+  setRealisticData(file: string | null, mix = 0.5): void {
+    if (!file) {
+      if (this.realMat) this.realMat.uniforms.dataMix.value = 0;
+      this.dataFile = null;
+      return;
+    }
+    this.dataFile = file;
+    this.loader.load(`${this.textureBase}${file}`, (t) => {
+      if (this.dataFile !== file) return;
+      t.colorSpace = THREE.SRGBColorSpace;
+      const apply = () => {
+        if (!this.realMat) return;
+        this.realMat.uniforms.dataMap.value = t;
+        this.realMat.uniforms.dataMix.value = mix;
+      };
+      if (this.realMat) apply();
+      else this.pendingData = apply;
+    });
+  }
+  private dataFile: string | null = null;
+  private pendingData: (() => void) | null = null;
+  private blankTex: THREE.Texture | null = null;
+  private blank(): THREE.Texture {
+    if (!this.blankTex) {
+      this.blankTex = new THREE.DataTexture(new Uint8Array([0, 0, 0, 0]), 1, 1);
+      this.blankTex.needsUpdate = true;
+    }
+    return this.blankTex;
   }
 
   /** Where the Earth is on screen (for Luna's orbit), in CSS pixels relative to the globe host. */
@@ -137,7 +279,7 @@ export class Globe {
   setStyle(style: "day" | "night"): void {
     this.style = style;
     if (this.themeTex) return;
-    const m = this.earth.material as THREE.MeshPhongMaterial;
+    const m = this.phong;
     const tex = style === "night" ? this.textures.night : this.textures.day;
     if (tex) {
       m.map = tex;
@@ -255,6 +397,7 @@ export class Globe {
 
   private buildEarth(): void {
     const mat = new THREE.MeshPhongMaterial({ map: stylisedFallback(), shininess: 6, specular: new THREE.Color(0x0b3a4a) });
+    this.phong = mat;
     this.earth = new THREE.Mesh(new THREE.SphereGeometry(GLOBE_RADIUS, 96, 96), mat);
     this.scene.add(this.earth);
     const load = (file: string, cb: (tex: THREE.Texture) => void) =>
@@ -267,11 +410,16 @@ export class Globe {
       this.textures.day = tex;
       this.realImagery = true;
       this.setStyle(this.style);
+      if (this.realistic) this.setRealistic(true);
       this.onImagery(true);
     });
     load("black-marble-2016.jpg", (tex) => {
       this.textures.night = tex;
       if (this.style === "night") this.setStyle("night");
+      if (this.realMat) {
+        this.realMat.uniforms.nightMap.value = tex;
+        this.realMat.uniforms.hasNight.value = 1;
+      }
     });
 
     this.overlay = new THREE.Mesh(
@@ -374,6 +522,12 @@ export class Globe {
       if (this.camera.position.distanceTo(this.target) < 0.05) this.target = null;
     }
     this.controls.update();
+    if (this.isRealistic) this.updateSun();
+    // labels ignore depth (always readable), so hide them when their place is on the far side of the Earth
+    if (this.label) {
+      const w = this.label.getWorldPosition(new THREE.Vector3());
+      this.label.visible = w.clone().normalize().dot(this.camera.position.clone().normalize()) > 0.12;
+    }
     this.renderer.render(this.scene, this.camera);
   };
 }

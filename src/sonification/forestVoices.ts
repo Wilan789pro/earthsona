@@ -3,7 +3,7 @@ import type { VegetationObservation } from "../data/forestCsv";
 /**
  * Forest Voices mapping: real vegetation observations → the team's SuperCollider sound design.
  *
- * The SuperCollider "climate overlap" instrument (cultural_sound/*.scd) has two controls:
+ * The SuperCollider "climate overlap" instrument (supercollider/cultural_sound/*.scd) has two controls:
  *   temperature → pitch: −10 °C = −12 semitones, 20 °C = original pitch, 40 °C = +12 semitones
  *   wind        → sound starts per second: 0 → 0.25/s … 100 → 3.0/s (overlapping, scheduled from each start)
  * For Forest Voices the same instrument is driven by vegetation indices instead (absolute scales, so the
@@ -61,7 +61,7 @@ export function describeChange(a: VegetationObservation, b: VegetationObservatio
   lines.push(
     Math.abs(dN) < 0.005
       ? "Greenness (NDVI) stayed about the same, so the notes stay at the same height."
-      : `Greenness (NDVI) went ${dN > 0 ? "up" : "down"} from ${a.ndvi.toFixed(2)} to ${b.ndvi.toFixed(2)}, so the forest shaker sounds ${Math.abs(pitchSteps).toFixed(1)} semitones ${dN > 0 ? "higher" : "lower"}.`,
+      : `Greenness (NDVI) went ${dN > 0 ? "up" : "down"} from ${a.ndvi.toFixed(2)} to ${b.ndvi.toFixed(2)}, so our forest sound plays ${Math.abs(pitchSteps).toFixed(1)} semitones ${dN > 0 ? "higher" : "lower"}.`,
   );
   if (a.evi !== null && b.evi !== null) {
     const dE = b.evi - a.evi;

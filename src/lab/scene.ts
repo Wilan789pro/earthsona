@@ -68,8 +68,13 @@ export class LabScene {
     const dt = Math.min(0.25, (now - this.last) / 1000);
     this.last = now;
     const k = this.reduce ? 1 : 1 - Math.exp(-dt / 0.7);
+    const before = this.cur.health ?? 0;
     for (const key of Object.keys(this.target)) this.cur[key] = lerp(this.cur[key] ?? this.target[key], this.target[key], k);
+    // "Recovering" glow lasts a moment after health starts rising again.
+    const rising = (this.cur.health ?? 0) - before > 0.0004;
+    this.recover = Math.max(0, Math.min(1, this.recover + (rising ? dt * 3 : -dt * 0.6)));
   }
+  private recover = 0;
 
   private draw() {
     const { ctx, canvas } = this;
@@ -134,15 +139,44 @@ export class LabScene {
       c.fillRect(x - W * 0.006, base - h * 0.55, W * 0.012, h * 0.55);
       const leafy = rnd(i + 40) < density ? 1 : 0.15 + 0.3 * density;
       const sway = Math.sin(t * 1.2 + i) * W * 0.003;
+      const wilt = p.fall ?? 0; // drooping crowns when the forest is thirsty or too hot
       const col = mix([170, 120, 50], [40, 200, 90], green);
       c.fillStyle = col;
       c.globalAlpha = 0.35 + 0.65 * leafy;
       for (let k = 0; k < 3; k++) {
         c.beginPath();
-        c.arc(x + sway + (k - 1) * h * 0.13, base - h * (0.62 + (k % 2) * 0.12), h * 0.2 * (0.6 + 0.4 * leafy), 0, Math.PI * 2);
+        const kx = x + sway + (k - 1) * h * (0.13 + 0.05 * wilt);
+        const ky = base - h * (0.62 + (k % 2) * 0.12) + h * 0.1 * wilt * (k === 1 ? 0.5 : 1);
+        c.ellipse(kx, ky, h * 0.2 * (0.6 + 0.4 * leafy), h * 0.2 * (0.6 + 0.4 * leafy) * (1 - 0.3 * wilt), 0, 0, Math.PI * 2);
         c.fill();
       }
       c.globalAlpha = 1;
+      // recovery: little new leaves sparkle on the crowns while health is rising again
+      if (this.recover > 0.05 && !this.reduce) {
+        c.fillStyle = `rgba(120, 255, 140, ${0.8 * this.recover})`;
+        for (let k = 0; k < 3; k++) {
+          const a = t * 2 + i + k * 2.1;
+          c.beginPath();
+          c.ellipse(x + Math.cos(a) * h * 0.18, base - h * 0.7 + Math.sin(a) * h * 0.12, h * 0.035, h * 0.018, a, 0, Math.PI * 2);
+          c.fill();
+        }
+      }
+    }
+    // falling leaves: as many as the stress level, drifting down and turning brown
+    const fallN = Math.round((p.fall ?? 0) * 40);
+    for (let i = 0; i < fallN; i++) {
+      const span = H * 0.5;
+      const ph = this.reduce ? rnd(i + 900) : (rnd(i + 900) + t * (0.08 + 0.06 * rnd(i + 901))) % 1;
+      const x = rnd(i + 902) * W + Math.sin(t * 1.5 + i) * W * 0.015;
+      const y = groundY - span + ph * (span + H * 0.04);
+      c.save();
+      c.translate(x, y);
+      c.rotate(t * 2 + i);
+      c.fillStyle = mix([200, 150, 40], [150, 80, 30], rnd(i + 903));
+      c.beginPath();
+      c.ellipse(0, 0, W * 0.007, W * 0.0035, 0, 0, Math.PI * 2);
+      c.fill();
+      c.restore();
     }
     // Rain streaks
     const rain = p.rain ?? 0.33;
@@ -265,6 +299,16 @@ export class LabScene {
       c.arc(x, y, W * 0.004 * (0.5 + rnd(i + 420)), 0, Math.PI * 2);
       c.stroke();
     }
+    // Warmer water: a warm tint, and pale halos around stressed corals
+    const warm = p.warm ?? 0.33;
+    if (warm > 0.45) {
+      c.fillStyle = `rgba(255, 150, 70, ${Math.min(0.22, (warm - 0.45) * 0.4)})`;
+      c.fillRect(0, 0, W, H);
+    }
+    if (bleach > 0.2 && !this.reduce) {
+      c.fillStyle = `rgba(255, 255, 255, ${0.12 * bleach * (0.6 + 0.4 * Math.sin(t * 3))})`;
+      c.fillRect(0, bed - H * 0.2, W, H * 0.2);
+    }
     // Pollution: floating debris and murk
     const pol = p.pollution ?? 0.15;
     c.fillStyle = `rgba(110, 100, 80, ${0.35 * pol})`;
@@ -275,103 +319,146 @@ export class LabScene {
     }
   }
 
+  /**
+   * Earth's Pulse: the weather of ONE place. The sun's size and brightness follow the sunlight value,
+   * clouds and rain follow rainfall, the hills follow plant growth / drought / snow, lightning follows storms.
+   */
   private pulse(W: number, H: number, t: number, p: P) {
     const c = this.ctx;
-    const temp = p.temp ?? 0.22;
-    c.fillStyle = mix([6, 12, 30], [40, 10, 10], temp * 0.7);
+    const sun = p.sun ?? 0.5;
+    const heat = p.heat ?? 0;
+    const clouds = p.clouds ?? 0.2;
+    const rain = p.rain ?? 0.1;
+    const storms = p.storms ?? 0.33;
+    const dark = Math.min(0.75, 0.6 * clouds + 0.25 * Math.max(0, storms - 0.4));
+    // sky: deep blue with lots of sun, grey with clouds, orange with heat
+    const g = c.createLinearGradient(0, 0, 0, H * 0.7);
+    g.addColorStop(0, mix(mix([25, 60, 120], [40, 150, 255], sun).match(/\d+/g)!.map(Number), [90, 100, 115], dark));
+    g.addColorStop(1, mix(mix([140, 170, 200], [200, 235, 255], sun).match(/\d+/g)!.map(Number), [255, 170, 90], heat * 0.7));
+    c.fillStyle = g;
     c.fillRect(0, 0, W, H);
-    for (let i = 0; i < 80; i++) {
-      c.fillStyle = `rgba(255,255,255,${0.3 + 0.7 * rnd(i)})`;
-      c.fillRect(rnd(i + 1) * W, rnd(i + 2) * H, 1.5, 1.5);
+    // clouds
+    const nClouds = Math.round(1 + clouds * 9);
+    for (let i = 0; i < nClouds; i++) {
+      const cx = ((rnd(i + 30) * W * 1.3 + t * W * 0.01 * (0.5 + rnd(i + 31))) % (W * 1.3)) - W * 0.15;
+      const cy = H * (0.08 + rnd(i + 32) * 0.25);
+      const s = W * (0.05 + rnd(i + 33) * 0.05);
+      c.fillStyle = mix([255, 255, 255], [110, 115, 130], Math.min(1, dark * 1.2));
+      for (let k = 0; k < 4; k++) {
+        c.beginPath();
+        c.arc(cx + (k - 1.5) * s * 0.6, cy + (k % 2) * s * 0.15, s * (0.45 + 0.15 * (k % 2)), 0, Math.PI * 2);
+        c.fill();
+      }
     }
-    const R = Math.min(W, H) * 0.36;
-    const cx = W * 0.42;
-    const cy = H * 0.52;
-    // Heat glow
-    const glow = c.createRadialGradient(cx, cy, R * 0.9, cx, cy, R * 1.45);
-    glow.addColorStop(0, `rgba(255, ${Math.round(160 - 120 * temp)}, 40, ${0.15 + 0.6 * temp})`);
-    glow.addColorStop(1, "rgba(255, 80, 20, 0)");
+    // the sun: bigger and brighter with more sunlight, small and pale when dim
+    const R = H * (0.035 + 0.11 * sun);
+    const sx = W * 0.2;
+    const sy = H * 0.2;
+    const glow = c.createRadialGradient(sx, sy, R * 0.5, sx, sy, R * (2.2 + 1.5 * sun));
+    glow.addColorStop(0, `rgba(255, 230, 120, ${0.25 + 0.6 * sun})`);
+    glow.addColorStop(1, "rgba(255, 200, 80, 0)");
     c.fillStyle = glow;
     c.beginPath();
-    c.arc(cx, cy, R * 1.45, 0, Math.PI * 2);
+    c.arc(sx, sy, R * (2.2 + 1.5 * sun), 0, Math.PI * 2);
     c.fill();
-    // Ocean: deeper blue; a higher sea floods the coasts (shrinks the land shapes)
-    c.save();
+    c.fillStyle = mix([235, 225, 190], [255, 215, 60], sun);
+    c.globalAlpha = (0.45 + 0.55 * sun) * (1 - 0.45 * dark); // drawn in front of the clouds so its size stays visible
     c.beginPath();
-    c.arc(cx, cy, R, 0, Math.PI * 2);
-    c.clip();
-    c.fillStyle = "rgb(20, 90, 200)";
-    c.fillRect(cx - R, cy - R, 2 * R, 2 * R);
-    const sea = p.sea ?? 0.09;
-    const veg = p.veg ?? 0.66;
-    const land = [[-0.35, -0.1, 0.32, 0.4], [0.25, 0.05, 0.28, 0.48], [0.05, -0.45, 0.25, 0.16], [-0.1, 0.45, 0.2, 0.14]];
-    const rot = t * 0.05;
-    for (const [lx, ly, rx, ry] of land) {
-      const x = cx + (lx + Math.sin(rot) * 0.05) * R;
-      const y = cy + ly * R;
-      const shrink = 1 - 0.35 * sea;
-      c.fillStyle = mix([200, 170, 110], [40, 180, 80], veg);
+    c.arc(sx, sy, R, 0, Math.PI * 2);
+    c.fill();
+    // rays turn slowly (still when reduced motion is on)
+    c.strokeStyle = `rgba(255, 220, 90, ${0.6 * sun})`;
+    c.lineWidth = Math.max(2, R * 0.12);
+    for (let i = 0; i < 10; i++) {
+      const a = (i / 10) * Math.PI * 2 + t * 0.15;
       c.beginPath();
-      c.ellipse(x, y, rx * R * shrink, ry * R * shrink, 0.3, 0, Math.PI * 2);
+      c.moveTo(sx + Math.cos(a) * R * 1.25, sy + Math.sin(a) * R * 1.25);
+      c.lineTo(sx + Math.cos(a) * R * (1.55 + 0.4 * sun), sy + Math.sin(a) * R * (1.55 + 0.4 * sun));
+      c.stroke();
+    }
+    c.globalAlpha = 1;
+    // lightning with strong storms
+    if (storms > 0.5 && !this.reduce && Math.sin(t * 7.3) > 0.97 - 0.1 * (storms - 0.5)) {
+      c.strokeStyle = "rgba(255, 255, 210, 0.95)";
+      c.lineWidth = Math.max(2, W / 400);
+      const lx = W * (0.4 + 0.4 * rnd(Math.floor(t)));
+      c.beginPath();
+      c.moveTo(lx, H * 0.25);
+      c.lineTo(lx - W * 0.02, H * 0.4);
+      c.lineTo(lx + W * 0.01, H * 0.42);
+      c.lineTo(lx - W * 0.03, H * 0.62);
+      c.stroke();
+    }
+    // hills: green with healthy plants, brown with drought, white with snow
+    const green = p.green ?? 0.7;
+    const dry = p.dry ?? 0;
+    const snow = p.snow ?? 0;
+    const land = mix(mix([185, 160, 105], [60, 175, 80], green * (1 - dry)).match(/\d+/g)!.map(Number), [245, 248, 255], snow);
+    c.fillStyle = land;
+    c.beginPath();
+    c.moveTo(0, H);
+    for (let x = 0; x <= W; x += W / 40) c.lineTo(x, H * 0.66 + Math.sin(x / W * 6 + 1) * H * 0.04 + Math.sin(x / W * 13) * H * 0.015);
+    c.lineTo(W, H);
+    c.fill();
+    // trees: as many as the plant cover
+    const trees = Math.round((p.veg ?? 0.66) * 18);
+    for (let i = 0; i < trees; i++) {
+      const x = (rnd(i + 50) * 0.9 + 0.05) * W;
+      const y = H * 0.7 + Math.sin(x / W * 6 + 1) * H * 0.04 + rnd(i + 51) * H * 0.18;
+      const s = H * (0.03 + rnd(i + 52) * 0.02);
+      c.fillStyle = "rgb(95, 65, 40)";
+      c.fillRect(x - s * 0.08, y - s * 0.6, s * 0.16, s * 0.6);
+      c.fillStyle = mix(mix([170, 130, 60], [40, 150, 70], green * (1 - dry)).match(/\d+/g)!.map(Number), [235, 240, 250], snow * 0.8);
+      c.beginPath();
+      c.arc(x + Math.sin(t + i) * s * 0.05 * (1 + 2 * storms), y - s * 0.8, s * 0.45, 0, Math.PI * 2);
       c.fill();
-      // flooded rim
-      c.strokeStyle = `rgba(120, 200, 255, ${0.6 * sea})`;
-      c.lineWidth = R * 0.03 * sea;
-      c.stroke();
     }
-    // Ice caps
-    const ice = p.ice ?? 0.66;
-    c.fillStyle = "rgba(240, 250, 255, 0.95)";
-    c.beginPath();
-    c.ellipse(cx, cy - R, R * 0.9 * ice, R * 0.35 * ice, 0, 0, Math.PI * 2);
-    c.fill();
-    c.beginPath();
-    c.ellipse(cx, cy + R, R * 0.95 * ice, R * 0.4 * ice, 0, 0, Math.PI * 2);
-    c.fill();
-    // Storms
-    const storms = Math.round((p.storms ?? 0.33) * 7);
-    for (let i = 0; i < storms; i++) {
-      const x = cx + (rnd(i + 600) - 0.5) * R * 1.4;
-      const y = cy + (rnd(i + 610) - 0.5) * R * 1.1;
-      c.strokeStyle = "rgba(255, 255, 255, 0.75)";
-      c.lineWidth = R * 0.02;
-      c.beginPath();
-      for (let a = 0; a < 12; a += 0.3) {
-        const r = R * 0.012 * a * (0.6 + p.storms);
-        const px = x + Math.cos(a + t * 2) * r;
-        const py = y + Math.sin(a + t * 2) * r;
-        a === 0 ? c.moveTo(px, py) : c.lineTo(px, py);
+    // cracks in dry ground
+    if (dry > 0.3) {
+      c.strokeStyle = `rgba(110, 70, 30, ${(dry - 0.3) * 1.2})`;
+      c.lineWidth = Math.max(1, W / 700);
+      for (let i = 0; i < 30; i++) {
+        const x = rnd(i + 70) * W;
+        const y = H * (0.78 + rnd(i + 71) * 0.2);
+        c.beginPath();
+        c.moveTo(x, y);
+        c.lineTo(x + (rnd(i + 72) - 0.5) * W * 0.05, y + rnd(i + 73) * H * 0.03);
+        c.stroke();
       }
+    }
+    // rain streaks
+    c.strokeStyle = "rgba(210, 230, 255, 0.6)";
+    c.lineWidth = Math.max(1, W / 900);
+    const drops = Math.round(rain * 220);
+    for (let i = 0; i < drops; i++) {
+      const x = (rnd(i + 100) * W + t * 80) % W;
+      const y = (rnd(i + 600) * H + t * H * 1.1) % H;
+      c.beginPath();
+      c.moveTo(x, y);
+      c.lineTo(x - W * 0.004, y + H * 0.03);
       c.stroke();
     }
-    c.restore();
-    c.strokeStyle = "rgba(140, 220, 255, 0.6)";
-    c.lineWidth = 2;
-    c.beginPath();
-    c.arc(cx, cy, R, 0, Math.PI * 2);
-    c.stroke();
-    // Thermometer and CO₂ gauge
-    const tx = W * 0.86;
-    const top = H * 0.15;
-    const bot = H * 0.82;
-    c.fillStyle = "rgba(255,255,255,0.15)";
-    c.fillRect(tx - 10, top, 20, bot - top);
-    c.fillStyle = mix([255, 210, 60], [255, 50, 40], temp);
-    c.fillRect(tx - 10, bot - (bot - top) * temp, 20, (bot - top) * temp);
-    c.beginPath();
-    c.arc(tx, bot + 14, 18, 0, Math.PI * 2);
-    c.fill();
-    c.fillStyle = "rgba(255,255,255,0.85)";
-    c.font = `${Math.round(H * 0.035)}px system-ui, sans-serif`;
-    c.textAlign = "center";
-    c.fillText("temp", tx, top - 10);
-    const gx = W * 0.94;
+    // heat shimmer
+    if (heat > 0.2) {
+      c.fillStyle = `rgba(255, 120, 40, ${0.2 * heat})`;
+      c.fillRect(0, 0, W, H);
+    }
+    // thermometer and CO₂ gauge
+    const temp = p.temp ?? 0.5;
     const co2 = p.co2 ?? 0.19;
-    c.fillStyle = "rgba(255,255,255,0.15)";
-    c.fillRect(gx - 8, top, 16, bot - top);
-    c.fillStyle = "rgb(190, 140, 255)";
-    c.fillRect(gx - 8, bot - (bot - top) * co2, 16, (bot - top) * co2);
-    c.fillStyle = "rgba(255,255,255,0.85)";
-    c.fillText("CO₂", gx, top - 10);
+    const top = H * 0.12;
+    const bot = H * 0.6;
+    const gauge = (gx: number, v: number, col: string, label: string) => {
+      c.fillStyle = "rgba(255,255,255,0.55)";
+      c.fillRect(gx - 9, top, 18, bot - top);
+      c.fillStyle = col;
+      c.fillRect(gx - 9, bot - (bot - top) * v, 18, (bot - top) * v);
+      c.fillStyle = "rgba(20, 40, 70, 0.85)";
+      c.font = `600 ${Math.round(H * 0.032)}px system-ui, sans-serif`;
+      c.textAlign = "center";
+      c.fillText(label, gx, top - 8);
+    };
+    gauge(W * 0.88, temp, mix([255, 210, 60], [255, 50, 40], temp), "🌡️");
+    gauge(W * 0.95, co2, "rgb(170, 120, 255)", "CO₂");
   }
 }

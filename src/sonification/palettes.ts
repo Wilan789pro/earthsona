@@ -39,20 +39,21 @@ export const PALETTES: Record<PaletteId, Palette> = {
     name: "Mauritius — Sega-inspired",
     short: "Sega-inspired",
     description:
-      "An original, synthesised arrangement inspired by the instruments of traditional Mauritian Sega: " +
-      "ravann (frame drum), maravann (box rattle) and triangle. It is not a Sega recording and does not reproduce any song.",
+      "An original arrangement with a 6/8 (ternary) swing inspired by traditional Mauritian Sega. " +
+      "Where the team's own recordings exist they are used; otherwise the beat is played by simple SYNTHESISED stand-in sounds " +
+      "(filtered noise, a low thump, a high ting). These are not real ravann, maravann or triangle sounds, not Sega recordings, and reproduce no song.",
     regions: ["sega"],
     instruments: [
       { name: "Plucked melody", role: "pitch (data)" },
       { name: "Soft second voice", role: "harmony (data)" },
-      { name: "Maravann-like shaker (synthesised noise)", role: "rhythmic density (data): more rain = more shakes" },
-      { name: "Triangle-like ting (synthesised)", role: "brightness (data) when a sunlight layer exists; otherwise a quiet time-keeper" },
-      { name: "Ravann-like frame drum (synthesised; ocean and weather)", role: "arrangement only: marks the beat, does NOT carry data" },
+      { name: "Shaker-style noise bursts (synthesised stand-in, not a real maravann)", role: "rhythmic density (data): more rain = more shakes" },
+      { name: "High metallic ting (synthesised stand-in, not a real triangle)", role: "brightness (data) when a sunlight layer exists; otherwise a quiet time-keeper" },
+      { name: "Low thump and slap (synthesised stand-in, not a real ravann; ocean and weather)", role: "arrangement only: marks the beat, does NOT carry data" },
       { name: "Soft wooden taps (synthesised; forest, a subtler accent)", role: "arrangement only: marks the beat, does NOT carry data" },
     ],
     arrangement:
-      "A ternary (compound, 6/8-style) groove: each data step is one beat divided in three; the frame drum accents the first beat of every two steps. " +
-      "In the forest the drum is replaced by soft wooden taps so the regional accent stays subtle. The regional layer is mixed below the natural soundscape. " +
+      "A ternary (compound, 6/8-style) groove: each data step is one beat divided in three; the low thump accents the first beat of every two steps. " +
+      "In the forest it is replaced by soft wooden taps so the regional accent stays subtle. The regional layer is mixed below the natural soundscape. " +
       "This metre is our design choice for an original interpretation and should be reviewed with Mauritian musicians.",
     references: [
       { label: "National Heritage Fund (Mauritius) — Sega Tipik Morisien: main instruments ravan, maravan and triang", url: "https://nhf.govmu.org/nhf/?page_id=723" },

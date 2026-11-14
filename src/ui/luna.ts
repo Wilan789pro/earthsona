@@ -114,10 +114,26 @@ const PREFERRED = [
   /(samantha|karen|moira|tessa|serena|fiona|victoria)/i,
 ];
 
-/** Sentence-sized pieces (≤ ~220 characters) so speech starts quickly. */
+/** Longest first chunk: the server voice runs at about real time, so a short first piece starts speech fast. */
+export const FIRST_CHUNK = 90;
+const EMOJI = /[\u{1F300}-\u{1FAFF}\u2600-\u27BF]/gu;
+
+/**
+ * Sentence-sized pieces so speech starts quickly: the FIRST piece is one short sentence (≤ FIRST_CHUNK
+ * characters, split at a comma if needed); later pieces group sentences up to ~220 characters.
+ */
 export function splitForSpeech(text: string): string[] {
   const sentences = text.match(/[^.!?…]+[.!?…]*["”’)]?\s*/g)?.map((s) => s.trim()).filter(Boolean) ?? [text];
   const out: string[] = [];
+  let first = sentences.shift() ?? "";
+  if (first.length > FIRST_CHUNK) {
+    const cut = Math.max(first.lastIndexOf(", ", FIRST_CHUNK), first.lastIndexOf("; ", FIRST_CHUNK), first.lastIndexOf(": ", FIRST_CHUNK));
+    if (cut > 20) {
+      sentences.unshift(first.slice(cut + 2));
+      first = first.slice(0, cut + 1);
+    }
+  }
+  if (first) out.push(first);
   let cur = "";
   for (const s of sentences) {
     if (cur && (cur + " " + s).length > 220) {
@@ -127,6 +143,13 @@ export function splitForSpeech(text: string): string[] {
   }
   if (cur) out.push(cur);
   return out.length ? out.map((c) => c.slice(0, 1500)) : [text.slice(0, 1500)];
+}
+
+/** Ask the server to prepare common phrases in the background (disk-cached), so they start instantly later. */
+export function prewarmSpeech(texts: string[]): void {
+  const chunks = [...new Set(texts.flatMap((t) => splitForSpeech(t.replace(EMOJI, "").trim())).filter((c) => c && c.length <= 100))].slice(0, 80); // short chunks only: never blocks live speech for long
+  if (!chunks.length) return;
+  void fetch(`${API_BASE}/api/luna/tts/prewarm`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ texts: chunks }) }).catch(() => {});
 }
 
 export class LunaVoice {
@@ -145,6 +168,9 @@ export class LunaVoice {
   private abort: AbortController | null = null;
   private cache = new Map<string, string>();
   private token = 0;
+  private askedAt = 0;
+  /** Time from say() to the first sound, in ms (for testing and the report). */
+  latencies: number[] = [];
   readonly supported = typeof window !== "undefined" && "speechSynthesis" in window;
   onState: (s: VoiceState) => void = () => {};
   onDuck: (d: boolean) => void = () => {};
@@ -179,8 +205,9 @@ export class LunaVoice {
     this.stop();
     this.text = text;
     if (!(this.enabled || force) || !this.unlocked) return;
-    const clean = text.replace(/[\u{1F300}-\u{1FAFF}\u2600-\u27BF]/gu, "").trim();
+    const clean = text.replace(EMOJI, "").trim();
     if (!clean) return;
+    this.askedAt = performance.now();
     if (this.engine === "kokoro") void this.kokoro(clean);
     else this.browser(clean);
   }
@@ -234,6 +261,7 @@ export class LunaVoice {
       } catch {
         return this.finish();
       }
+      if (i === 0) this.latencies.push(Math.round(performance.now() - this.askedAt));
       this.set("speaking");
       await new Promise<void>((res) => {
         const done = () => (this.audio.removeEventListener("ended", done), res());
@@ -338,10 +366,13 @@ export interface SayOpts {
   extra?: string;
   /** Speak even if this exact line was just said. */
   repeat?: boolean;
+  /** Don't interrupt a line Luna is still saying: show it now, speak it when she finishes (latest wins). */
+  polite?: boolean;
 }
 
 export class Luna {
   private last = "";
+  private pending: { text: string; o: SayOpts } | null = null;
   constructor(readonly voice: LunaVoice) {
     this.draw();
     $("voice-toggle").onclick = () => this.setVoiceEnabled(!this.voice.enabled, true);
@@ -357,6 +388,11 @@ export class Luna {
       ($("voice-pause") as HTMLButtonElement).disabled = s === "idle" || s === "loading";
       ($("voice-stop") as HTMLButtonElement).disabled = s === "idle";
       if (!this.isThinking) this.status(s === "loading" ? "Preparing Luna's voice…" : s === "paused" ? "Paused" : "");
+      if (s === "idle" && this.pending) {
+        const p = this.pending;
+        this.pending = null;
+        window.setTimeout(() => this.say(p.text, { ...p.o, polite: false }), 250);
+      }
     };
     voice.onError = (msg) => this.status(msg, true);
     ($("voice-pause") as HTMLButtonElement).disabled = true;
@@ -422,6 +458,12 @@ export class Luna {
 
   /** Show a line in the bubble and (if allowed) say it. */
   say(text: string, o: SayOpts = {}): void {
+    if (o.polite && this.voice.state === "speaking") {
+      this.pending = { text, o };
+      if (o.mood) this.setMood(o.mood); // her face reacts at once; the words follow when she's free
+      return;
+    }
+    this.pending = null;
     if (o.mood) this.setMood(o.mood);
     const bubble = $("bubble");
     bubble.hidden = false;

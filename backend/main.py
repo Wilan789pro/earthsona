@@ -6,6 +6,7 @@ Endpoints
     GET  /api/health      is the backend up, which model, is a key configured (never the key itself)
     POST /api/luna/chat   {message, session_id, context?} -> {reply, session_id, model, audio}
     POST /api/luna/tts    {text} -> audio/wav spoken by Kokoro-82M (voice af_heart)
+    POST /api/luna/tts/prewarm {texts} -> queue common phrases for background synthesis (disk-cached)
 """
 
 from __future__ import annotations
@@ -20,7 +21,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 
 from config.settings import settings
-from schemas.luna import ChatRequest, ChatResponse, ErrorResponse, TTSRequest
+from schemas.luna import ChatRequest, ChatResponse, ErrorResponse, TTSPrewarmRequest, TTSRequest
 from services.gemini_service import GeminiError, GeminiService
 from services.luna_service import LunaService
 from services.tts_service import TTSError, TTSService
@@ -97,8 +98,20 @@ async def luna_tts(req: TTSRequest, request: Request) -> Response:
     ip = request.client.host if request.client else "unknown"
     if _rate_limited(ip, kind="tts"):
         return JSONResponse(status_code=429, content=ErrorResponse(error="rate_limited", message="Too many voice requests. Please wait a minute.").model_dump())
-    audio = await tts.speak(req.text.strip())
+    started = time.perf_counter()
+    audio = await tts.speak(req.text.strip(), gone=request.is_disconnected)
+    log.info("tts %d chars %.2fs", len(req.text), time.perf_counter() - started)  # length only, never the text
     return Response(content=audio, media_type="audio/wav", headers={"Cache-Control": "no-store"})
+
+
+@app.post("/api/luna/tts/prewarm")
+async def luna_tts_prewarm(req: TTSPrewarmRequest, request: Request) -> JSONResponse:
+    ip = request.client.host if request.client else "unknown"
+    if _rate_limited(ip, kind="prewarm"):
+        return JSONResponse(status_code=429, content=ErrorResponse(error="rate_limited", message="Too many requests.").model_dump())
+    if not tts.available():
+        return JSONResponse(status_code=503, content=ErrorResponse(error="tts_not_installed", message="Luna's voice is not available.").model_dump())
+    return JSONResponse({"queued": tts.prewarm(req.texts), "stats": tts.stats})
 
 
 @app.post("/api/luna/chat", response_model=ChatResponse, responses={429: {"model": ErrorResponse}, 502: {"model": ErrorResponse}, 503: {"model": ErrorResponse}, 504: {"model": ErrorResponse}})

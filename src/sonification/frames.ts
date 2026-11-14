@@ -25,7 +25,12 @@ export interface SoundFrame {
   pan: number;
   /** Raw values per variable at this step, for "now playing" and explanations. */
   values: Record<string, { value: number | null; unit: string; quality?: string }>;
+  /** A significant DROP of the pitch variable since the previous valid step (see DROP_THRESHOLD). */
+  drop?: boolean;
 }
+
+/** Absolute decrease (in the variable's own unit) that counts as "significant" and changes the arrangement. */
+export const DROP_THRESHOLD: Record<string, number> = { NDVI: 0.05, EVI: 0.05, SST: 1, T2M: 3 };
 
 export function scaleValue(v: number, series: CleanSeries, mode: PitchScale): number {
   let min: number;
@@ -83,11 +88,13 @@ export function trackToFrames(track: Track, mode: PitchScale = "relative"): Soun
     let harmony: HarmonyFrame | null = null;
     const h = at("harmony");
     if (h?.point && h.point.value !== null) {
-      harmony = h.series.variable === "SSTA" ? { kind: "anomaly", anomaly: h.point.value } : { kind: "chord", level01: scaleValue(h.point.value, h.series, "relative") };
+      harmony = h.series.variable === "SSTA" ? { kind: "anomaly", anomaly: h.point.value } : { kind: "chord", level01: scaleValue(h.point.value, h.series, mode) };
     }
 
     const pitch = pt.value === null ? null : scaleValue(pt.value, pitchSeries, mode);
     const delta = pt.value === null || prev === null ? 0 : (pt.value - prev) / span;
+    const dropBy = DROP_THRESHOLD[pitchSeries.variable];
+    const drop = pt.value !== null && prev !== null && dropBy !== undefined && prev - pt.value >= dropBy;
     if (pt.value !== null) prev = pt.value;
 
     return {
@@ -102,6 +109,7 @@ export function trackToFrames(track: Track, mode: PitchScale = "relative"): Soun
       delta: Math.max(-1, Math.min(1, delta)),
       pan: axis.length > 1 ? (i / (axis.length - 1)) * 2 - 1 : 0,
       values,
+      drop,
     };
   });
 }

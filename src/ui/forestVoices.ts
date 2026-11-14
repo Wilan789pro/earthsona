@@ -29,6 +29,7 @@ const fmtDay = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString(
 export class ForestVoices {
   private out: GainNode | null = null;
   private timers: number[] = [];
+  private token = 0;
   playing = false;
 
   constructor(private host: ForestVoicesHost) {}
@@ -95,7 +96,7 @@ export class ForestVoices {
         <li><strong>Instrument:</strong> the team's SuperCollider sound <code>${esc(inst.script)}</code> (sample <code>${esc(inst.file)}</code>, ${esc(inst.role)}), ported to the browser with the same pitch-shifter and overlapping starts.</li>
         <li><strong>Greenness (NDVI) → pitch:</strong> NDVI ${NDVI_REFERENCE} plays the sample at its original pitch; 0 is one octave lower, 1 one octave higher (like temperature in the original script).</li>
         <li><strong>Leafiness (EVI) → beat:</strong> ${MIN_STARTS} to ${MAX_STARTS} sounds per second (like wind in the original script).</li>
-        <li><strong>Marginal quality → softer sound</strong>, so lower confidence can be heard. The triangle marks the start of each date (it carries no data).</li>
+        <li><strong>Marginal quality → softer sound</strong>, so lower confidence can be heard. The team's “triangle-sound” recording marks the start of each date (it carries no data).</li>
         <li><strong>A then B:</strong> the pitch glides from one date to the next, so the melody moves as the data changes.</li>
       </ul>
       <p class="small"><strong>Careful:</strong> between these two dates NDVI rose slightly while EVI almost halved. Real forests rarely change that fast in 16 days, so this is more likely caused by haze or cloud edges in these marginal-quality pictures than by a real change in the forest.</p>`;
@@ -103,28 +104,38 @@ export class ForestVoices {
 
   /** Play one or more observations in order through the team's instrument. */
   async play(indices: number[]): Promise<void> {
+    return this.playObservations(indices.map((i) => this.observations[i]).filter(Boolean));
+  }
+
+  /** Play any real vegetation observations (the team CSV or a date picked on the history graph). */
+  async playObservations(obs: VegetationObservation[], label = "Our forest data"): Promise<void> {
     this.stop(false);
-    const obs = indices.map((i) => this.observations[i]).filter(Boolean);
     if (!obs.length) return;
+    const my = ++this.token; // a newer request (e.g. a second date picked on the graph) replaces this one
     this.host.luna.caption("Getting the forest sounds ready…");
     await this.host.beforePlay();
     const ctx = this.host.engine.ctx;
-    if (!ctx) return;
+    if (!ctx || my !== this.token) return;
     // A private output, so Stop can silence everything already scheduled.
-    this.out = ctx.createGain();
-    this.out.connect(this.host.engine.output("data"));
-    const sampler = new CulturalSampler(ctx, this.out);
-    const [shaker, triangle] = await Promise.all([sampler.load("forest"), sampler.load("triangle")]);
-    if (!shaker) {
+    const out = ctx.createGain();
+    out.connect(this.host.engine.output("data"));
+    this.out = out;
+    const sampler = new CulturalSampler(ctx, out);
+    const [forestSample, triangle] = await Promise.all([sampler.load("forest"), sampler.load("triangle")]);
+    if (my !== this.token) {
+      out.disconnect();
+      return;
+    }
+    if (!forestSample) {
       this.host.luna.say("I can't load our forest sound right now. Try again in a moment.", { mood: "concerned" });
       return;
     }
     this.playing = true;
-    $("fv-stop").hidden = false;
+    document.getElementById("fv-stop")?.removeAttribute("hidden");
     const letters = "ABCDEFGHIJ";
     const t0 = ctx.currentTime + 0.15;
     const first = obs[0];
-    this.host.showPoint(first.lat, first.lon, "Our forest data");
+    this.host.showPoint(first.lat, first.lon, label);
     this.host.luna.say(
       obs.length > 1 ? `Listen! First ${fmtDay(obs[0].date)}, then ${fmtDay(obs[obs.length - 1].date)}. Can you hear the forest change?` : `Listen to the forest on ${fmtDay(first.date)}! Greener means higher, leafier means a faster beat.`,
       { mood: "happy" },

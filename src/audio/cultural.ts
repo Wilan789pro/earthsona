@@ -1,10 +1,10 @@
-import forestUrl from "../../cultural_sound/forest2beat-sound.wav?url";
-import oceanUrl from "../../cultural_sound/ocean2beat-sound.wav?url";
-import triangleUrl from "../../cultural_sound/triangle-sound.wav?url";
-import pulseUrl from "../../cultural_sound/yoooo-pulse-sound.wav?url";
+import forestUrl from "../../supercollider/cultural_sound/forest2beat-sound.wav?url";
+import oceanUrl from "../../supercollider/cultural_sound/ocean2beat-sound.wav?url";
+import triangleUrl from "../../supercollider/cultural_sound/triangle-sound.wav?url";
+import pulseUrl from "../../supercollider/cultural_sound/yoooo-pulse-sound.wav?url";
 
 /**
- * Browser port of the team's SuperCollider instrument (cultural_sound/*.scd).
+ * Browser port of the team's SuperCollider instrument (supercollider/cultural_sound/*.scd).
  *
  *   SynthDef(\climateOverlapSound): PlayBuf (original speed, once) → PitchShift(windowSize 0.1,
  *   pitchRatio, no dispersion) → linen envelope (5 ms attack, 10 ms release), amplitude 0.25.
@@ -18,11 +18,16 @@ import pulseUrl from "../../cultural_sound/yoooo-pulse-sound.wav?url";
  */
 export type SampleName = "forest" | "ocean" | "triangle" | "pulse";
 
-export const SAMPLE_INFO: Record<SampleName, { file: string; url: string; script: string; role: string }> = {
-  forest: { file: "forest2beat-sound.wav", url: forestUrl, script: "forest2variable.scd", role: "forest shaker (maravanne-like)" },
-  ocean: { file: "ocean2beat-sound.wav", url: oceanUrl, script: "ocean2variable.scd", role: "ocean drum (ravanne-like)" },
-  triangle: { file: "triangle-sound.wav", url: triangleUrl, script: "triangle2variable.scd", role: "triangle" },
-  pulse: { file: "yoooo-pulse-sound.wav", url: pulseUrl, script: "EarthPulseJapan.scd", role: "Earth Pulse voice" },
+/**
+ * What each sample IS, as far as the team's files tell us. The four .scd scripts are identical apart from the
+ * file path; none names an instrument or a musical tradition, so no instrument name is claimed here.
+ * kind: "recording" = an audio recording made/supplied by the team (source and licence to be confirmed).
+ */
+export const SAMPLE_INFO: Record<SampleName, { file: string; url: string; script: string; role: string; kind: "recording" }> = {
+  forest: { file: "forest2beat-sound.wav", url: forestUrl, script: "forest2variable.scd", role: "a short percussive recording (0.7 s) named “forest2beat”; the instrument is not identified in the team's files", kind: "recording" },
+  ocean: { file: "ocean2beat-sound.wav", url: oceanUrl, script: "ocean2variable.scd", role: "a short percussive recording (0.55 s) named “ocean2beat”; the instrument is not identified in the team's files", kind: "recording" },
+  triangle: { file: "triangle-sound.wav", url: triangleUrl, script: "triangle2variable.scd", role: "a short metallic recording (0.55 s) named “triangle-sound” (the file name suggests a triangle; not verified)", kind: "recording" },
+  pulse: { file: "yoooo-pulse-sound.wav", url: pulseUrl, script: "EarthPulseJapan.scd", role: "a vocal-like recording (1.6 s) named “yoooo-pulse”", kind: "recording" },
 };
 
 const WINDOW = 0.1; // PitchShift windowSize

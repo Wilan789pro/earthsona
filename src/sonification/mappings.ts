@@ -65,7 +65,7 @@ export function densityHits(level01: number): number {
  *     0.5 – 1.5 °C   → major second (gentle tension)
  *     ≥ 1.5 °C       → tritone (strong tension)
  *     positive anomaly → the second voice sits ABOVE the melody; negative → BELOW.
- *  EVI (relative within the series): low → bare octave, middle → fifth, high → major-third + fifth (richer chord).
+ *  EVI (on the chosen pitch scale, global by default): low → bare octave, middle → fifth, high → major-third + fifth (richer chord).
  */
 export type HarmonyFrame = { kind: "anomaly"; anomaly: number } | { kind: "chord"; level01: number };
 

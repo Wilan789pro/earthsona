@@ -16,7 +16,8 @@ import { CulturalSampler, type SampleName } from "./cultural";
  * Three buses keep the layers separate and individually switchable:
  *   nature   — Layer 1, synthesised environmental sound (ambience.ts), carries no data
  *   data     — Layer 2, the scientific sonification (every sound here comes from a measurement)
- *   regional — Layer 3, the regional arrangement (Sega-inspired frame drum / wood taps), carries no data
+ *   regional — Layer 3, the regional arrangement (team recordings, or synthesised stand-in beats with a
+ *              Sega-inspired 6/8 swing — not real Sega instruments), carries no data
  */
 export interface LayerToggles {
   melody: boolean;
@@ -32,7 +33,7 @@ export interface RenderOptions {
   experience: ExperienceId;
   palette: PaletteId;
   layers: LayerToggles;
-  /** The team's SuperCollider sample for this place (cultural_sound/); replaces the synthesised accents. */
+  /** The team's SuperCollider sample for this place (supercollider/cultural_sound/); replaces the synthesised accents. */
   cultural?: SampleName | null;
 }
 
@@ -58,6 +59,12 @@ export class StepRenderer {
     const freq = noteFrequency(o.experience, noteIndex(f.pitch));
 
     if (o.layers.melody) this.melody(at, dur, freq, bright, f.delta, o.palette, pan);
+    // A significant drop of the measurement: a soft falling two-note figure below the melody, so a big
+    // decrease is clearly audible (documented in mappingSpec.ts).
+    if (f.drop && o.layers.melody) {
+      this.voice(at + dur * 0.1, dur * 0.4, freq / 2, 0.12, "triangle", pan);
+      this.voice(at + dur * 0.5, dur * 0.45, (freq / 2) * 2 ** (-2 / 12), 0.12, "triangle", pan);
+    }
     if (o.layers.harmony && f.harmony) {
       for (const st of harmonyIntervals(f.harmony).semitones) this.voice(at, dur, freq * 2 ** (st / 12), 0.09, "sine", pan);
     }
@@ -67,7 +74,7 @@ export class StepRenderer {
       const rp = this.ctx.createStereoPanner();
       rp.pan.value = pan.pan.value * 0.5;
       rp.connect(this.regionalOut);
-      // Forest: subtle wooden taps; ocean and pulse: the ravann-like frame-drum groove.
+      // Forest: subtle wooden taps; ocean and pulse: a synthesised low thump + slap groove (a stand-in, not a ravann).
       if (o.experience === "forest") this.woodAccents(f.index, at, dur, rp);
       else this.segaArrangement(f.index, at, dur, rp);
     }
@@ -174,7 +181,7 @@ export class StepRenderer {
   private density(at: number, dur: number, hits: number, palette: PaletteId, dest: AudioNode) {
     if (hits === 0) return;
     if (palette === "sega") {
-      // Maravann-like shaker on a ternary grid (6 subdivisions per step), filled in a fixed order.
+      // Synthesised shaker-style noise on a ternary grid (6 subdivisions per step), filled in a fixed order.
       const order = [0, 3, 2, 5];
       for (let k = 0; k < hits; k++) this.noiseHit(at + (order[k] * dur) / 6, Math.min(0.06, dur / 6), 0.09, "highpass", 5200, 0.7, dest);
     } else {
@@ -182,7 +189,7 @@ export class StepRenderer {
     }
   }
 
-  /** Data-independent groove for the Sega-inspired palette (frame-drum boom + slap). */
+  /** Data-independent groove for the Sega-inspired palette (synthesised low thump + slap; not a recorded drum). */
   private segaArrangement(step: number, at: number, dur: number, dest: AudioNode) {
     if (step % 2 === 0) this.drum(at, 0.32, dest);
     else this.noiseHit(at + (dur * 2) / 3, 0.08, 0.06, "bandpass", 1400, 1.5, dest); // light slap on the off-beat

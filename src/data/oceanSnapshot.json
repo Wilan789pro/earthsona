@@ -1,0 +1,59 @@
+{
+ "source": "global_ocean_complete_data.csv (team export, Earth Information Jukebox project)",
+ "places": {
+  "mauritius-waters": {
+   "lat": -18.917,
+   "lon": 56.752,
+   "distanceKm": 178,
+   "from": "2025-06-01",
+   "to": "2025-07-01",
+   "sst": 25.62,
+   "sstAnomaly": 0.33,
+   "chlorophyll": 0.082,
+   "salinity": 34.96,
+   "waveHeight": 2.79,
+   "sources": {
+    "temperature": "NOAA CDR OISST V2.1",
+    "colour": "Copernicus Satellite Ocean Color V6",
+    "salinity": "Copernicus Marine Global Sea Surface NRT",
+    "waves": "Copernicus Marine Global Waves"
+   }
+  },
+  "hawaii-waters": {
+   "lat": 19.808,
+   "lon": -157.493,
+   "distanceKm": 153,
+   "from": "2025-06-01",
+   "to": "2025-07-01",
+   "sst": 26.26,
+   "sstAnomaly": 0.54,
+   "chlorophyll": 0.062,
+   "salinity": 33.99,
+   "waveHeight": 1.77,
+   "sources": {
+    "temperature": "NOAA CDR OISST V2.1",
+    "colour": "Copernicus Satellite Ocean Color V6",
+    "salinity": "Copernicus Marine Global Sea Surface NRT",
+    "waves": "Copernicus Marine Global Waves"
+   }
+  },
+  "central-pacific": {
+   "lat": 10.434,
+   "lon": -150.459,
+   "distanceKm": 70,
+   "from": "2025-06-01",
+   "to": "2025-07-01",
+   "sst": 27.05,
+   "sstAnomaly": -0.09,
+   "chlorophyll": 0.147,
+   "salinity": 34.74,
+   "waveHeight": 2.18,
+   "sources": {
+    "temperature": "NOAA CDR OISST V2.1",
+    "colour": "Copernicus Satellite Ocean Color V6",
+    "salinity": "Copernicus Marine Global Sea Surface NRT",
+    "waves": "Copernicus Marine Global Waves"
+   }
+  }
+ }
+}

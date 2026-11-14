@@ -79,19 +79,34 @@ describe("Ocean: interconnected relationships", () => {
   });
 });
 
-describe("Earth Pulse: interconnected relationships", () => {
-  it("doubling CO₂ implies ~3 °C (IPCC best-estimate sensitivity)", () => {
-    const r = simulate("pulse", { ...baselineOf("pulse"), co2: 560 });
-    expect(r.indicators.find((i) => i.key === "implied")!.value * 6).toBeCloseTo(3, 1);
+describe("Earth's Pulse: local weather judged against this place's real normal", () => {
+  const portLouis = { temp: 25.5, rain: 3.2, sun: 19 }; // a real-looking tropical normal
+  const ross = { temp: -22, rain: 0.4, sun: 9 }; // a polar station normal
+  it("each place is healthy at its own real normal", () => {
+    for (const real of [portLouis, ross]) {
+      const base = baselineOf("pulse", real);
+      expect(base.temp).toBeCloseTo(real.temp, 0);
+      expect(simulate("pulse", base, base).health).toBeGreaterThan(70);
+    }
   });
-  it("warming reduces ice and raises risk", () => {
-    const hot = simulate("pulse", { ...baselineOf("pulse"), temp: 3.5 });
-    expect(hot.indicators.find((i) => i.key === "ice")!.value).toBeLessThan(simulate("pulse", baselineOf("pulse")).indicators.find((i) => i.key === "ice")!.value);
-    expect(health("pulse", { temp: 3.5 })).toBeLessThan(health("pulse"));
+  it("a heatwave and a drought lower health and are described with hedged words", () => {
+    const base = baselineOf("pulse", portLouis);
+    const r = simulate("pulse", { ...base, temp: 36, rain: 0.3 }, base);
+    expect(r.health).toBeLessThan(simulate("pulse", base, base).health - 20);
+    expect(r.findings.join(" ")).toMatch(/could|may/);
   });
-  it("extreme-weather wording never blames single events", () => {
-    const r = simulate("pulse", { ...baselineOf("pulse"), extreme: 2.5 });
-    expect(r.findings.join(" ")).toMatch(/Individual events still have many causes/);
+  it("less sunlight makes the scene's sun smaller and dimmer and slows plant growth", () => {
+    const base = baselineOf("pulse", portLouis);
+    const dim = simulate("pulse", { ...base, sun: 4 }, base);
+    const normal = simulate("pulse", base, base);
+    expect(dim.visual.sun).toBeLessThan(normal.visual.sun);
+    expect(dim.metrics.growth).toBeLessThan(normal.metrics.growth);
+  });
+  it("CO₂ alone does not change today's weather in the model (no invented causal link)", () => {
+    const base = baselineOf("pulse", portLouis);
+    const r = simulate("pulse", { ...base, co2: 800 }, base);
+    expect(r.metrics.heat).toBeCloseTo(simulate("pulse", base, base).metrics.heat, 5);
+    expect(r.findings.join(" ")).toMatch(/many years/);
   });
 });
 

@@ -60,6 +60,12 @@ class TTSRequest(BaseModel):
     text: str = Field(min_length=1, max_length=1500)
 
 
+class TTSPrewarmRequest(BaseModel):
+    """Common phrases the app will probably say soon (synthesised in the background, cached on disk)."""
+
+    texts: list[str] = Field(max_length=80)
+
+
 class ErrorResponse(BaseModel):
     error: str  # stable machine-readable kind
     message: str  # human-readable, safe to show

@@ -37,6 +37,8 @@ export interface SimResult {
   findings: string[];
   /** Parameters for the visual scene (all 0–1 unless noted). */
   visual: Record<string, number>;
+  /** Internal stress/benefit levels (0–1) that the scenario rules (scenarios.ts) test against thresholds. */
+  metrics: Record<string, number>;
 }
 
 export type Values = Record<string, number>;
@@ -67,16 +69,23 @@ export const VARS: Record<ExperienceId, VarDef[]> = {
     { key: "reef", label: "Coral reef health (starting)", unit: "% live coral", min: 0, max: 100, step: 1, baseline: 80, help: "The reef's condition before the other stressors act on it." },
   ],
   pulse: [
-    { key: "temp", label: "Global temperature anomaly", unit: "°C vs 1850–1900", min: 0, max: 5, step: 0.1, baseline: 1.1, help: "Baseline +1.1 °C is the IPCC AR6 estimate for 2011–2020." },
-    { key: "co2", label: "Atmospheric CO₂", unit: "ppm", min: 280, max: 1000, step: 10, baseline: 420, help: "Baseline ≈ 420 ppm, close to recent NOAA global annual means. Pre-industrial was about 280 ppm." },
-    { key: "ice", label: "Ice cover", unit: "% of today", min: 0, max: 150, step: 1, baseline: 100, help: "Sea ice, ice sheets and glaciers together." },
-    { key: "sea", label: "Sea level", unit: "m vs today", min: -0.2, max: 2, step: 0.05, baseline: 0, help: "Rises from warming water (thermal expansion) and melting land ice." },
-    { key: "veg", label: "Vegetation cover", unit: "% of today", min: 0, max: 150, step: 1, baseline: 100, help: "Forests and plants store carbon and cool the land." },
-    { key: "extreme", label: "Extreme weather intensity", unit: "index (1 = today)", min: 0, max: 3, step: 0.1, baseline: 1, help: "How strong heatwaves, heavy rain and droughts are overall, not any single event." },
+    { key: "temp", label: "Air temperature", unit: "°C", min: -30, max: 45, step: 0.5, baseline: 25, help: "Daily-mean air temperature at 2 m (NASA POWER T2M). Starts at this place's latest real value." },
+    { key: "rain", label: "Rainfall", unit: "mm/day", min: 0, max: 30, step: 0.5, baseline: 4, help: "Average rain per day (NASA POWER PRECTOTCORR). Starts at this place's latest real value." },
+    { key: "sun", label: "Sunlight", unit: "MJ/m²/day", min: 1, max: 35, step: 0.5, baseline: 18, help: "Sunlight reaching the ground (NASA POWER ALLSKY_SFC_SW_DWN). Starts at this place's latest real value." },
+    { key: "co2", label: "Atmospheric CO₂", unit: "ppm", min: 280, max: 1000, step: 10, baseline: 420, help: "≈ 420 ppm is close to recent NOAA global annual means; pre-industrial was about 280 ppm." },
+    { key: "veg", label: "Plant cover", unit: "% of today", min: 0, max: 150, step: 1, baseline: 100, help: "How many plants grow here compared with today." },
+    { key: "storms", label: "Stormy weather", unit: "index (1 = usual)", min: 0, max: 3, step: 0.1, baseline: 1, help: "How strong storms and downpours are overall, not any single event." },
   ],
 };
 
-export const baselineOf = (exp: ExperienceId): Values => Object.fromEntries(VARS[exp].map((v) => [v.key, v.baseline]));
+/** The "normal" starting point. `real` overrides come from real measurements (see Playground.realStart). */
+export const baselineOf = (exp: ExperienceId, real: Values = {}): Values =>
+  Object.fromEntries(
+    VARS[exp].map((d) => {
+      const r = real[d.key];
+      return [d.key, r === undefined || !Number.isFinite(r) ? d.baseline : Math.min(d.max, Math.max(d.min, Math.round(r / d.step) * d.step))];
+    }),
+  );
 
 /** Ready-made "What happens if…?" scenarios (all hypothetical). */
 export const PRESETS: Record<ExperienceId, { label: string; values: Values }[]> = {
@@ -95,18 +104,18 @@ export const PRESETS: Record<ExperienceId, { label: string; values: Values }[]> 
     { label: "…a healthy, protected reef?", values: { pollution: 3, reef: 95 } },
   ],
   pulse: [
-    { label: "…CO₂ doubles from pre-industrial?", values: { co2: 560, temp: 2.5 } },
-    { label: "…we reach +3 °C?", values: { temp: 3, co2: 650, ice: 60, sea: 0.6, extreme: 2 } },
-    { label: "…forests are cleared worldwide?", values: { veg: 40 } },
-    { label: "…emissions fall and forests regrow?", values: { co2: 400, veg: 120, temp: 1.3 } },
+    { label: "…a heatwave?", values: { temp: 36, rain: 0.5, sun: 28 } },
+    { label: "…it rains for days?", values: { rain: 22, sun: 6, storms: 2 } },
+    { label: "…clouds and smoke dim the sun?", values: { sun: 6 } },
+    { label: "…plants are cleared?", values: { veg: 30 } },
   ],
 };
 
 // ---------------------------------------------------------------------------
 // Models
 // ---------------------------------------------------------------------------
-export function simulate(exp: ExperienceId, v: Values): SimResult {
-  return exp === "forest" ? forest(v) : exp === "ocean" ? ocean(v) : pulse(v);
+export function simulate(exp: ExperienceId, v: Values, base: Values = baselineOf(exp)): SimResult {
+  return exp === "forest" ? forest(v) : exp === "ocean" ? ocean(v) : pulse(v, base);
 }
 
 function forest(v: Values): SimResult {
@@ -150,7 +159,8 @@ function forest(v: Values): SimResult {
       { key: "wildlife", label: "Wildlife activity", value: wildlife, good: "high" },
     ],
     findings,
-    visual: { green: clamp(health * (1 - 0.5 * drought)), density: clamp(0.25 + 0.75 * health), dry: drought, wet: waterlog, sun: clamp(v.sun / 150), rain: clamp(v.rain / 300), haze: clamp((v.humidity - 20) / 80), wildlife, heat },
+    visual: { green: clamp(health * (1 - 0.5 * drought)), density: clamp(0.25 + 0.75 * health), dry: drought, wet: waterlog, sun: clamp(v.sun / 150), rain: clamp(v.rain / 300), haze: clamp((v.humidity - 20) / 80), wildlife, heat, fall: clamp(Math.max(drought, heat) * 1.3 - 0.15), health },
+    metrics: { drought, heat, waterlog, cold, photo: clamp(photo / 1.15), health, co2: clamp((v.co2 - 420) / 580), dim: clamp((60 - v.sun) / 40) },
   };
 }
 
@@ -191,50 +201,71 @@ function ocean(v: Values): SimResult {
       { key: "fish", label: "Marine biodiversity", value: fish, good: "high" },
     ],
     findings,
-    visual: { coral, bleach, clarity, bloom, fish, acid, oxygen: clamp(oxygen / 8), warm: clamp((v.sst + 2) / 6), pollution: pol },
+    visual: { coral, bleach, clarity, bloom, fish, acid, oxygen: clamp(oxygen / 8), warm: clamp((v.sst + 2) / 6), pollution: pol, health },
+    metrics: { bleach, acid, bloom, hypoxia, pollution: pol, starve, coral, fish, health, runoff: clamp((v.nutrients - 160) / 100) },
   };
 }
 
-function pulse(v: Values): SimResult {
-  // Equilibrium warming implied by CO₂: ECS × log2(CO₂/280), IPCC AR6 best estimate ECS = 3 °C.
-  const implied = 3 * Math.log2(v.co2 / 280);
-  const gap = implied - v.temp;
-  // Ice: in this model ice responds to warming above today's level (slow, non-linear).
-  const iceFromTemp = clamp(1 - 0.12 * Math.max(0, v.temp - 1.1) - 0.05 * Math.max(0, v.temp - 1.1) ** 2, 0, 1.2);
-  const ice = clamp((v.ice / 100) * iceFromTemp, 0, 1.5);
-  const impliedSea = 0.2 * Math.max(0, v.temp - 1.1) + 1.5 * Math.max(0, 1 - ice); // simplified, long-term, metres
+/**
+ * Earth's Pulse lab: the LOCAL weather of one place (NASA POWER point data — not global weather), plus CO₂,
+ * plant cover and storminess. "Normal" is this place's latest real measurement, so a polar station and a
+ * tropical port both start healthy and are judged against their own normal.
+ */
+function pulse(v: Values, base: Values): SimResult {
+  const warmer = v.temp - base.temp;
+  // Heat stress: very hot daily means (≥ ~30 °C) or much hotter than this place's normal.
+  const heat = clamp(Math.max(sigmoid((v.temp - 31) / 1.5), sigmoid((warmer - 5) / 1.2)));
+  const coldSnap = clamp(sigmoid((-warmer - 6) / 1.5));
+  // Evaporation demand rises ~7 %/°C (Clausius–Clapeyron); water supply is rain relative to normal.
+  const evap = Math.max(0.3, 1 + 0.07 * warmer);
+  const water = (v.rain / Math.max(0.5, base.rain)) / evap; // 1 = normal
+  const drought = clamp(sigmoid((0.45 - water) / 0.12));
+  const flood = clamp(sigmoid((v.rain - Math.max(14, 2.5 * base.rain)) / 2.2));
+  const sunRatio = v.sun / Math.max(1, base.sun);
+  const dim = clamp(sigmoid((0.55 - sunRatio) / 0.08));
+  const storm = clamp((v.storms - 1) / 2 + 0.25 * flood);
   const veg = v.veg / 100;
-  const carbonSink = clamp(veg / 1.5);
-  const risk = clamp(0.15 * v.temp + 0.25 * (v.extreme - 1) + 0.25 * Math.max(0, v.sea) + 0.2 * (1 - veg));
-  const health = clamp(1 - risk);
+  const co2Boost = 1 + 0.2 * Math.log(v.co2 / 420) * (1 - drought) * (1 - heat); // only if water and heat allow
+  const light = (1 - Math.exp(-2 * Math.min(2, sunRatio))) / (1 - Math.exp(-2));
+  const growth = clamp(veg * light * Math.min(1, water) ** 0.5 * co2Boost * (1 - 0.6 * heat) * (1 - 0.4 * flood) * (1 - 0.5 * coldSnap), 0, 1.3);
+  const health = clamp(1 - 0.35 * heat - 0.3 * drought - 0.25 * flood - 0.25 * storm - 0.15 * dim - 0.2 * coldSnap - 0.25 * Math.max(0, 1 - veg));
   const findings: string[] = [];
-  if (Math.abs(gap) > 0.6)
-    findings.push(
-      gap > 0
-        ? `CO₂ at ${Math.round(v.co2)} ppm implies about ${implied.toFixed(1)} °C of long-term warming (IPCC best-estimate climate sensitivity), more than the ${v.temp.toFixed(1)} °C you set, so more warming would still be "in the pipeline".`
-        : `Your ${v.temp.toFixed(1)} °C is more than CO₂ at ${Math.round(v.co2)} ppm alone would imply (about ${implied.toFixed(1)} °C), so other factors would have to explain it.`,
-    );
-  else if (Math.abs(v.co2 - 420) >= 10)
-    findings.push(`CO₂ at ${Math.round(v.co2)} ppm implies about ${implied.toFixed(1)} °C of long-term warming (IPCC best-estimate climate sensitivity of 3 °C per doubling), consistent with the ${v.temp.toFixed(1)} °C you set.`);
-  if (v.temp > 1.6) findings.push("Higher temperatures melt ice and make ocean water expand, both of which raise sea level over decades to centuries.");
-  if (ice < 0.6) findings.push("With much less ice, less sunlight is reflected back to space; the darker ocean and land absorb more heat (a reinforcing feedback).");
-  if (v.sea > 0.3) findings.push(`A sea level ${v.sea.toFixed(2)} m higher than today puts low coasts and islands at much greater risk from storm surges and flooding.`);
-  if (impliedSea > v.sea + 0.3) findings.push(`In this simplified model, your temperature and ice settings would eventually push sea level toward about +${impliedSea.toFixed(1)} m.`);
-  if (veg < 0.7) findings.push("Losing vegetation removes a carbon sink and releases stored carbon, which tends to add to warming.");
-  else if (veg > 1.1) findings.push("More vegetation stores more carbon, helping to slow the rise in CO₂ a little.");
-  if (v.extreme > 1.5) findings.push("Stronger extremes mean more intense heatwaves, downpours and droughts on average. Individual events still have many causes.");
-  if (!findings.length) findings.push("These settings match today's climate: about 1.1 °C warmer than pre-industrial, with ice and sea level as they are now.");
+  if (heat > 0.3 && drought > 0.3) findings.push("Very hot and dry at the same time: water may evaporate faster while less rain arrives, so soil and plants could dry out quickly.");
+  else if (heat > 0.3) findings.push("Daily temperatures this high could make a heatwave: people, animals and plants may struggle to stay cool.");
+  else if (drought > 0.3) findings.push("Much less rain than normal for this place could lead to a drought: soil dries and plants may wilt.");
+  if (flood > 0.3) findings.push("This much rain every day could flood rivers and streets and wash soil away.");
+  if (dim > 0.3) findings.push("With much less sunlight, plants may grow more slowly and days feel dull and cool.");
+  if (storm > 0.3) findings.push("Stronger storms could bring strong winds and heavy downpours.");
+  if (veg < 0.7) findings.push("With fewer plants there is less shade and less carbon stored, and the ground may get hotter in the sun.");
+  if (v.co2 > 500) findings.push("CO₂ traps heat. Over many years, more CO₂ could make places warmer, but it doesn't change today's weather on its own. Try the temperature slider too.");
+  if (coldSnap > 0.3) findings.push("Much colder than normal for this place: frost could damage plants that are not used to it.");
+  if (!findings.length) findings.push("This is close to the real, normal weather for this place.");
   return {
     health: Math.round(health * 100),
     indicators: [
-      { key: "implied", label: "Warming implied by CO₂", value: clamp(implied / 6), good: "low" },
-      { key: "ice", label: "Ice cover", value: clamp(ice / 1.5), good: "high" },
-      { key: "sea", label: "Sea-level risk", value: clamp(Math.max(v.sea, 0) / 2), good: "low" },
-      { key: "sink", label: "Carbon storage by plants", value: carbonSink, good: "high" },
-      { key: "risk", label: "Overall climate risk", value: risk, good: "low" },
+      { key: "heat", label: "Heat stress", value: heat, good: "low" },
+      { key: "water", label: "Water for plants", value: clamp(water / 1.5), good: "high" },
+      { key: "growth", label: "Plant growth", value: clamp(growth / 1.15), good: "high" },
+      { key: "flood", label: "Flood risk", value: flood, good: "low" },
+      { key: "storm", label: "Storm risk", value: storm, good: "low" },
     ],
     findings,
-    visual: { temp: clamp(v.temp / 5), ice: clamp(ice / 1.5), sea: clamp((v.sea + 0.2) / 2.2), veg: clamp(veg / 1.5), storms: clamp(v.extreme / 3), co2: clamp((v.co2 - 280) / 720) },
+    visual: {
+      sun: clamp(v.sun / 35),
+      sunRatio: clamp(sunRatio / 2),
+      temp: clamp((v.temp + 30) / 75),
+      heat,
+      rain: clamp(v.rain / 30),
+      clouds: clamp(0.1 + 0.5 * clamp(v.rain / 15) + 0.4 * dim),
+      veg: clamp(veg / 1.5),
+      green: clamp(growth / 1.15),
+      storms: clamp(v.storms / 3),
+      co2: clamp((v.co2 - 280) / 720),
+      dry: drought,
+      snow: clamp((2 - v.temp) / 8),
+      health,
+    },
+    metrics: { heat, drought, flood, dim, storm, plantLoss: clamp(1 - veg), co2: clamp((v.co2 - 420) / 580), coldSnap, health, growth: clamp(growth / 1.15) },
   };
 }
 

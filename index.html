@@ -92,20 +92,11 @@
           <h2 class="side-h" id="places-h" tabindex="-1">Pick a place</h2>
           <ul id="place-list" class="places"></ul>
 
-          <div class="now-card" id="now-card">
-            <p class="now-label" id="now-label">Press play to hear this place</p>
-            <p class="now-value" id="now-value">—</p>
-            <p class="now-date" id="now-date"></p>
-            <ul class="hear-list" id="hear-list"></ul>
-          </div>
-
           <div class="years" id="years-wrap">
             <h2 class="side-h" id="years-h">Pick a time</h2>
             <div class="chips" id="period-chips" role="radiogroup" aria-label="Every month or every day"></div>
             <div class="chips" id="year-chips" role="radiogroup" aria-labelledby="years-h"></div>
           </div>
-
-          <button class="lab-cta" id="btn-lab"><span class="lab-cta-icon" aria-hidden="true">🧪</span><span><strong>Experiment with Luna</strong><small>Change the rain, the sun and more, and hear what happens</small></span></button>
 
           <figure class="eic" id="eic" hidden>
             <div class="eic-img"><img id="eic-img" alt="" decoding="async" /><p class="eic-offline small" id="eic-offline" hidden></p></div>
@@ -121,27 +112,66 @@
         <section id="playground" class="panel-inner playground" hidden aria-labelledby="pg-title"></section>
       </aside>
 
-      <!-- ============ PLAYER ============ -->
-      <footer class="player" aria-label="Sound player">
-        <div class="transport" role="group" aria-label="Playback">
-          <button class="play" id="btn-play" aria-label="Play (Space)"><svg aria-hidden="true"><use href="#i-play" id="play-icon" /></svg></button>
-          <button class="round big" id="btn-stop" title="Stop"><svg aria-hidden="true"><use href="#i-stop" /></svg><span class="sr-only">Stop</span></button>
-          <button class="round big" id="btn-replay" title="Play from the start"><svg aria-hidden="true"><use href="#i-replay" /></svg><span class="sr-only">Play from the start</span></button>
-        </div>
-        <div class="timeline">
-          <div class="timeline-top"><span class="np-title" id="player-title">—</span><span class="small" id="player-time">0:00 / 0:00</span></div>
-          <label for="progress" class="sr-only">Position in time</label>
-          <input type="range" id="progress" min="0" max="0" step="1" value="0" />
-          <div class="timeline-bottom"><span class="small" id="player-date">—</span><span class="status" id="audio-status">STOPPED</span></div>
-        </div>
-        <fieldset class="mix" id="mix">
-          <legend class="sr-only">What you hear</legend>
-          <button class="mix-btn" id="mix-nature" aria-pressed="true">Nature</button>
-          <button class="mix-btn" id="mix-music" aria-pressed="true"><span id="mix-music-label">Music</span></button>
-        </fieldset>
-        <button class="why" id="btn-why">Why does it sound like this?</button>
-        <label class="vol">Volume <input type="range" id="volume" min="0" max="1" step="0.01" value="0.7" /></label>
-      </footer>
+      <!-- ============ JOURNEY: observation → graph → musical change → meaning ============ -->
+      <section class="journey" id="journey" aria-label="From measurement to music">
+        <article class="j-card j-obs" aria-labelledby="j1-h">
+          <h2 class="j-h" id="j1-h"><span class="j-step" aria-hidden="true">1</span> What the satellite saw</h2>
+          <div class="now-card" id="now-card">
+            <p class="now-label" id="now-label">Press play to hear this place</p>
+            <p class="now-value" id="now-value">—</p>
+            <p class="now-date" id="now-date"></p>
+          </div>
+          <p class="j-src small" id="j-src"></p>
+        </article>
+
+        <article class="j-card j-graph" aria-labelledby="j2-h">
+          <div class="j-graph-head">
+            <h2 class="j-h" id="j2-h"><span class="j-step" aria-hidden="true">2</span> <span id="j2-title">How it changed</span></h2>
+            <span class="j-trend" id="j-trend"></span>
+          </div>
+          <div class="chips small-chips" id="graph-sources" role="radiogroup" aria-label="Which real data to draw"></div>
+          <div class="hg" id="history-graph" tabindex="0"></div>
+          <div class="j-graph-foot">
+            <button class="pill small" id="btn-compare" aria-pressed="false">⚖️ Compare two dates</button>
+            <span class="small muted" id="graph-hint">Touch a dot to hear that date.</span>
+          </div>
+          <div class="j-compare" id="j-compare" hidden></div>
+        </article>
+
+        <article class="j-card j-music" aria-labelledby="j3-h">
+          <h2 class="j-h" id="j3-h"><span class="j-step" aria-hidden="true">3</span> What you hear</h2>
+          <div class="j-music-row">
+            <div class="transport" role="group" aria-label="Playback">
+              <button class="play" id="btn-play" aria-label="Play (Space)"><svg aria-hidden="true"><use href="#i-play" id="play-icon" /></svg></button>
+              <button class="round big" id="btn-stop" title="Stop"><svg aria-hidden="true"><use href="#i-stop" /></svg><span class="sr-only">Stop</span></button>
+              <button class="round big" id="btn-replay" title="Play from the start"><svg aria-hidden="true"><use href="#i-replay" /></svg><span class="sr-only">Play from the start</span></button>
+            </div>
+            <div class="timeline">
+              <div class="timeline-top"><span class="np-title" id="player-title">—</span><span class="small" id="player-time">0:00 / 0:00</span></div>
+              <label for="progress" class="sr-only">Position in time</label>
+              <input type="range" id="progress" min="0" max="0" step="1" value="0" />
+              <div class="timeline-bottom"><span class="small" id="player-date">—</span><span class="status" id="audio-status">STOPPED</span></div>
+            </div>
+          </div>
+          <ul class="hear-list" id="hear-list"></ul>
+          <p class="j-change" id="j-change"></p>
+          <div class="j-music-row small-row">
+            <fieldset class="mix" id="mix">
+              <legend class="sr-only">What you hear</legend>
+              <button class="mix-btn" id="mix-nature" aria-pressed="true">Nature</button>
+              <button class="mix-btn" id="mix-music" aria-pressed="true"><span id="mix-music-label">Music</span></button>
+            </fieldset>
+            <label class="vol">Volume <input type="range" id="volume" min="0" max="1" step="0.01" value="0.7" /></label>
+          </div>
+        </article>
+
+        <article class="j-card j-meaning" aria-labelledby="j4-h">
+          <h2 class="j-h" id="j4-h"><span class="j-step" aria-hidden="true">4</span> What it means</h2>
+          <p class="j-meaning-text" id="j-meaning"></p>
+          <button class="why" id="btn-why">Why does it sound like this?</button>
+          <button class="lab-cta" id="btn-lab"><span class="lab-cta-icon" aria-hidden="true">🧪</span><span><strong>Earth Sound Lab</strong><small>Real data or "What if?" Change the rain, the sun and more</small></span></button>
+        </article>
+      </section>
     </div>
 
     <div id="sr-status" class="sr-only" aria-live="polite" aria-atomic="true"></div>
@@ -166,8 +196,8 @@
           <label class="ctl">Time period <select id="period"></select></label>
           <label class="ctl">Pitch scale
             <select id="pitch-scale" aria-describedby="pitch-scale-help">
-              <option value="relative" selected>This place (relative)</option>
-              <option value="absolute">Global (compare places)</option>
+              <option value="relative">This place (relative)</option>
+              <option value="absolute" selected>Global (compare places)</option>
             </select>
           </label>
           <label class="ctl">Speed
@@ -182,6 +212,7 @@
         <div class="now-playing" id="now-playing"></div>
         <h3>How the measurements make the sound</h3>
         <div class="table-scroll flat"><table class="mapping" id="mapping-table"></table></div>
+        <details class="table-view"><summary>Full mapping specification: every variable, unit, range, direction and how change over time sounds</summary><div id="mapping-spec" class="table-scroll"></div></details>
         <h3>Nature and music</h3>
         <div id="layers-explain" class="layers-explain"></div>
         <section class="understand" aria-labelledby="understand-h"><h3 id="understand-h">What your child heard</h3><div id="understand-text"></div></section>

@@ -15,16 +15,20 @@ import type { CleanSeries, ExperienceId, RegionDef, SoundRole } from "./data/typ
 import { trackToFrames, type PitchScale, type SoundFrame } from "./sonification/frames";
 import { LIMITATIONS, ROLE_DOCS, SCALES, VARIABLE_WORDS, densityHits, harmonyIntervals, noteFrequency, noteIndex, noteName } from "./sonification/mappings";
 import { PALETTES, type PaletteId } from "./sonification/palettes";
+import { MAPPING_SPEC } from "./sonification/mappingSpec";
 import { KID, timeWindows, type TimeWindow } from "./ui/kid";
 import { TIPS } from "./ui/narrator";
-import { Luna, LunaVoice, bubbleList } from "./ui/luna";
+import { Luna, LunaVoice, bubbleList, prewarmSpeech } from "./ui/luna";
+import { RULES } from "./lab/scenarios";
 import { runIntro } from "./ui/intro";
 import { FOREST_DATA, ForestVoices } from "./ui/forestVoices";
+import { HistoryGraph, longDate, trendOf, type GraphSource } from "./ui/historyGraph";
+import type { VegetationObservation } from "./data/forestCsv";
 import type { SampleName } from "./audio/cultural";
 import { MISSIONS, badgeCount, emptyProgress, loadProgress, saveProgress, type Progress } from "./ui/missions";
 import { renderImpact } from "./ui/impact";
 import { Story } from "./ui/story";
-import { Playground } from "./ui/playground";
+import { LAB_LINES, Playground } from "./ui/playground";
 import { THEME_SIZE, loadThemeLayers, paintClouds, paintTheme, type Pretend } from "./globeThemes";
 import { LabScene } from "./lab/scene";
 import { VARS } from "./lab/simulation";
@@ -36,7 +40,7 @@ import { backendStatus, sendToLuna, type ChatContext } from "./ui/lunaChat";
 const COLORS: Record<ExperienceId, string> = { ocean: "#2b9bf4", forest: "#2fb35e", pulse: "#ff9f1c" };
 const WORLD_NAME: Record<ExperienceId, string> = { ocean: "Ocean Symphony", forest: "Forest Voices", pulse: "Earth's Pulse" };
 const WORLD_SUB: Record<ExperienceId, string> = { ocean: "How warm is the sea?", forest: "How green is the land?", pulse: "Rain, sun and warmth" };
-/** The team's SuperCollider samples (cultural_sound/) used as each place's cultural layer. */
+/** The team's SuperCollider samples (supercollider/cultural_sound/) used as each place's cultural layer. */
 const CULTURAL: Record<string, SampleName> = { "mauritius-waters": "ocean", "black-river-gorges": "forest", "port-louis": "triangle", kyoto: "pulse" };
 
 interface Settings { live: boolean; loop: boolean; textScale: number; nature: boolean; music: boolean; voice: boolean; voiceName: string; photo: boolean }
@@ -48,7 +52,7 @@ const state = {
   region: getRegion("mauritius-waters") as RegionDef,
   periodIndex: 0,
   window: "all",
-  pitchScale: "relative" as PitchScale,
+  pitchScale: "absolute" as PitchScale, // one fixed range for every place and date: lower vegetation is always a lower note
   layers: { ...ALL_LAYERS } as LayerToggles,
   /** Only REAL layers. Simulated fallbacks are dropped: EARTHSONA never plays invented measurements. */
   track: null as Track | null,
@@ -69,6 +73,8 @@ const registry = new DataRegistry();
 const engine = new SonificationEngine();
 const player = new FramePlayer();
 const chart = new SeriesChart($("chart"));
+const graph = new HistoryGraph($("history-graph"));
+let graphSourceId = "track";
 const globe = new Globe($("globe"));
 const voice = new LunaVoice();
 voice.enabled = settings.voice;
@@ -121,9 +127,8 @@ async function bundledFor(exp: ExperienceId, regionId: string) {
 }
 
 function musicTag(r: RegionDef): string {
-  if (CULTURAL[r.id] && r.music === "sega") return "Our Sega sounds 🎵";
-  if (CULTURAL[r.id]) return "Our team's sound 🎵";
-  return r.music === "sega" ? "Sega-inspired music" : "Nature + music";
+  if (CULTURAL[r.id]) return "Our team's sounds 🎵";
+  return r.music === "sega" ? "Sega-inspired rhythm" : "Nature + music";
 }
 
 async function renderPlaces() {
@@ -208,16 +213,31 @@ const MAP_CREDIT: Record<ExperienceId, string> = {
   pulse: "Air temperature from NASA MERRA-2, July 2024.",
 };
 
+/** Earth's Pulse: show the MERRA-2 air-temperature colours on the realistic globe (off by default). */
+let t2mMap = false;
 async function applyGlobeLook(pretend: Pretend | null = null, rain?: number, sun?: number) {
   const exp = state.experience;
-  if (settings.photo) {
+  const sim = !!pretend || rain !== undefined || sun !== undefined;
+  globe.setOverlay(null);
+  globe.setRealisticData(null);
+  if (settings.photo || (exp === "pulse" && !sim)) {
+    // Realistic Earth: real imagery lit from where the Sun is right now (day/night), atmosphere, ocean glint.
     globe.setTheme(null);
     globe.setClouds(null);
     globe.setSunlight(1);
-    $("legend").innerHTML = "";
-    $("stage-caption").textContent = `NASA Blue Marble photo of Earth (GIBS). Drag to turn the Earth; tap a dot to visit a place.`;
+    globe.setRealistic(true);
+    if (!settings.photo && exp === "pulse") {
+      if (t2mMap) globe.setRealisticData(IMAGERY.overlays.pulse.file, 0.55);
+      $("legend").innerHTML = `${t2mMap ? `${LEGEND.pulse} · ` : `☀️ day · 🌙 night, as they are right now · `}<button class="legend-btn" id="t2m-toggle" aria-pressed="${t2mMap}">🌡️ ${t2mMap ? "Hide" : "Show"} temperature map</button>`;
+      $("t2m-toggle").onclick = () => ((t2mMap = !t2mMap), void applyGlobeLook());
+      $("stage-caption").textContent = `Real Earth (NASA Blue Marble by day, Black Marble city lights by night), lit by where the Sun is right now.${t2mMap ? " Colours: air temperature from NASA MERRA-2, July 2024." : ""} The sounds use one place's NASA POWER data, not the whole planet's weather. No clouds are drawn.`;
+    } else {
+      $("legend").innerHTML = "";
+      $("stage-caption").textContent = `Real Earth (NASA Blue Marble and Black Marble), lit by where the Sun is right now. Drag to turn the Earth; tap a dot to visit a place.`;
+    }
     return;
   }
+  globe.setRealistic(false);
   const layers = await loadThemeLayers(`${import.meta.env.BASE_URL}textures/`, { ocean: IMAGERY.overlays.ocean.file, forest: IMAGERY.overlays.forest.file, pulse: IMAGERY.overlays.pulse.file });
   if (exp !== state.experience) return;
   if (!layers) {
@@ -314,6 +334,7 @@ function renderStory() {
   renderTimeChips();
   updateNow(state.frames[Math.min(player.index, state.frames.length - 1)]);
   $("player-title").textContent = `${WORLD_NAME[state.experience]} · ${placeShort(state.region)}${state.track ? ` · ${currentWindow().label}` : ""}`;
+  renderJourney();
 }
 
 function currentWindow(): TimeWindow {
@@ -456,7 +477,7 @@ function lunaListening() {
         ocean: "Listen! The waves set the scene, and the tune is made from real sea temperatures. Warmer sea, higher notes!",
         forest: "Listen! The birds and the tune both come from real greenness. Greener forest, more birds and higher notes!",
         pulse: "Listen! Warm air makes high notes, rain makes busy beats and heavy rain sounds, and sunshine makes it bright.",
-      }[exp] + (sega ? " The drums are inspired by Sega music from Mauritius." : "")
+      }[exp] + (CULTURAL[state.region.id] ? " The beats are our team's own recorded sounds." : sega ? " The beat has a swing inspired by Sega from Mauritius." : "")
     : "Listen to the nature sounds of this place. There are no measurements here yet, so there's no tune.";
   luna.say(line, { mood: "happy", actions: [{ label: "Why does it sound like this?", onClick: () => lunaWhy() }] });
 }
@@ -470,7 +491,7 @@ function lunaWhy() {
     CULTURAL[r.id]
       ? "Music: our team's own recorded sounds (made in SuperCollider), played higher or lower by the measurements, with a tune made from the data."
       : r.music === "sega"
-      ? "Music: an original tune inspired by Sega from Mauritius (a ravanne-like drum, maravanne-like shaker and triangle). Its melody comes from the measurements."
+      ? "Music: an original tune with a swing inspired by Sega from Mauritius, played by simple computer-made sounds. It is not real Sega music. Its melody comes from the measurements."
       : "Music: a gentle tune whose melody comes from the measurements." + (r.musicStatus === "pending" ? " We haven't added music from this place's own culture yet: we want to make it with local musicians." : ""),
     pitch ? `The measurements: ${KID.label(pitch.variable).toLowerCase()} from ${pitch.source.kind === "noaa" ? "NOAA" : "NASA"}. ${dataTypeFor(pitch.variable, pitch.source.name).kid}` : "There are no measurements here yet.",
   ];
@@ -650,9 +671,12 @@ function renderMappingTable() {
     return `<tr><th scope="row">${esc(series.label)}<br/><span class="muted small">${esc(series.unit)}</span></th><td><strong>${esc(doc.youHear)}</strong><br/><span class="small">${esc(doc.rule + extra)}</span>${instrument ? `<br/><span class="muted small">Instrument: ${esc(instrument)}</span>` : ""}</td></tr>`;
   });
   rows.push(`<tr><th scope="row">Nature sound</th><td><span class="small">${esc(NATURE_RULES[state.experience])} Absolute values are used, so the same number always sounds the same.</span></td></tr>`);
-  if (palette() === "sega") rows.push(`<tr><th scope="row">Sega-inspired arrangement</th><td><span class="small">${esc(pal.arrangement)} ${state.experience === "forest" ? "In the forest it is reduced to soft wooden taps." : ""} The drum pattern itself does not carry data; the melody it accompanies does.</span></td></tr>`);
+  if (palette() === "sega") rows.push(`<tr><th scope="row">Sega-inspired rhythm (synthesised stand-ins)</th><td><span class="small">${esc(pal.arrangement)} ${state.experience === "forest" ? "In the forest it is reduced to soft wooden taps." : ""} The drum pattern itself does not carry data; the melody it accompanies does.</span></td></tr>`);
   rows.push(`<tr><th scope="row">No data</th><td><span class="small">A soft, dull tick with the melody silent. Nothing is invented for missing or cloudy dates.</span></td></tr>`);
   $("mapping-table").innerHTML = `<thead><tr><th scope="col">Data</th><th scope="col">What you hear</th></tr></thead><tbody>${rows.join("")}</tbody>`;
+  $("mapping-spec").innerHTML = `<table class="mapping small"><thead><tr><th>Variable</th><th>Dataset · unit</th><th>Normalisation (range)</th><th>Sound parameter</th><th>Lowest → highest</th><th>Over time</th></tr></thead><tbody>${MAPPING_SPEC.map(
+    (m) => `<tr><th scope="row">${esc(m.label)}<br/><code>${esc(m.variable)}</code></th><td>${esc(m.dataset)} · ${esc(m.unit)}</td><td>${esc(m.normalisation)} (${m.range.min} to ${m.range.max})</td><td>${esc(m.parameter)}</td><td>${esc(m.minSound)} → ${esc(m.maxSound)} (higher value = ${m.direction === "up" ? "more" : "less"})</td><td>${esc(m.overTime)}</td></tr>`,
+  ).join("")}</tbody></table>`;
 }
 
 function renderLayersExplain() {
@@ -783,7 +807,8 @@ function renderAbout() {
   <h3>How the sound works</h3>
   <ul>
     <li><strong>Nature</strong>: waves, wind, rain, birds, insects, thunder, ice, synthesised in the browser (no recordings). ${esc(NATURE_RULES.ocean)} ${esc(NATURE_RULES.forest)} ${esc(NATURE_RULES.pulse)}</li>
-    <li><strong>Music</strong>: melody, harmony, rhythm and brightness follow documented rules (Science tab). For the three Mauritius places the instruments and arrangement are an original Sega-inspired homage; elsewhere a neutral palette is used.</li>
+    <li><strong>Music</strong>: melody, harmony, rhythm and brightness follow documented rules (Science tab). For the Mauritius places and Kyoto, the team's own short recordings (from their SuperCollider project) are pitched by the data; the Mauritius places also get a 6/8 swing inspired by Sega, played by synthesised stand-in sounds. Elsewhere a neutral palette is used.</li>
+    <li><strong>What each sound is</strong>: <em>recordings</em> = the team's four WAV files (the instruments are not identified in the team's files, so we don't name them); <em>synthesised</em> = melody, harmony, pads, shaker-style noise, low thump, ting, wooden taps; <em>generic effects</em> = the nature sounds (waves, rain, birds), also synthesised.</li>
     <li>Missing, cloudy or snowy dates are a soft tick; nothing is invented.</li>
   </ul>
   <h3>The globe</h3>
@@ -809,9 +834,16 @@ function renderAbout() {
   <p>${esc(sega.description)} ${esc(sega.arrangement)}</p>
   <p>${esc(sega.disclaimer ?? "")}</p>
   <ul>${sega.references.map((r) => `<li><a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.label)}</a></li>`).join("")}</ul>
+  <h3>What a real Sega Tipik representation would need</h3>
+  <p>EARTHSONA does <strong>not</strong> yet play Sega Tipik. According to the National Heritage Fund and UNESCO (links above), traditional Mauritian Sega is sung in Kreol with call-and-response, danced, and accompanied by the <em>ravann</em> (a large goatskin frame drum, tuned by heating it at a fire), the <em>maravann</em> (a box rattle filled with seeds) and the <em>triang</em> (triangle), with a ternary feel that often speeds up. To represent it respectfully we would need:</p>
+  <ul>
+    <li>recordings of real ravann, maravann and triang played by Mauritian musicians, with written permission, licence and credit (the team's current WAV files are not identified as these instruments);</li>
+    <li>review of the rhythm, tempo changes and arrangement by Sega practitioners;</li>
+    <li>no imitation of songs or voices without permission, and Sega shown as living heritage of the Creole community.</li>
+  </ul>
   <p>Hawaiʻi, the Amazon and Japan have rich musical traditions. EARTHSONA does not add music for them yet: that needs research and collaboration with musicians from those communities, with proper credit. The open Pacific, the boreal forest and Antarctica have no regional music by design.</p>
   <h3>Luna's voice</h3>
-  <p>Luna uses the speech voices built into this device. Nothing is recorded or sent anywhere.</p>`;
+  <p>Luna speaks with Kokoro-82M (voice af_heart, Apache-2.0) running on the EARTHSONA server, which caches her lines so repeated ones start instantly. If the server is offline she uses a voice built into this device. Nothing the child says is recorded.</p>`;
 }
 
 // ---------------------------------------------------------------------------
@@ -836,6 +868,8 @@ player.onStep((i, f) => {
   updateProgress(i);
   updateNow(f);
   updateNowPlaying(f);
+  graph.setPlayhead(f.time);
+  updateMusicalChange(f, state.frames[i - 1]);
 });
 
 player.onState((s) => {
@@ -846,7 +880,10 @@ player.onState((s) => {
     lunaFinished();
     return;
   }
-  if (s === "stopped") chart.hidePlayhead();
+  if (s === "stopped") {
+    chart.hidePlayhead();
+    graph.setPlayhead(null);
+  }
   setPlayingUi();
 });
 
@@ -899,7 +936,7 @@ function updateMix() {
   const sega = state.region.music === "sega";
   set("mix-nature", settings.nature, "Nature sounds (shaped by the data)");
   set("mix-music", settings.music, state.track ? "The tune made from the data" : "No data here, so no tune");
-  $("mix-music-label").textContent = sega ? "Sega music" : "Music";
+  $("mix-music-label").textContent = CULTURAL[state.region.id] ? "Team sounds" : sega ? "Island rhythm" : "Music";
   engine.setBus("nature", settings.nature);
   engine.setBus("data", settings.music);
   engine.setBus("regional", settings.music && sega);
@@ -947,10 +984,11 @@ const playground = new Playground({
   luna,
   engine,
   pretendGlobe: (p, rain, sun) => void applyGlobeLook(p, rain, sun),
-  showScene: (visual, instant) => showScene(visual, instant),
+  showScene: (visual, instant, label) => showScene(visual, instant, label),
   askLuna: (message) => void askLuna(message),
   beforePlay: async () => {
     player.pause();
+    forestVoices.stop(false);
     await engine.start();
     state.soundOn = false;
     setPlayingUi();
@@ -960,6 +998,11 @@ const playground = new Playground({
     engine.stopNature();
     engine.resetNature();
   },
+  setVolume: (v) => {
+    engine.setVolume(v);
+    $<HTMLInputElement>("volume").value = String(v);
+  },
+  volume: () => +$<HTMLInputElement>("volume").value,
   onClose: () => {
     luna.say("Back to the real Earth! Everything on the globe is real NASA data again.", { mood: "happy" });
     $("places-h").focus();
@@ -970,7 +1013,7 @@ const playground = new Playground({
 // Lab environment scene (simulation) in the stage
 // ---------------------------------------------------------------------------
 const labScene = new LabScene($<HTMLCanvasElement>("scene"));
-function showScene(visual: Record<string, number> | null, instant = false) {
+function showScene(visual: Record<string, number> | null, instant = false, label = "Simulation") {
   const canvas = $("scene");
   if (!visual) {
     canvas.hidden = true;
@@ -980,6 +1023,7 @@ function showScene(visual: Record<string, number> | null, instant = false) {
     return;
   }
   canvas.hidden = false;
+  canvas.setAttribute("aria-label", label === "Real data" ? "Illustration drawn from the real starting measurements" : "Illustration of a simulation (WHAT IF?), not an observation");
   $("globe").style.visibility = "hidden";
   $("legend").hidden = true;
   labScene.set(state.experience, visual, instant);
@@ -1336,10 +1380,198 @@ void (async () => {
   }
   voice.engine = backend.tts ? "kokoro" : "browser";
   renderVoices();
+  // Prepare Luna's most common lines in the background (the server caches them on disk), so they start at once.
+  if (backend.tts)
+    prewarmSpeech([
+      ...Object.values(MISSIONS).map((m) => m.lines[0]),
+      ...LAB_LINES,
+      ...RULES.map((r) => r.kid),
+      "Back to the real Earth! Everything on the globe is real NASA data again.",
+      "Hooray, you're here! Pick a mission: Ocean Symphony, Forest Voices or Earth's Pulse. I'll show you each one on the Earth!",
+    ]);
   if (!backend.online) luna.status("Luna's AI server is offline: guided tour only. Start the backend to chat with her.", true);
   else if (!backend.chat) luna.status("Luna's AI isn't configured (GEMINI_API_KEY missing on the server).", true);
 })();
 booted = true;
 
 // Debug hook for automated checks (no effect on the UI).
-(window as unknown as { __earthsona: unknown }).__earthsona = { state, player, registry, engine, settings, voice, luna, playground, progress: () => progress, buildContext, backend: () => backend, forestVoices };
+// ---------------------------------------------------------------------------
+// Journey band: 1 observation → 2 history graph → 3 musical change → 4 meaning
+// ---------------------------------------------------------------------------
+/** Change below which a trend counts as "about the same" (in the variable's unit). */
+const FLAT: Record<string, number> = { NDVI: 0.03, EVI: 0.03, SST: 0.3, T2M: 0.5 };
+const DIGITS: Record<string, number> = { NDVI: 2, EVI: 2, SST: 1, SSTA: 2, T2M: 1, PRECTOTCORR: 1, ALLSKY_SFC_SW_DWN: 1 };
+
+function graphSources(): GraphSource[] {
+  const out: GraphSource[] = [];
+  const s = pitchSeries();
+  if (s && state.track) {
+    const pts = windowed(s).points as CleanPoint[];
+    const y0 = pts[0]?.time.slice(0, 4) ?? "";
+    const y1 = pts[pts.length - 1]?.time.slice(0, 4) ?? "";
+    out.push({
+      id: "track",
+      label: `${s.source.kind === "noaa" ? "NOAA" : "NASA"} · ${placeShort(state.region)} · ${y0 === y1 ? y0 : `${y0}–${y1}`}`,
+      note: `${s.label} at ${state.region.name}. Source: ${s.source.name}. ☁ = no usable measurement (clouds, snow); nothing is filled in.`,
+      variable: s.variable,
+      name: KID.label(s.variable),
+      unit: s.unit,
+      digits: DIGITS[s.variable] ?? 2,
+      theme: state.experience,
+      // only real observations: interpolated (bridged) points are drawn as gaps
+      points: pts.map((p) => ({ time: p.time, value: p.bridged ? null : p.value, quality: p.bridged ? "cloudy" : p.quality })),
+    });
+  }
+  if (state.experience === "forest" && FOREST_DATA.observations.length) {
+    const o = FOREST_DATA.observations;
+    out.push({
+      id: "csv",
+      label: `Our team file · ${o[0].location} · ${o[0].date.slice(0, 4)} (${o.length} dates)`,
+      note: `Team CSV (Datasets/EARTHSONA_Mauritius_Vegetation.csv): NASA MODIS ${o[0].dataset} at ${o[0].lat}°, ${o[0].lon}°. Quality: ${o[0].quality}.`,
+      variable: "NDVI",
+      name: KID.label("NDVI"),
+      unit: "NDVI (unitless)",
+      digits: 3,
+      theme: "forest",
+      points: o.map((x) => ({ time: x.date, value: x.ndvi, quality: x.quality })),
+    });
+  }
+  return out;
+}
+
+function renderJourney() {
+  const sources = graphSources();
+  if (!sources.some((x) => x.id === graphSourceId)) graphSourceId = sources[0]?.id ?? "track";
+  const box = $("graph-sources");
+  box.innerHTML = sources.length > 1 ? sources.map((x) => `<button class="chip" role="radio" aria-checked="${x.id === graphSourceId}" data-src="${x.id}">${esc(x.label)}</button>`).join("") : "";
+  box.querySelectorAll<HTMLButtonElement>("[data-src]").forEach((b) => (b.onclick = () => ((graphSourceId = b.dataset.src!), renderJourney())));
+  const src = sources.find((x) => x.id === graphSourceId) ?? null;
+  graph.setSource(src);
+  $("j2-title").textContent = src ? `How the ${src.name.toLowerCase()} changed` : "How it changed";
+  $("j-src").textContent = src ? src.note : "No real measurements here yet. EARTHSONA never makes up numbers.";
+  $("btn-compare").hidden = !src;
+  $("j-compare").hidden = true;
+  const enough = !!src && src.points.filter((p) => p.value !== null).length >= 3;
+  const t = src && enough ? trendOf(src.points, FLAT[src.variable] ?? 0) : null;
+  const tr = $("j-trend");
+  tr.className = `j-trend ${t?.dir ?? ""}`;
+  tr.textContent = !t ? "" : t.dir === "flat" ? "➡ about the same overall" : `${t.dir === "up" ? "⬆ going up" : "⬇ going down"} overall (${t.change > 0 ? "+" : ""}${t.change.toFixed(src!.digits)})`;
+  $("j-meaning").innerHTML = meaningText(src, t);
+  $("j-change").textContent = "";
+}
+
+const MEANING: Record<ExperienceId, { up: string; down: string; flat: string; none: string }> = {
+  forest: {
+    up: "The plants here look <strong>greener</strong> over this time. That could mean more leaves or a good rainy season.",
+    down: "The plants here look <strong>less green</strong> over this time. That may come from a dry season, clouds or haze, or trees being cut. Scientists check many dates before deciding.",
+    flat: "The greenness goes up and down with the seasons but stays <strong>about the same</strong> overall.",
+    none: "Touch a dot on the graph to hear how green the forest was on that date.",
+  },
+  ocean: {
+    up: "The sea here gets <strong>warmer</strong> over this time. Very warm water for a long time can stress corals.",
+    down: "The sea here gets <strong>cooler</strong> over this time. Seasons and ocean currents can do that.",
+    flat: "The sea warms and cools with the seasons but stays <strong>about the same</strong> overall.",
+    none: "Touch a dot on the graph to hear how warm the sea was on that date.",
+  },
+  pulse: {
+    up: "The air here gets <strong>warmer</strong> over this time. One place and a few years can't tell us about the whole planet.",
+    down: "The air here gets <strong>cooler</strong> over this time. One place and a few years can't tell us about the whole planet.",
+    flat: "The temperature follows the seasons and stays <strong>about the same</strong> overall.",
+    none: "Touch a dot on the graph to hear the weather on that date.",
+  },
+};
+
+function meaningText(src: GraphSource | null, t: ReturnType<typeof trendOf>): string {
+  const m = MEANING[state.experience];
+  if (!src) return "There are no measurements here, so you only hear the nature sounds.";
+  if (!t) return m.none;
+  return `${m[t.dir]} <span class="small muted">The music follows the same numbers: ${state.experience === "forest" ? "less green = lower notes" : "lower = lower notes"}. Touch a dot to hear a date.</span>`;
+}
+
+/** Step 3: what changed in the music compared with the previous step. */
+function updateMusicalChange(f: SoundFrame, prev: SoundFrame | undefined) {
+  const el = $("j-change");
+  el.classList.toggle("drop", !!f.drop);
+  if (f.pitch === null) return void (el.textContent = "☁ No measurement here: a soft tick.");
+  if (!prev || prev.pitch === null) return void (el.textContent = "");
+  const d = noteIndex(f.pitch) - noteIndex(prev.pitch);
+  el.textContent = f.drop
+    ? "⬇ Big drop! A falling “uh-oh” tune plays under the melody."
+    : d > 0
+      ? "⬆ Higher note than the last date"
+      : d < 0
+        ? "⬇ Lower note than the last date"
+        : "➡ Same note as the last date";
+}
+
+/** Turn a frame (MODIS NDVI + EVI at that date) into an observation for the team's forest instrument. */
+function frameToObservation(f: SoundFrame): VegetationObservation | null {
+  const n = f.values.NDVI?.value;
+  if (n === null || n === undefined) return null;
+  const e = f.values.EVI?.value ?? null;
+  const q = f.values.NDVI?.quality ?? "good";
+  return { id: f.time, date: f.time, ndvi: n, evi: e, summaryQA: q === "good" ? 0 : 1, quality: q, dataset: "MODIS/061/MOD13Q1", location: state.region.name, lat: state.region.lat, lon: state.region.lon, kind: "observation" };
+}
+
+const previewTimers: number[] = [];
+async function previewFrames(frames: SoundFrame[]) {
+  previewTimers.splice(0).forEach((t) => window.clearTimeout(t));
+  pause();
+  await engine.start();
+  const step = 1.6;
+  frames.forEach((f, k) => {
+    previewTimers.push(
+      window.setTimeout(() => {
+        engine.play(f, step, renderOpts());
+        updateNow(f);
+        updateNowPlaying(f);
+        graph.setPlayhead(f.time);
+        if (k > 0) updateMusicalChange(f, frames[k - 1]);
+      }, k * step * 1000),
+    );
+  });
+}
+
+graph.onSelect = (sel, src) => {
+  const pts = sel.map((i) => src.points[i]);
+  const cmp = $("j-compare");
+  if (sel.length === 2) {
+    const [a, b] = pts as { time: string; value: number }[];
+    const d = b.value - a.value;
+    const word = Math.abs(d) < (FLAT[src.variable] ?? 0) / 2 ? "about the same" : d > 0 ? "higher" : "lower";
+    cmp.hidden = false;
+    cmp.innerHTML = `<div><b>A</b> ${esc(longDate(a.time))}<br/><strong>${a.value.toFixed(src.digits)}</strong></div><span class="jc-arrow" aria-hidden="true">${d > 0 ? "⬆" : d < 0 ? "⬇" : "➡"}</span><div><b>B</b> ${esc(longDate(b.time))}<br/><strong>${b.value.toFixed(src.digits)}</strong></div><p>${esc(src.name)} is <strong>${word}</strong> on B (${d > 0 ? "+" : ""}${d.toFixed(src.digits)}), so B's note is ${word}. Listen: A, then B!</p>`;
+  } else cmp.hidden = true;
+  $("graph-hint").textContent = graph.compare ? (sel.length === 1 ? "Now touch a second date (B)." : "Touch a dot to start again.") : "Touch a dot to hear that date.";
+  if (src.id === "csv") {
+    void forestVoices.play(sel);
+    return;
+  }
+  // the real track: move the player there and preview the sound of the date(s)
+  const find = (t: string) => state.frames.findIndex((f) => f.time === t);
+  if (pts.some((p) => find(p.time) < 0) && state.window !== "all") {
+    state.window = "all";
+    rebuildFrames(false);
+    renderTimeChips();
+  }
+  const frames = pts.map((p) => state.frames[find(p.time)]).filter(Boolean);
+  if (!frames.length) return;
+  player.seek(frames[0].index);
+  updateProgress(frames[0].index);
+  updateNow(frames[frames.length - 1]);
+  if (frames.length === 2) updateMusicalChange(frames[1], frames[0]);
+  if (state.experience === "forest") {
+    const obs = frames.map(frameToObservation).filter((o): o is VegetationObservation => !!o);
+    if (obs.length) void forestVoices.playObservations(obs, placeShort(state.region));
+  } else void previewFrames(frames);
+};
+
+$("btn-compare").onclick = () => {
+  const on = !graph.compare;
+  graph.setCompare(on);
+  $("btn-compare").setAttribute("aria-pressed", String(on));
+  $("graph-hint").textContent = on ? "Touch the first date (A), then the second (B)." : "Touch a dot to hear that date.";
+  if (!on) $("j-compare").hidden = true;
+};
+
+(window as unknown as { __earthsona: unknown }).__earthsona = { state, player, registry, engine, settings, voice, luna, playground, progress: () => progress, buildContext, backend: () => backend, forestVoices, graph, globe };

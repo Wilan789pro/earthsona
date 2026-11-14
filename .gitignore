@@ -16,3 +16,6 @@ __pycache__/
 *.pyc
 # Kokoro model files (downloaded by backend/download_kokoro.py)
 backend/models/
+
+# Luna voice disk cache (generated audio)
+backend/cache/
