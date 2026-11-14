@@ -1,6 +1,6 @@
 import type { SonificationEngine, RenderOptions } from "./engine";
 import type { SoundFrame } from "../sonification/frames";
-import { NOTE_COUNT, noteIndex } from "../sonification/mappings";
+import { MELODY_OCTAVES } from "../sonification/mappings";
 import type { SoundResponse } from "../lab/scenarios";
 
 /**
@@ -17,8 +17,8 @@ export interface LoopSource {
   fx: Required<Omit<SoundResponse, "text">>;
 }
 
-/** Melodic shape of the phrase, in scale notes around the data note (the data sets the centre). */
-export const PHRASE = [0, 2, 4, 2, 1, 3, 0, -1];
+/** Melodic shape of the phrase, in SEMITONES around the data pitch (the data sets the centre). */
+export const PHRASE = [0, 4, 7, 4, 2, 5, 0, -3];
 export const BASE_STEP = 0.42;
 export const NO_FX: LoopSource["fx"] = { notes: 0, busy: 1, bright: 1, tension: 0, fall: false, tempo: 1 };
 
@@ -27,8 +27,9 @@ export function shapeFrame(f: SoundFrame, step: number, fx: LoopSource["fx"]): S
   const k = step % PHRASE.length;
   let pitch = f.pitch;
   if (pitch !== null) {
-    const idx = Math.max(0, Math.min(NOTE_COUNT - 1, noteIndex(pitch) + PHRASE[k] + Math.round(fx.notes)));
-    pitch = idx / (NOTE_COUNT - 1);
+    // fx.notes is in scale steps (≈ 2 semitones each); the result stays on the continuous pitch line.
+    const semis = PHRASE[k] + fx.notes * 2;
+    pitch = Math.max(0, Math.min(1, pitch + semis / (12 * MELODY_OCTAVES)));
   }
   const clamp01 = (x: number | null) => (x === null ? null : Math.max(0, Math.min(1, x)));
   let harmony = f.harmony;

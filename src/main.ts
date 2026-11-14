@@ -13,7 +13,7 @@ import { CRW_REFERENCE, MOD13Q1_REFERENCE, MUR_REFERENCE, POWER_REFERENCE, SVS_R
 import type { CleanPoint } from "./data/normalise";
 import type { CleanSeries, ExperienceId, RegionDef, SoundRole } from "./data/types";
 import { trackToFrames, type PitchScale, type SoundFrame } from "./sonification/frames";
-import { LIMITATIONS, ROLE_DOCS, SCALES, VARIABLE_WORDS, densityHits, harmonyIntervals, noteFrequency, noteIndex, noteName } from "./sonification/mappings";
+import { LIMITATIONS, ROLE_DOCS, SCALES, VARIABLE_WORDS, densityHits, harmonyIntervals, noteName, pitchFrequency, semitonesBetween } from "./sonification/mappings";
 import { PALETTES, type PaletteId } from "./sonification/palettes";
 import { MAPPING_SPEC } from "./sonification/mappingSpec";
 import { KID, timeWindows, type TimeWindow } from "./ui/kid";
@@ -43,8 +43,8 @@ const WORLD_SUB: Record<ExperienceId, string> = { ocean: "How warm is the sea?",
 /** The team's SuperCollider samples (supercollider/cultural_sound/) used as each place's cultural layer. */
 const CULTURAL: Record<string, SampleName> = { "mauritius-waters": "ocean", "black-river-gorges": "forest", "port-louis": "triangle", kyoto: "pulse" };
 
-interface Settings { live: boolean; loop: boolean; textScale: number; nature: boolean; music: boolean; voice: boolean; voiceName: string; photo: boolean }
-const settings = loadPref<Settings>("settings3", { live: false, loop: false, textScale: 1, nature: true, music: true, voice: true, voiceName: "", photo: false });
+interface Settings { live: boolean; loop: boolean; textScale: number; nature: boolean; music: boolean; voice: boolean; voiceName: string; photo: boolean; smooth: boolean }
+const settings: Settings = { ...{ smooth: false }, ...loadPref<Settings>("settings3", { live: false, loop: false, textScale: 1, nature: true, music: true, voice: true, voiceName: "", photo: false, smooth: false }) };
 const saveSettings = () => savePref("settings3", settings);
 
 const state = {
@@ -85,7 +85,7 @@ const saveProg = () => (saveProgress(progress), updateBadgeCount());
 
 const palette = (): PaletteId => (state.region.music === "sega" ? "sega" : "neutral");
 const culturalSample = (): SampleName | null => (settings.music ? CULTURAL[state.region.id] ?? null : null);
-const renderOpts = () => ({ experience: state.experience, palette: palette(), layers: state.layers, cultural: culturalSample() });
+const renderOpts = () => ({ experience: state.experience, palette: palette(), layers: state.layers, cultural: culturalSample(), smooth: settings.smooth });
 const placeShort = (r: RegionDef) => r.short ?? r.name.split(",")[0];
 const pitchSeries = () => state.track?.layers.find((l) => l.def.roles.includes("pitch"))?.result.series ?? null;
 
@@ -396,7 +396,7 @@ function updateNow(f: SoundFrame | undefined) {
   }
   const v = f.values[pitch.variable];
   $("now-value").textContent = v?.value === null || v === undefined ? "no data" : fmtValue(v.value, pitch.unit);
-  $("now-date").textContent = fmtDate(f.time, pitch, true) + (v?.quality === "cloudy" ? " · hidden by clouds" : v?.quality === "snow" ? " · snow or ice" : "");
+  $("now-date").textContent = fmtDate(f.time, pitch, true) + (v?.quality === "cloudy" ? " · hidden by clouds" : v?.quality === "snow" ? " · snow or ice" : v?.quality === "no measurement" ? " · no measurement on this date" : "");
   const items: string[] = [];
   if (f.pitch !== null) items.push(f.pitch > 0.66 ? "high notes" : f.pitch < 0.33 ? "low notes" : "middle notes");
   else items.push("a soft tick: no measurement");
@@ -722,7 +722,7 @@ function updateNowPlaying(f: SoundFrame | undefined) {
     rows.push(`<div class="np-row"><span class="k">${esc(l.result.series.label)}</span><span>${v?.value === null || v === undefined ? `no data${q}` : esc(fmtValue(v.value, l.result.series.unit)) + q}</span></div>`);
   }
   if (f.pitch !== null) {
-    const freq = noteFrequency(state.experience, noteIndex(f.pitch));
+    const freq = pitchFrequency(state.experience, f.pitch);
     const parts = [`note ${noteName(freq)}`];
     if (f.density !== null) parts.push(`${densityHits(f.density)} rhythm hits`);
     if (f.harmony) parts.push(harmonyIntervals(f.harmony).label);
@@ -1250,7 +1250,7 @@ chart.onSeek = (i) => {
   if (!state.soundOn) play();
 };
 
-const bind = (id: string, key: "live" | "loop" | "voice" | "photo", apply: (v: boolean) => void) => {
+const bind = (id: string, key: "live" | "loop" | "voice" | "photo" | "smooth", apply: (v: boolean) => void) => {
   const el = $<HTMLInputElement>(id);
   el.checked = settings[key];
   apply(settings[key]);
@@ -1263,6 +1263,7 @@ const bind = (id: string, key: "live" | "loop" | "voice" | "photo", apply: (v: b
 let booted = false;
 bind("set-live", "live", () => booted && loadTrack("period"));
 bind("set-loop", "loop", (v) => (player.loop = v));
+bind("set-smooth", "smooth", () => {});
 bind("set-voice", "voice", (v) => booted && luna.setVoiceEnabled(v));
 bind("set-photo", "photo", () => booted && applyGlobeLook());
 $<HTMLSelectElement>("voice-pick").onchange = (e) => {
@@ -1492,16 +1493,17 @@ function meaningText(src: GraphSource | null, t: ReturnType<typeof trendOf>): st
 function updateMusicalChange(f: SoundFrame, prev: SoundFrame | undefined) {
   const el = $("j-change");
   el.classList.toggle("drop", !!f.drop);
-  if (f.pitch === null) return void (el.textContent = "☁ No measurement here: a soft tick.");
-  if (!prev || prev.pitch === null) return void (el.textContent = "");
-  const d = noteIndex(f.pitch) - noteIndex(prev.pitch);
+  if (f.pitch === null)
+    return void (el.textContent = settings.smooth && f.estimate !== null && f.estimate !== undefined ? "~ In between, not measured: a soft whisper (no data on this date)." : "☁ No measurement here: a soft tick.");
+  const ref = prev && prev.pitch !== null ? prev.pitch : f.prevPitch ?? null;
+  if (ref === null || ref === undefined) return void (el.textContent = "");
+  const d = semitonesBetween(ref, f.pitch);
+  const size = Math.abs(d) >= 3 ? "much " : Math.abs(d) >= 0.5 ? "" : "a tiny bit ";
   el.textContent = f.drop
     ? "⬇ Big drop! A falling “uh-oh” tune plays under the melody."
-    : d > 0
-      ? "⬆ Higher note than the last date"
-      : d < 0
-        ? "⬇ Lower note than the last date"
-        : "➡ Same note as the last date";
+    : Math.abs(d) < 0.05
+      ? "➡ Same note as the last measurement"
+      : `${d > 0 ? "⬆" : "⬇"} ${size}${d > 0 ? "higher" : "lower"} than the last measurement (${d > 0 ? "+" : ""}${d.toFixed(1)} semitones)`;
 }
 
 /** Turn a frame (MODIS NDVI + EVI at that date) into an observation for the team's forest instrument. */

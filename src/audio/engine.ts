@@ -1,6 +1,6 @@
 import type { ExperienceId } from "../data/types";
 import type { SoundFrame } from "../sonification/frames";
-import { densityHits, harmonyIntervals, noteFrequency, noteIndex, SCALES } from "../sonification/mappings";
+import { densityHits, harmonyIntervals, pitchFrequency, SCALES } from "../sonification/mappings";
 import type { PaletteId } from "../sonification/palettes";
 import { natureModFor, Ambience, type AmbienceId } from "./ambience";
 import { CulturalSampler, type SampleName } from "./cultural";
@@ -35,6 +35,8 @@ export interface RenderOptions {
   layers: LayerToggles;
   /** The team's SuperCollider sample for this place (supercollider/cultural_sound/); replaces the synthesised accents. */
   cultural?: SampleName | null;
+  /** Optional (default off): a breathy, clearly different sound across dates WITHOUT a measurement. */
+  smooth?: boolean;
 }
 
 export class StepRenderer {
@@ -53,12 +55,16 @@ export class StepRenderer {
 
     if (f.pitch === null) {
       this.noDataTick(at, pan);
+      // Optional smoothing: an airy whisper (filtered noise, never a melody note) at the estimated height,
+      // so listeners can follow the line without mistaking it for a measurement.
+      if (o.smooth && f.estimate !== null && f.estimate !== undefined) this.whisper(at, dur, pitchFrequency(o.experience, f.estimate), pan);
       return;
     }
     const bright = o.layers.brightness && f.brightness !== null ? f.brightness : 0.45;
-    const freq = noteFrequency(o.experience, noteIndex(f.pitch));
+    const freq = pitchFrequency(o.experience, f.pitch);
+    const from = f.prevPitch !== null && f.prevPitch !== undefined ? pitchFrequency(o.experience, f.prevPitch) : null;
 
-    if (o.layers.melody) this.melody(at, dur, freq, bright, f.delta, o.palette, pan);
+    if (o.layers.melody) this.melody(at, dur, freq, bright, f.delta, o.palette, pan, from);
     // A significant drop of the measurement: a soft falling two-note figure below the melody, so a big
     // decrease is clearly audible (documented in mappingSpec.ts).
     if (f.drop && o.layers.melody) {
@@ -68,7 +74,7 @@ export class StepRenderer {
     if (o.layers.harmony && f.harmony) {
       for (const st of harmonyIntervals(f.harmony).semitones) this.voice(at, dur, freq * 2 ** (st / 12), 0.09, "sine", pan);
     }
-    if (o.layers.texture && f.texture !== null) this.pad(at, dur, o.experience, f.texture, pan);
+    if (o.layers.texture && f.texture !== null) this.pad(at, dur, o.experience, f.texture, pan, freq);
     if (o.layers.rhythm && f.density !== null) this.density(at, dur, densityHits(f.density), o.palette, pan);
     if (o.palette === "sega" && o.layers.arrangement && !o.cultural) {
       const rp = this.ctx.createStereoPanner();
@@ -94,7 +100,12 @@ export class StepRenderer {
     return g;
   }
 
-  private melody(at: number, dur: number, freq: number, bright: number, delta: number, palette: PaletteId, dest: AudioNode) {
+  /** Airy "in between" sound for the optional smoothing setting (band-passed noise, clearly not a note). */
+  private whisper(at: number, dur: number, freq: number, dest: AudioNode) {
+    this.noiseHit(at + 0.02, Math.min(0.6, dur * 0.8), 0.05, "bandpass", freq, 18, dest);
+  }
+
+  private melody(at: number, dur: number, freq: number, bright: number, delta: number, palette: PaletteId, dest: AudioNode, from: number | null = null) {
     const filter = this.ctx.createBiquadFilter();
     filter.type = "lowpass";
     filter.frequency.value = 500 + bright * 5000;
@@ -116,10 +127,15 @@ export class StepRenderer {
     const types: [OscillatorType, number, number][] = pluck
       ? [["triangle", 1, 1], ["sawtooth", 1, 0.12], ["sine", 2, 0.15]]
       : [["sine", 1, 1], ["triangle", 2, 0.18]];
+    // The note glides from the previous date's pitch, so the direction and size of each real change is heard.
+    const glide = from !== null && Math.abs(Math.log2(freq / from)) > 0.002 ? Math.min(0.18, dur * 0.35) : 0;
     for (const [type, mul, lvl] of types) {
       const o = this.ctx.createOscillator();
       o.type = type;
-      o.frequency.value = freq * mul;
+      if (glide) {
+        o.frequency.setValueAtTime(from! * mul, at);
+        o.frequency.exponentialRampToValueAtTime(freq * mul, at + glide);
+      } else o.frequency.value = freq * mul;
       const og = this.ctx.createGain();
       og.gain.value = lvl;
       o.connect(og).connect(filter);
@@ -138,7 +154,7 @@ export class StepRenderer {
     o.stop(at + dur + 0.05);
   }
 
-  private pad(at: number, dur: number, exp: ExperienceId, level: number, dest: AudioNode) {
+  private pad(at: number, dur: number, exp: ExperienceId, level: number, dest: AudioNode, melodyFreq?: number) {
     const f = this.ctx.createBiquadFilter();
     f.type = "lowpass";
     f.frequency.value = 250 + level * 2200;
@@ -149,7 +165,12 @@ export class StepRenderer {
     g.gain.linearRampToValueAtTime(peak, at + dur * 0.4);
     g.gain.linearRampToValueAtTime(0, end);
     f.connect(g).connect(dest);
-    const root = SCALES[exp].root / 2;
+    // The pad follows the melody's pitch (two or three octaves down) so the continuous melody never clashes with it.
+    let root = SCALES[exp].root / 2;
+    if (melodyFreq) {
+      root = melodyFreq;
+      while (root > 130) root /= 2;
+    }
     for (const [mul, det] of [[1, -6], [1.5, 5], [2, 0]] as const) {
       const o = this.ctx.createOscillator();
       o.type = "sawtooth";

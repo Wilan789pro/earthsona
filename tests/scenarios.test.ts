@@ -3,7 +3,7 @@ import { RULES, activeRules, combinedSound } from "../src/lab/scenarios";
 import { baselineOf, simulate } from "../src/lab/simulation";
 import { NO_FX, PHRASE, shapeFrame } from "../src/audio/labLoop";
 import { labFrames } from "../src/sonification/frames";
-import { noteIndex } from "../src/sonification/mappings";
+import { MELODY_OCTAVES } from "../src/sonification/mappings";
 
 describe("WHAT IF? scenario engine", () => {
   it("every rule is fully documented with a hedged kid sentence and an https source", () => {
@@ -40,8 +40,8 @@ describe("WHAT IF? scenario engine", () => {
 describe("lab loop: real-time shaping", () => {
   const f = labFrames({ NDVI: 0.6 }, "NDVI", 1)[0];
   it("REAL mode keeps the data note at the centre of the phrase", () => {
-    expect(noteIndex(shapeFrame(f, 0, NO_FX).pitch!)).toBe(noteIndex(f.pitch!));
-    expect(noteIndex(shapeFrame(f, 4, NO_FX).pitch!)).toBe(noteIndex(f.pitch!) + PHRASE[4]);
+    expect(shapeFrame(f, 0, NO_FX).pitch!).toBeCloseTo(f.pitch!, 6);
+    expect(shapeFrame(f, 4, NO_FX).pitch!).toBeCloseTo(f.pitch! + PHRASE[4] / (12 * MELODY_OCTAVES), 6);
   });
   it("lower data → lower phrase; rule responses move it further down", () => {
     const low = labFrames({ NDVI: 0.3 }, "NDVI", 1)[0];

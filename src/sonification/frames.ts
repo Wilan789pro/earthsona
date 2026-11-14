@@ -27,6 +27,13 @@ export interface SoundFrame {
   values: Record<string, { value: number | null; unit: string; quality?: string }>;
   /** A significant DROP of the pitch variable since the previous valid step (see DROP_THRESHOLD). */
   drop?: boolean;
+  /** Pitch level of the previous MEASURED step (for the glide from the last note), null if none. */
+  prevPitch?: number | null;
+  /**
+   * Only for dates WITHOUT a measurement that the cleaning step bridged by interpolation: the ESTIMATED level,
+   * used solely by the optional "smooth between measurements" sound. Never shown or played as a measurement.
+   */
+  estimate?: number | null;
 }
 
 /** Absolute decrease (in the variable's own unit) that counts as "significant" and changes the arrangement. */
@@ -73,29 +80,36 @@ export function trackToFrames(track: Track, mode: PitchScale = "relative"): Soun
       const p = s === pitchSeries ? pt : nearest(s.points as CleanPoint[], pt.time);
       return { series: s, point: p };
     };
+    // Interpolated (bridged) points are NOT observations: they count as missing everywhere.
+    const measured = (p: CleanPoint | null | undefined) => (p && !p.bridged ? p.value : null);
     for (const l of track.layers) {
       const s = l.result.series;
       const p = s === pitchSeries ? pt : nearest(s.points as CleanPoint[], pt.time);
-      values[s.variable] = { value: p?.value ?? null, unit: s.unit, quality: p?.quality };
+      values[s.variable] = p?.bridged ? { value: null, unit: s.unit, quality: "no measurement" } : { value: p?.value ?? null, unit: s.unit, quality: p?.quality };
     }
 
     const lvl = (role: SoundRole, scale: PitchScale = "relative") => {
       const x = at(role);
-      if (!x || !x.point || x.point.value === null) return null;
-      return scaleValue(x.point.value, x.series, scale);
+      const v = measured(x?.point);
+      if (!x || v === null) return null;
+      return scaleValue(v, x.series, scale);
     };
 
     let harmony: HarmonyFrame | null = null;
     const h = at("harmony");
-    if (h?.point && h.point.value !== null) {
-      harmony = h.series.variable === "SSTA" ? { kind: "anomaly", anomaly: h.point.value } : { kind: "chord", level01: scaleValue(h.point.value, h.series, mode) };
+    const hv = measured(h?.point);
+    if (h && hv !== null) {
+      harmony = h.series.variable === "SSTA" ? { kind: "anomaly", anomaly: hv } : { kind: "chord", level01: scaleValue(hv, h.series, mode) };
     }
 
-    const pitch = pt.value === null ? null : scaleValue(pt.value, pitchSeries, mode);
-    const delta = pt.value === null || prev === null ? 0 : (pt.value - prev) / span;
+    const value = measured(pt);
+    const pitch = value === null ? null : scaleValue(value, pitchSeries, mode);
+    const estimate = pt.bridged && pt.value !== null ? scaleValue(pt.value, pitchSeries, mode) : null;
+    const delta = value === null || prev === null ? 0 : (value - prev) / span;
     const dropBy = DROP_THRESHOLD[pitchSeries.variable];
-    const drop = pt.value !== null && prev !== null && dropBy !== undefined && prev - pt.value >= dropBy;
-    if (pt.value !== null) prev = pt.value;
+    const drop = value !== null && prev !== null && dropBy !== undefined && prev - value >= dropBy;
+    const prevPitch = prev === null ? null : scaleValue(prev, pitchSeries, mode);
+    if (value !== null) prev = value;
 
     return {
       index: i,
@@ -110,6 +124,8 @@ export function trackToFrames(track: Track, mode: PitchScale = "relative"): Soun
       pan: axis.length > 1 ? (i / (axis.length - 1)) * 2 - 1 : 0,
       values,
       drop,
+      prevPitch,
+      estimate,
     };
   });
 }

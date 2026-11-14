@@ -37,7 +37,7 @@ export const MAPPING_SPEC: MappingRow[] = [
     unit: "unitless",
     normalisation: "Global fixed range (default), so the same NDVI is the same note in every place and on every date.",
     range: ABSOLUTE_RANGE.NDVI,
-    parameter: "Melody pitch (two-octave pentatonic) · Forest Voices sample pitch (−12…+12 semitones) · forest pad fullness · number of birds/insects in the ambience",
+    parameter: "Melody pitch (continuous, three octaves) · Forest Voices sample pitch (−12…+12 semitones) · forest pad fullness · number of birds/insects in the ambience",
     minSound: "lowest note, thin pad, quiet forest",
     maxSound: "highest note, full pad, lively forest",
     direction: "up",

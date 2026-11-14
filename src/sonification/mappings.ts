@@ -48,6 +48,22 @@ export function noteFrequency(exp: ExperienceId, index: number): number {
 }
 
 export const NOTE_NAMES_C = ["C", "C♯", "D", "E♭", "E", "F", "F♯", "G", "A♭", "A", "B♭", "B"];
+/**
+ * The melody's pitch is CONTINUOUS over three octaves: every real change in the measurement moves the pitch
+ * (no rounding to a few notes), and the same value gives the same pitch at every place (fixed global range).
+ * Level 0 = MELODY_LOW[exp], level 1 = three octaves higher.
+ */
+export const MELODY_OCTAVES = 3;
+export const MELODY_LOW: Record<ExperienceId, number> = { ocean: 98.0, forest: 110.0, pulse: 82.41 };
+export function pitchFrequency(exp: ExperienceId, level01: number): number {
+  const l = Math.min(1, Math.max(0, level01));
+  return MELODY_LOW[exp] * 2 ** (l * MELODY_OCTAVES);
+}
+/** Pitch difference in semitones between two levels (for "higher / lower than last time"). */
+export function semitonesBetween(a01: number, b01: number): number {
+  return (b01 - a01) * 12 * MELODY_OCTAVES;
+}
+
 export function noteName(freq: number): string {
   const midi = Math.round(69 + 12 * Math.log2(freq / 440));
   return `${NOTE_NAMES_C[((midi % 12) + 12) % 12]}${Math.floor(midi / 12) - 1}`;
@@ -89,7 +105,7 @@ export interface RoleDoc {
 }
 
 export const ROLE_DOCS: Record<SoundRole, RoleDoc> = {
-  pitch: { role: "pitch", youHear: "Melody note: higher or lower", rule: "Value → note on a two-octave pentatonic scale. Higher value = higher note." },
+  pitch: { role: "pitch", youHear: "Melody note: higher or lower", rule: "Value → continuous pitch over three octaves on one fixed range for every place. Higher value = higher note; even small real changes move the pitch, and the note glides from the previous date." },
   harmony: { role: "harmony", youHear: "A second, softer voice", rule: "Variable-specific: anomaly → how calm or tense the interval sounds; EVI → how full the chord is." },
   density: { role: "density", youHear: "How many rhythmic hits per note", rule: "Value → 0 to 4 hits per step. More rain = busier rhythm." },
   brightness: { role: "brightness", youHear: "Tone colour: darker or brighter", rule: "Value → filter opens and bright percussion rises. More sunlight = brighter sound." },
