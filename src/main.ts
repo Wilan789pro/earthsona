@@ -830,11 +830,14 @@ function renderAbout() {
   <div class="table-scroll flat"><table class="sources">
     <thead><tr><th scope="col">World</th><th scope="col">Dataset</th><th scope="col">Kind of data</th></tr></thead>
     <tbody>
-      <tr><td>Ocean</td><td>NASA/JPL MUR SST v4.1 and anomaly (preferred: PO.DAAC with an Earthdata token, or ERDDAP). If unavailable when data is downloaded, NOAA Coral Reef Watch CoralTemp v3.1, labelled as NOAA.</td><td>Analysis (Level 4)</td></tr>
+      <tr><td>Ocean (sound)</td><td><strong>NOAA</strong> Coral Reef Watch CoralTemp v3.1 SST and anomaly, daily 5 km, sampled weekly 2020–2024 at one point per place. (NASA/JPL MUR could not be downloaded for this build; it appears only in the globe picture and the NASA video.)</td><td>Analysis (Level 4)</td></tr>
       <tr><td>Forest</td><td>MODIS MOD13Q1.061 Terra NDVI + EVI, 250 m, 16-day, with pixel-reliability QA (ORNL DAAC)</td><td>Satellite-derived index</td></tr>
       <tr><td>Weather</td><td>NASA POWER daily and monthly: T2M, PRECTOTCORR, ALLSKY_SFC_SW_DWN</td><td>Model-based estimates (MERRA-2); solar satellite-derived (CERES)</td></tr>
       <tr><td>Globe</td><td>NASA GIBS: Blue Marble (relief + bathymetry), MUR SST, MODIS NDVI, MERRA-2 T2M snapshots</td><td>Imagery (visual only)</td></tr>
+      <tr><td>Whole planet</td><td>NASA GISTEMP v4 (GISS Surface Temperature Analysis), global land + ocean annual mean anomaly vs 1951–1980, 1880 onwards (team file <code>Datasets/GLB.Ts+dSST.csv</code>)</td><td>Gridded analysis, global mean</td></tr>
       <tr><td>Pictures</td><td>NASA Earth Information Center visualisations (NASA SVS)</td><td>Visual only, not sonified</td></tr>
+      <tr><td>Videos</td><td>NASA SVS 5101 (MUR SST), 5544 (near-real-time NDVI), 4285 (GPM IMERG precipitation): context only, not synchronised with the sound. Credit: NASA's Scientific Visualization Studio.</td><td>Visual only, not sonified</td></tr>
+      <tr><td>Lab</td><td>Team ocean file (<code>Datasets/global_ocean_complete_data.csv</code>: NOAA OISST, Copernicus Marine), nearest point to each place, June 2025; used only as starting values</td><td>Reference values</td></tr>
     </tbody></table></div>
   <p>NDVI and EVI measure how green vegetation looks. They do not count trees or prove deforestation.</p>
   <h3>Citations</h3>

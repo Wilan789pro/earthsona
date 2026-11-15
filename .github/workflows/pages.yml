@@ -1,0 +1,44 @@
+# Builds the EARTHSONA frontend and publishes it to GitHub Pages.
+# Runs only when started by hand (Actions → "Deploy frontend to GitHub Pages" → Run workflow), so nothing is
+# published by accident. Set the repository VARIABLE EARTHSONA_API_BASE to the backend URL (e.g. your
+# Hugging Face Space, https://<user>-<space>.hf.space). It is a public URL, not a secret; no key goes in the frontend.
+name: Deploy frontend to GitHub Pages
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+        env:
+          VITE_API_BASE: ${{ vars.EARTHSONA_API_BASE }}
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -29,7 +29,7 @@ def _int(name: str, default: int) -> int:
 @dataclass(frozen=True)
 class Settings:
     gemini_api_key: str = field(default_factory=lambda: os.getenv("GEMINI_API_KEY", "").strip(), repr=False)
-    gemini_model: str = field(default_factory=lambda: os.getenv("GEMINI_MODEL", "gemini-3.8-flash").strip())
+    gemini_model: str = field(default_factory=lambda: os.getenv("GEMINI_MODEL", "gemini-3.5-flash").strip())
     request_timeout_s: int = field(default_factory=lambda: _int("GEMINI_TIMEOUT_SECONDS", 30))
     max_output_tokens: int = field(default_factory=lambda: _int("GEMINI_MAX_OUTPUT_TOKENS", 2048))
     # Short, conversational answers don't need long reasoning; "low" is faster and leaves room for the reply.
@@ -42,6 +42,8 @@ class Settings:
     )
     # Simple abuse guard: requests per minute per client IP.
     rate_limit_per_minute: int = field(default_factory=lambda: _int("LUNA_RATE_LIMIT_PER_MINUTE", 20))
+    # Whole-server cap on Gemini chat requests per UTC day, so a public demo can't exhaust the key's quota.
+    daily_chat_limit: int = field(default_factory=lambda: _int("LUNA_DAILY_CHAT_LIMIT", 500))
     # Conversation turns kept per session (one turn = user + Luna).
     history_turns: int = field(default_factory=lambda: _int("LUNA_HISTORY_TURNS", 10))
 

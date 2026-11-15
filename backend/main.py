@@ -114,11 +114,26 @@ async def luna_tts_prewarm(req: TTSPrewarmRequest, request: Request) -> JSONResp
     return JSONResponse({"queued": tts.prewarm(req.texts), "stats": tts.stats})
 
 
+_day = {"date": "", "count": 0}
+
+
+def _daily_cap_reached() -> bool:
+    today = time.strftime("%Y-%m-%d", time.gmtime())
+    if _day["date"] != today:
+        _day["date"], _day["count"] = today, 0
+    if _day["count"] >= settings.daily_chat_limit:
+        return True
+    _day["count"] += 1
+    return False
+
+
 @app.post("/api/luna/chat", response_model=ChatResponse, responses={429: {"model": ErrorResponse}, 502: {"model": ErrorResponse}, 503: {"model": ErrorResponse}, 504: {"model": ErrorResponse}})
 async def luna_chat(req: ChatRequest, request: Request) -> ChatResponse | JSONResponse:
     ip = request.client.host if request.client else "unknown"
     if _rate_limited(ip):
         return JSONResponse(status_code=429, content=ErrorResponse(error="rate_limited", message="Too many messages. Please wait a minute.").model_dump())
+    if _daily_cap_reached():
+        return JSONResponse(status_code=429, content=ErrorResponse(error="daily_limit", message="Luna has answered lots of questions today and is resting. The guided tour still works!").model_dump())
     started = time.perf_counter()
     reply = await luna.chat(req.session_id, req.message, req.context)
     log.info("luna chat ok session=%s... %.1fs", req.session_id[:6], time.perf_counter() - started)  # no message content logged
