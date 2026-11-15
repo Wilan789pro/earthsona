@@ -1,8 +1,21 @@
 import { defineConfig } from "vitest/config";
+import { rmSync } from "node:fs";
+import { resolve } from "node:path";
+
+/** The original NASA videos in public/media/Visualisation are kept for reference only (about 181 MB): they are
+ *  removed from the BUILD OUTPUT (dist/) after Vite copies public/. The source files are never touched. */
+const skipOriginalVideos = {
+  name: "earthsona-skip-original-videos",
+  apply: "build" as const,
+  closeBundle() {
+    rmSync(resolve(__dirname, "dist/media/Visualisation"), { recursive: true, force: true });
+  },
+};
 
 export default defineConfig({
   // Relative base so the built `dist/` can be opened from any static host or a USB stick at the venue.
   base: "./",
+  plugins: [skipOriginalVideos],
   build: { chunkSizeWarningLimit: 800 }, // three.js is ~500 kB; one bundle is fine for an offline demo
   server: {
     port: 5173,

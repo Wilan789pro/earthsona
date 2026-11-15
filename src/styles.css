@@ -673,3 +673,24 @@ body.playing .stage-play { background: var(--grad); }
 .tour-text { margin: 0 0 12px; font-size: 1.05rem; }
 .tour-btns { display: flex; justify-content: space-between; gap: 10px; }
 @media (prefers-reduced-motion: reduce) { .tour-spot, .tour-card { transition: none; } }
+
+/* ---------- NASA context video in the stage ---------- */
+.view-switch { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); z-index: 6; display: flex; gap: 4px; background: rgba(255, 255, 255, 0.92); padding: 4px; border-radius: 999px; box-shadow: var(--shadow-sm); }
+.view-btn { font: 600 0.88rem var(--head); border: 0; border-radius: 999px; padding: 5px 12px; cursor: pointer; background: transparent; color: var(--ink); }
+.view-btn[aria-pressed="true"] { background: var(--grad); color: #fff; }
+.eic-video-box { position: absolute; inset: 0; z-index: 5; background: #050a18; display: flex; }
+.eic-video-box[hidden] { display: none; }
+.eic-video { margin: 0; flex: 1; display: grid; grid-template-rows: minmax(0, 1fr) auto; min-height: 0; }
+.eic-video video { width: 100%; height: 100%; min-height: 0; object-fit: contain; background: #000; }
+.eic-video figcaption { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center; padding: 8px 14px 10px; background: #0b1733; color: #e9f4ff; font-size: 0.9rem; }
+.eic-video figcaption a { color: #9fd8ff; }
+.eic-video .eic-more { flex-basis: 100%; }
+.eic-video .eic-more summary { cursor: pointer; font-weight: 700; }
+.eic-video .kv dt { color: #9fd8ff; }
+.eic-kid { color: #ffe08a; }
+.eic-ctx-tag { position: absolute; top: 60px; left: 14px; z-index: 2; font: 700 0.85rem var(--head); background: var(--sun); color: var(--ink); border-radius: 10px; padding: 3px 10px; }
+.space.video-on .legend, .space.video-on .reset-view, .space.video-on .pretend-tag { display: none; }
+.space.video-on .stage-play { bottom: 86px; }
+.eic-note { flex-basis: 100%; color: #cfe6ff; }
+.eic-video .eic-more summary { color: #cfe6ff; }
+@media (max-width: 1600px) { #btn-tour .pill-word { display: none; } }

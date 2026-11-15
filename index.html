@@ -59,6 +59,11 @@
           <div id="globe" class="globe-host"></div>
           <canvas id="scene" class="scene-canvas" hidden aria-label="Simulated environment for the current experiment" role="img"></canvas>
           <span class="pretend-tag" id="pretend-tag" hidden>Pretend Earth</span>
+          <div class="view-switch" role="group" aria-label="What to show">
+            <button class="view-btn" id="view-globe" aria-pressed="true">🌍 Globe</button>
+            <button class="view-btn" id="view-video" aria-pressed="false" title="NASA video (V)">🎬 NASA video</button>
+          </div>
+          <div class="eic-video-box" id="eic-video-box" hidden></div>
           <button class="reset-view" id="btn-reset" title="Turn the Earth back (R)">Turn back</button>
           <button class="stage-play" id="stage-play" aria-label="Play the sound of this place (Space)"><svg aria-hidden="true"><use href="#i-play" id="stage-play-icon" /></svg></button>
           <p class="legend" id="legend"></p>

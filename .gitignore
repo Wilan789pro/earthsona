@@ -19,3 +19,6 @@ backend/models/
 
 # Luna voice disk cache (generated audio)
 backend/cache/
+
+# Original NASA SVS videos (about 181 MB, kept untouched); the app uses the optimised copies in public/media/eic
+public/media/Visualisation/

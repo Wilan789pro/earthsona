@@ -22,6 +22,7 @@ import { Luna, LunaVoice, bubbleList, prewarmSpeech } from "./ui/luna";
 import { RULES } from "./lab/scenarios";
 import { runIntro } from "./ui/intro";
 import { TOUR_LINES, Tour } from "./ui/tour";
+import { EicVideoView } from "./ui/eicVideo";
 import { FOREST_DATA, ForestVoices } from "./ui/forestVoices";
 import { HistoryGraph, longDate, trendOf, type GraphSource } from "./ui/historyGraph";
 import type { VegetationObservation } from "./data/forestCsv";
@@ -175,6 +176,7 @@ function selectExperience(id: ExperienceId): Promise<void> | void {
   updateMix();
   applyGlobeLook();
   renderEic();
+  eicVideo.setMission(id);
   flyToRegion();
   forestVoices.stop(false);
   showForestVoices();
@@ -993,6 +995,15 @@ const story = new Story({
   },
 });
 const tour = new Tour(luna);
+const eicVideo = new EicVideoView({
+  playData: () => void play(),
+  pauseData: () => pause(),
+  dataPlaying: () => state.soundOn,
+  showGlobe: (on) => {
+    globe.paused = !on; // don't draw the 3D globe while the video covers it
+    document.getElementById("space")!.classList.toggle("video-on", !on);
+  },
+});
 $("btn-tour").onclick = () => {
   voice.unlocked = true;
   if (playground.open) playground.close();
@@ -1161,6 +1172,7 @@ function showForestVoices() {
 function togglePlayground() {
   if (playground.open) playground.close();
   else {
+    eicVideo.close();
     stopAll();
     playground.show();
   }
@@ -1362,6 +1374,7 @@ addEventListener("keydown", (e) => {
       break;
     case "s": case "S": stopAll(); break;
     case "w": case "W": lunaWhy(); break;
+    case "v": case "V": eicVideo.toggle(); break;
     case "j": case "J": void journeyNext(); break;
     case "l": case "L": togglePlayground(); break;
     case "n": case "N": toggleBus("nature"); break;
@@ -1737,4 +1750,4 @@ $("gm-explore").onclick = () => setGraphMode("explore");
 $("btn-next").onclick = () => void journeyNext();
 $("btn-restart").onclick = () => journeyRestart();
 
-(window as unknown as { __earthsona: unknown }).__earthsona = { state, player, registry, engine, settings, voice, luna, playground, progress: () => progress, buildContext, backend: () => backend, forestVoices, graph, globe, tour };
+(window as unknown as { __earthsona: unknown }).__earthsona = { state, player, registry, engine, settings, voice, luna, playground, progress: () => progress, buildContext, backend: () => backend, forestVoices, graph, globe, tour, eicVideo };
