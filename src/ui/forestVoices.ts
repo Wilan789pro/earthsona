@@ -1,13 +1,41 @@
 import csvText from "../../Datasets/EARTHSONA_Mauritius_Vegetation.csv?raw";
 import type { SonificationEngine } from "../audio/engine";
-import { CulturalSampler, SAMPLE_INFO } from "../audio/cultural";
+/** Base pitch of the forest voice at NDVI 0.5 (E4); NDVI 0 → one octave lower, NDVI 1 → one octave higher. */
+const BASE_HZ = 329.63;
+
+/**
+ * One synthesised "leaf" sound: a soft plucked tone (triangle + quiet octave, fast attack, gentle decay).
+ * Generated from the data only. The team's WAV recordings are kept in the repository but no longer played.
+ */
+function leafPluck(ctx: BaseAudioContext, dest: AudioNode, at: number, freq: number, gain: number, tone: number | null, pan: number): void {
+  const out = ctx.createGain();
+  out.gain.setValueAtTime(0, at);
+  out.gain.linearRampToValueAtTime(0.22 * gain, at + 0.006);
+  out.gain.exponentialRampToValueAtTime(0.001, at + 0.45);
+  const lp = ctx.createBiquadFilter();
+  lp.type = "lowpass";
+  lp.frequency.value = tone ?? 9000;
+  const p = ctx.createStereoPanner();
+  p.pan.value = pan;
+  out.connect(lp).connect(p).connect(dest);
+  for (const [type, mul, lvl] of [["triangle", 1, 1], ["sine", 2, 0.25]] as const) {
+    const o = ctx.createOscillator();
+    o.type = type;
+    o.frequency.value = freq * mul;
+    const g = ctx.createGain();
+    g.gain.value = lvl;
+    o.connect(g).connect(out);
+    o.start(at);
+    o.stop(at + 0.5);
+  }
+}
 import { QA_MEANING, loadVegetationCsv, type VegetationObservation } from "../data/forestCsv";
 import { MAX_STARTS, MIN_STARTS, NDVI_REFERENCE, describeChange, voiceFor } from "../sonification/forestVoices";
 import { $, announce, esc } from "./dom";
 import type { Luna } from "./luna";
 
 /**
- * Forest Voices: the team's real Mauritius vegetation observations played through the team's SuperCollider
+ * Forest Voices: the team's real Mauritius vegetation observations played with a synthesised voice designed like the team's SuperCollider
  * instrument (ported to the browser). Every number shown and heard comes from the CSV.
  */
 export const FOREST_DATA = loadVegetationCsv(csvText, "Datasets/EARTHSONA_Mauritius_Vegetation.csv");
@@ -79,7 +107,6 @@ export class ForestVoices {
     const rows = this.observations
       .map((o) => `<tr><td>${esc(o.date)}</td><td>${o.ndvi.toFixed(4)}</td><td>${o.evi === null ? "—" : o.evi.toFixed(4)}</td><td>${o.summaryQA} (${esc(QA_MEANING[o.summaryQA] ?? o.quality)})</td><td>${voiceFor(o).semitones.toFixed(2)} st · ${voiceFor(o).startsPerSecond.toFixed(2)}/s</td></tr>`)
       .join("");
-    const inst = SAMPLE_INFO.forest;
     return `
       <dl class="kv small">
         <dt>Dataset</dt><dd>${esc(a.dataset)} (NASA MODIS Terra vegetation indices, 250 m, 16-day composites)</dd>
@@ -93,10 +120,10 @@ export class ForestVoices {
       <div class="table-scroll flat"><table class="mapping"><thead><tr><th>Date</th><th>NDVI</th><th>EVI</th><th>QA</th><th>Sound</th></tr></thead><tbody>${rows}</tbody></table></div>
       <h4>How the data makes the music</h4>
       <ul class="small">
-        <li><strong>Instrument:</strong> the team's SuperCollider sound <code>${esc(inst.script)}</code> (sample <code>${esc(inst.file)}</code>, ${esc(inst.role)}), ported to the browser with the same pitch-shifter and overlapping starts.</li>
-        <li><strong>Greenness (NDVI) → pitch:</strong> NDVI ${NDVI_REFERENCE} plays the sample at its original pitch; 0 is one octave lower, 1 one octave higher (like temperature in the original script).</li>
+        <li><strong>Instrument:</strong> a synthesised plucked tone that follows the design of the team's SuperCollider script (pitch ±12 semitones, overlapping starts). Every sound comes from the data; the team's WAV recordings are kept in the repository but not played.</li>
+        <li><strong>Greenness (NDVI) → pitch:</strong> NDVI ${NDVI_REFERENCE} plays E4; 0 is one octave lower, 1 one octave higher (like temperature in the original script).</li>
         <li><strong>Leafiness (EVI) → beat:</strong> ${MIN_STARTS} to ${MAX_STARTS} sounds per second (like wind in the original script).</li>
-        <li><strong>Marginal quality → softer sound</strong>, so lower confidence can be heard. The team's “triangle-sound” recording marks the start of each date (it carries no data).</li>
+        <li><strong>Marginal quality → softer sound</strong>, so lower confidence can be heard.</li>
         <li><strong>A then B:</strong> the pitch glides from one date to the next, so the melody moves as the data changes.</li>
       </ul>
       <p class="small"><strong>Careful:</strong> between these two dates NDVI rose slightly while EVI almost halved. Real forests rarely change that fast in 16 days, so this is more likely caused by haze or cloud edges in these marginal-quality pictures than by a real change in the forest.</p>`;
@@ -120,16 +147,6 @@ export class ForestVoices {
     const out = ctx.createGain();
     out.connect(this.host.engine.output("data"));
     this.out = out;
-    const sampler = new CulturalSampler(ctx, out);
-    const [forestSample, triangle] = await Promise.all([sampler.load("forest"), sampler.load("triangle")]);
-    if (my !== this.token) {
-      out.disconnect();
-      return;
-    }
-    if (!forestSample) {
-      this.host.luna.say("I can't load our forest sound right now. Try again in a moment.", { mood: "concerned" });
-      return;
-    }
     this.playing = true;
     document.getElementById("fv-stop")?.removeAttribute("hidden");
     const letters = "ABCDEFGHIJ";
@@ -144,17 +161,21 @@ export class ForestVoices {
       const v = voiceFor(o);
       const prev = k > 0 ? voiceFor(obs[k - 1]) : null;
       const start = t0 + k * (PHRASE + 0.6);
-      if (triangle) sampler.play("triangle", start, 1, 0.9);
       const ratioAt = (at: number) => {
         if (!prev) return v.ratio;
         const p = Math.min(1, (at - start) / GLIDE);
         return 2 ** ((prev.semitones + (v.semitones - prev.semitones) * p) / 12);
       };
-      sampler.pattern("forest", start + 0.15, start + PHRASE, v.startsPerSecond, ratioAt, v.gain, v.tone, (at, i) => this.at(ctx, at, () => this.beat(i)));
-      this.host.engine.shapeNature("forest", { NDVI: { value: o.ndvi, unit: "NDVI" } });
+      // EVI → how often a sound starts; NDVI → its pitch (gliding from the previous date); quality → softer, duller
+      const interval = 1 / Math.max(0.05, v.startsPerSecond);
+      let i = 0;
+      for (let at = start + 0.15; at < start + PHRASE - 0.02; at += interval, i++) {
+        leafPluck(ctx, out, at, BASE_HZ * ratioAt(at), v.gain, v.tone, Math.sin(i * 1.7) * 0.35);
+        const n = i;
+        this.at(ctx, at, () => this.beat(n));
+      }
       this.at(ctx, start, () => {
         this.mark(this.observations.indexOf(o));
-        this.host.engine.shapeNature("forest", { NDVI: { value: o.ndvi, unit: "NDVI" } });
         announce(`Playing ${letters[this.observations.indexOf(o)]}: ${fmtDay(o.date)}`);
       });
     });

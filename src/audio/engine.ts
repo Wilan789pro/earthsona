@@ -1,9 +1,9 @@
 import type { ExperienceId } from "../data/types";
 import type { SoundFrame } from "../sonification/frames";
-import { densityHits, harmonyIntervals, pitchFrequency, SCALES } from "../sonification/mappings";
+import { densityHits, grooveDrive, grooveEnergy, groovePattern, harmonyIntervals, pitchFrequency, SCALES } from "../sonification/mappings";
 import type { PaletteId } from "../sonification/palettes";
-import { natureModFor, Ambience, type AmbienceId } from "./ambience";
-import { CulturalSampler, type SampleName } from "./cultural";
+import type { AmbienceId } from "./ambience";
+import type { SampleName } from "./cultural";
 
 /**
  * Sonification engine (Web Audio API).
@@ -13,11 +13,12 @@ import { CulturalSampler, type SampleName } from "./cultural";
  * data → sound rules come from src/sonification/mappings.ts; the palette only picks instruments and the
  * (data-independent) arrangement.
  *
- * Three buses keep the layers separate and individually switchable:
- *   nature   — Layer 1, synthesised environmental sound (ambience.ts), carries no data
- *   data     — Layer 2, the scientific sonification (every sound here comes from a measurement)
- *   regional — Layer 3, the regional arrangement (team recordings, or synthesised stand-in beats with a
- *              Sega-inspired 6/8 swing — not real Sega instruments), carries no data
+ * EVERY sound is generated from measurements (see SONIFICATION.md). There is no ambience, no recording and
+ * no fixed loop: if the data does not change, the sound does not change. Buses:
+ *   data     — melody, harmony, pad, rain ticks, drop figure, no-data tick (all from the measurements)
+ *   regional — Mauritius only: a Sega-inspired 6/8 groove whose density, intensity, brightness and drum pitch
+ *              are set by the measurements (mappings.ts: grooveDrive / grooveEnergy)
+ *   nature   — kept for compatibility; nothing plays on it any more (the old synthesised ambience is unused)
  */
 export interface LayerToggles {
   melody: boolean;
@@ -33,7 +34,7 @@ export interface RenderOptions {
   experience: ExperienceId;
   palette: PaletteId;
   layers: LayerToggles;
-  /** The team's SuperCollider sample for this place (supercollider/cultural_sound/); replaces the synthesised accents. */
+  /** Unused: the team's WAV samples are no longer played (kept in the repository). */
   cultural?: SampleName | null;
   /** Optional (default off): a breathy, clearly different sound across dates WITHOUT a measurement. */
   smooth?: boolean;
@@ -45,7 +46,12 @@ export class StepRenderer {
   constructor(private ctx: BaseAudioContext, private out: AudioNode, private regionalOut: AudioNode = out) {
     this.noise = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.5), ctx.sampleRate);
     const ch = this.noise.getChannelData(0);
-    for (let i = 0; i < ch.length; i++) ch[i] = Math.random() * 2 - 1;
+    // Deterministic noise (fixed seed), so the same data always gives exactly the same sound.
+    let seed = 12345;
+    for (let i = 0; i < ch.length; i++) {
+      seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+      ch[i] = (seed / 0x3fffffff) - 1;
+    }
   }
 
   render(f: SoundFrame, at: number, dur: number, o: RenderOptions): void {
@@ -75,16 +81,13 @@ export class StepRenderer {
       for (const st of harmonyIntervals(f.harmony).semitones) this.voice(at, dur, freq * 2 ** (st / 12), 0.09, "sine", pan);
     }
     if (o.layers.texture && f.texture !== null) this.pad(at, dur, o.experience, f.texture, pan, freq);
-    if (o.layers.rhythm && f.density !== null) this.density(at, dur, densityHits(f.density), o.palette, pan);
-    if (o.palette === "sega" && o.layers.arrangement && !o.cultural) {
+    if (o.palette === "sega" && o.layers.arrangement) {
+      // Mauritius: the Sega-inspired 6/8 groove, generated from the data (it also carries the rain level in Earth's Pulse)
       const rp = this.ctx.createStereoPanner();
       rp.pan.value = pan.pan.value * 0.5;
       rp.connect(this.regionalOut);
-      // Forest: subtle wooden taps; ocean and pulse: a synthesised low thump + slap groove (a stand-in, not a ravann).
-      if (o.experience === "forest") this.woodAccents(f.index, at, dur, rp);
-      else this.segaArrangement(f.index, at, dur, rp);
-    }
-    if (o.palette === "sega" && !o.cultural && o.layers.brightness && f.brightness !== null) this.triangle(at + (dur * 2) / 3, 0.02 + f.brightness * 0.1, pan);
+      this.segaGroove(at, dur, freq, grooveDrive(o.experience, f), grooveEnergy(o.experience, f), rp);
+    } else if (o.layers.rhythm && f.density !== null) this.density(at, dur, densityHits(f.density), o.palette, pan);
   }
 
   // --- voices ---------------------------------------------------------------
@@ -194,7 +197,7 @@ export class StepRenderer {
     g.gain.linearRampToValueAtTime(peak, at + Math.min(0.008, len / 4));
     g.gain.exponentialRampToValueAtTime(0.0005, at + len);
     src.connect(f).connect(g).connect(dest);
-    src.start(at, Math.random() * 0.3);
+    src.start(at, 0);
     src.stop(at + len + 0.01);
   }
 
@@ -210,60 +213,33 @@ export class StepRenderer {
     }
   }
 
-  /** Data-independent groove for the Sega-inspired palette (synthesised low thump + slap; not a recorded drum). */
-  private segaArrangement(step: number, at: number, dur: number, dest: AudioNode) {
-    if (step % 2 === 0) this.drum(at, 0.32, dest);
-    else this.noiseHit(at + (dur * 2) / 3, 0.08, 0.06, "bandpass", 1400, 1.5, dest); // light slap on the off-beat
+  /**
+   * Sega-inspired 6/8 groove for one data step: `drive` (0…1) sets how many of the six subdivisions play,
+   * `energy` (0…1) sets the drum's strength and the shaker's brightness, and the drum is tuned to the data note.
+   * Programmatic and deterministic; an original pattern, not a copy of any recording or song.
+   */
+  private segaGroove(at: number, dur: number, melodyFreq: number, drive: number, energy: number, dest: AudioNode) {
+    let drumF = melodyFreq;
+    while (drumF > 110) drumF /= 2;
+    for (const s of groovePattern(drive)) {
+      const t = at + (s * dur) / 6;
+      if (s === 0 || s === 3) this.tunedDrum(t, drumF, (0.12 + 0.22 * energy) * (s === 0 ? 1 : 0.7), dest);
+      else this.noiseHit(t, Math.min(0.06, dur / 6), 0.035 + 0.07 * energy, "highpass", 2500 + 5000 * energy, 0.7, dest);
+    }
   }
 
-  /** Subtle wooden accents (forest): a soft knock on every other step, a lighter one in between. */
-  private woodAccents(step: number, at: number, dur: number, dest: AudioNode) {
-    const knock = (t: number, freq: number, peak: number) => {
-      const o = this.ctx.createOscillator();
-      o.type = "triangle";
-      o.frequency.setValueAtTime(freq, t);
-      o.frequency.exponentialRampToValueAtTime(freq * 0.8, t + 0.06);
-      const g = this.ctx.createGain();
-      g.gain.setValueAtTime(0, t);
-      g.gain.linearRampToValueAtTime(peak, t + 0.003);
-      g.gain.exponentialRampToValueAtTime(0.0005, t + 0.12);
-      o.connect(g).connect(dest);
-      o.start(t);
-      o.stop(t + 0.14);
-    };
-    if (step % 2 === 0) knock(at, 620, 0.12);
-    knock(at + (dur * 2) / 3, 880, 0.06);
-  }
-
-  private drum(at: number, peak: number, dest: AudioNode) {
+  private tunedDrum(at: number, freq: number, peak: number, dest: AudioNode) {
     const o = this.ctx.createOscillator();
     o.type = "sine";
-    o.frequency.setValueAtTime(110, at);
-    o.frequency.exponentialRampToValueAtTime(52, at + 0.18);
+    o.frequency.setValueAtTime(freq * 2, at);
+    o.frequency.exponentialRampToValueAtTime(freq, at + 0.12);
     const g = this.ctx.createGain();
     g.gain.setValueAtTime(0, at);
     g.gain.linearRampToValueAtTime(peak, at + 0.005);
-    g.gain.exponentialRampToValueAtTime(0.001, at + 0.35);
+    g.gain.exponentialRampToValueAtTime(0.001, at + 0.3);
     o.connect(g).connect(dest);
     o.start(at);
-    o.stop(at + 0.4);
-    this.noiseHit(at, 0.05, peak * 0.25, "lowpass", 1800, 0.7, dest); // skin slap
-  }
-
-  private triangle(at: number, peak: number, dest: AudioNode) {
-    // Inharmonic partials give a metallic "ting".
-    for (const [mul, lvl] of [[1, 1], [2.76, 0.5], [5.4, 0.25]] as const) {
-      const o = this.ctx.createOscillator();
-      o.type = "sine";
-      o.frequency.value = 2400 * mul;
-      const g = this.ctx.createGain();
-      g.gain.setValueAtTime(0, at);
-      g.gain.linearRampToValueAtTime(peak * lvl, at + 0.003);
-      g.gain.exponentialRampToValueAtTime(0.0005, at + 0.5);
-      o.connect(g).connect(dest);
-      o.start(at);
-      o.stop(at + 0.55);
-    }
+    o.stop(at + 0.35);
   }
 
   /** Neutral "no data" cue, identical in every palette. */
@@ -295,11 +271,7 @@ export class SonificationEngine {
   private master: GainNode | null = null;
   private duck: GainNode | null = null;
   private renderer: StepRenderer | null = null;
-  /** The team's SuperCollider instrument, ported: on the data bus (Forest Voices) and the regional bus. */
-  cultural: CulturalSampler | null = null;
-  regionalSampler: CulturalSampler | null = null;
   private buses: Partial<Record<Bus, GainNode>> = {};
-  private ambience: Ambience | null = null;
   private volume = 0.7;
   private enabled: Record<Bus, boolean> = { nature: true, data: true, regional: true };
 
@@ -326,13 +298,6 @@ export class SonificationEngine {
         this.buses[b] = g;
       }
       this.renderer = new StepRenderer(this.ctx, this.buses.data!, this.buses.regional!);
-      this.cultural = new CulturalSampler(this.ctx, this.buses.data!);
-      this.regionalSampler = new CulturalSampler(this.ctx, this.buses.regional!);
-      for (const n of ["forest", "ocean", "triangle", "pulse"] as SampleName[]) {
-        void this.cultural.load(n);
-        void this.regionalSampler.load(n);
-      }
-      this.ambience = new Ambience(this.ctx, this.buses.nature!);
     }
     if (this.ctx.state !== "running") await this.ctx.resume();
   }
@@ -367,40 +332,22 @@ export class SonificationEngine {
     if (this.ctx && this.duck) this.duck.gain.setTargetAtTime(ducked ? 0.25 : 1, this.ctx.currentTime, 0.2);
   }
 
-  /** Natural soundscape for the current place (cross-fades when the place changes). */
-  startNature(id: AmbienceId): void {
-    if (this.running) this.ambience?.start(id);
-  }
-
-  /** Let measurements (or Luna's pretend values) shape the nature sound directly. */
-  shapeNature(exp: RenderOptions["experience"], values: SoundFrame["values"]): void {
-    this.ambience?.setMod(natureModFor(exp, values));
-  }
-
-  resetNature(): void {
-    this.ambience?.resetMod();
-  }
-
-  stopNature(): void {
-    this.ambience?.stop();
-  }
-
+  /**
+   * The decorative nature ambience has been REMOVED: every audible sound now comes from the measurements.
+   * These no-ops keep older callers harmless; ambience.ts is kept in the repository but never played.
+   */
+  startNature(_id?: AmbienceId): void {}
+  shapeNature(_exp?: RenderOptions["experience"], _values?: SoundFrame["values"]): void {}
+  resetNature(): void {}
+  stopNature(): void {}
   get natureId(): AmbienceId | null {
-    return this.ambience?.running ? this.ambience.current : null;
+    return null;
   }
 
   play(frame: SoundFrame, dur: number, o: RenderOptions): void {
     if (!this.ctx || !this.renderer || !this.running) return;
     const at = this.ctx.currentTime + 0.03;
     this.renderer.render(frame, at, dur, o);
-    // Cultural layer: the team's sample, pitched by the same data note (±1 octave like the SuperCollider
-    // instrument), with extra overlapping starts when the rhythm layer (rain) asks for them.
-    if (o.cultural && this.regionalSampler && frame.pitch !== null && o.layers.arrangement) {
-      const ratio = 2 ** ((frame.pitch * 24 - 12) / 12);
-      const starts = Math.max(1, frame.density !== null ? Math.min(4, densityHits(frame.density)) : 1);
-      for (let i = 0; i < starts; i++) this.regionalSampler.play(o.cultural, at + (i * dur) / starts, ratio, 1, null, frame.pan * 0.6);
-    }
-    this.shapeNature(o.experience, frame.values);
   }
 }
 

@@ -116,9 +116,10 @@ describe("child-friendly helpers", () => {
     expect(KID.harmony("strong tension (much warmer than baseline)")).toMatch(/much warmer/);
   });
 
-  it("describes the Sega palette as data-free arrangement, with references", () => {
+  it("describes the Sega palette as data-driven, with references", () => {
     expect(PALETTES.sega.references.length).toBeGreaterThanOrEqual(2);
-    expect(PALETTES.sega.instruments.find((i) => /low thump/i.test(i.name))?.role).toMatch(/does NOT carry data/);
+    // every element of the Sega-inspired layer is driven by the data (nothing plays independently of it)
+    for (const i of PALETTES.sega.instruments) expect(i.role).toMatch(/(data)/);
     // no synthesised sound may be presented as a real Sega instrument
     for (const i of PALETTES.sega.instruments) if (/ravann|maravann|triangle/i.test(i.name)) expect(i.name).toMatch(/not a real/);
   });

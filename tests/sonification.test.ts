@@ -105,9 +105,10 @@ describe("palettes", () => {
     expect(palettesFor(undefined).map((p) => p.id)).toEqual(["neutral"]);
     expect(palettesFor("sega").map((p) => p.id)).toEqual(["neutral", "sega"]);
   });
-  it("documents cultural references and states that the drum carries no data", () => {
+  it("documents cultural references and states that every Sega element follows the data", () => {
     expect(PALETTES.sega.references.length).toBeGreaterThanOrEqual(2);
-    expect(PALETTES.sega.instruments.find((i) => /low thump/i.test(i.name))?.role).toMatch(/does NOT carry data/);
+    // every element of the Sega-inspired layer is driven by the data (nothing plays independently of it)
+    for (const i of PALETTES.sega.instruments) expect(i.role).toMatch(/(data)/);
     // no synthesised sound may be presented as a real Sega instrument
     for (const i of PALETTES.sega.instruments) if (/ravann|maravann|triangle/i.test(i.name)) expect(i.name).toMatch(/not a real/);
   });

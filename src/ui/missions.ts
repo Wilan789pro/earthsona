@@ -77,7 +77,7 @@ export const MISSIONS: Record<ExperienceId, Mission> = {
     lines: {
       0: "Welcome to the forest world! The darker the green, the leafier the land. Now pick a place to listen to.",
       1: "Satellites look at the light plants reflect, to see how green the land is. We turn that into music.",
-      2: "Press the big play button! Greener means higher notes and more birds singing. A soft tick means clouds hid the forest.",
+      2: "Press the big play button! Greener means higher notes and a fuller sound. A soft tick means clouds hid the forest.",
       3: "Want to compare two years? Tap me and choose Two real years.",
       4: "Want to find out what plants need, and who needs plants?",
       5: "Here's a question for you, explorer!",

@@ -66,6 +66,36 @@ export function semitonesBetween(a01: number, b01: number): number {
   return (b01 - a01) * 12 * MELODY_OCTAVES;
 }
 
+/**
+ * Sega-inspired 6/8 groove (Mauritius places only), generated from the data, never a loop or a recording.
+ *  drive  → how many of the 6 subdivisions play (1…6): ocean = size of the SST anomaly (0…2 °C),
+ *           forest = EVI level, Earth's Pulse = rain level.
+ *  energy → drum intensity and shaker brightness: ocean = SST level, forest = NDVI level, pulse = sunlight level.
+ *  The drum's pitch follows the melody (the data note). No measurement → no groove (only the no-data tick).
+ */
+export const GROOVE_ORDER = [0, 3, 5, 2, 4, 1];
+export interface GrooveInput {
+  pitch: number | null;
+  density: number | null;
+  brightness: number | null;
+  harmony: HarmonyFrame | null;
+}
+export function grooveDrive(exp: ExperienceId, f: GrooveInput): number {
+  const c = (x: number) => Math.min(1, Math.max(0, x));
+  if (exp === "pulse") return c(f.density ?? 0);
+  if (exp === "ocean") return f.harmony?.kind === "anomaly" ? c(Math.abs(f.harmony.anomaly) / 2) : 0;
+  return f.harmony?.kind === "chord" ? c(f.harmony.level01) : 0;
+}
+export function grooveEnergy(exp: ExperienceId, f: GrooveInput): number {
+  const c = (x: number) => Math.min(1, Math.max(0, x));
+  return exp === "pulse" ? c(f.brightness ?? 0.4) : c(f.pitch ?? 0);
+}
+/** Which of the six 6/8 subdivisions sound for a drive level (deterministic: same data, same rhythm). */
+export function groovePattern(drive: number): number[] {
+  const n = 1 + Math.round(Math.min(1, Math.max(0, drive)) * 5);
+  return GROOVE_ORDER.slice(0, n).sort((a, b) => a - b);
+}
+
 export function noteName(freq: number): string {
   const midi = Math.round(69 + 12 * Math.log2(freq / 440));
   return `${NOTE_NAMES_C[((midi % 12) + 12) % 12]}${Math.floor(midi / 12) - 1}`;

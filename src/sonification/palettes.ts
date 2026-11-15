@@ -39,21 +39,20 @@ export const PALETTES: Record<PaletteId, Palette> = {
     name: "Mauritius — Sega-inspired",
     short: "Sega-inspired",
     description:
-      "An original arrangement with a 6/8 (ternary) swing inspired by traditional Mauritian Sega. " +
-      "Where the team's own recordings exist they are used; otherwise the beat is played by simple SYNTHESISED stand-in sounds " +
-      "(filtered noise, a low thump, a high ting). These are not real ravann, maravann or triangle sounds, not Sega recordings, and reproduce no song.",
+      "An original, programmatically generated 6/8 (ternary) groove inspired by traditional Mauritian Sega, driven entirely by the data: " +
+      "how many beats play, how strong and bright they are, and the drum's pitch all follow the measurements. " +
+      "It uses simple synthesised sounds (a tuned low drum and shaker-style noise), not real ravann or maravann sounds, no recordings, and reproduces no song.",
     regions: ["sega"],
     instruments: [
       { name: "Plucked melody", role: "pitch (data)" },
       { name: "Soft second voice", role: "harmony (data)" },
-      { name: "Shaker-style noise bursts (synthesised stand-in, not a real maravann)", role: "rhythmic density (data): more rain = more shakes" },
-      { name: "High metallic ting (synthesised stand-in, not a real triangle)", role: "brightness (data) when a sunlight layer exists; otherwise a quiet time-keeper" },
-      { name: "Low thump and slap (synthesised stand-in, not a real ravann; ocean and weather)", role: "arrangement only: marks the beat, does NOT carry data" },
-      { name: "Soft wooden taps (synthesised; forest, a subtler accent)", role: "arrangement only: marks the beat, does NOT carry data" },
+      { name: "Groove density: 1–6 of the six 6/8 subdivisions (synthesised, not a real maravann)", role: "rhythmic density (data): rain (Earth's Pulse), size of the SST anomaly (ocean), EVI (forest)" },
+      { name: "Shaker-style noise brightness and drum strength (synthesised, not a real ravann)", role: "brightness (data): sunlight (Earth's Pulse), SST (ocean), NDVI (forest)" },
+      { name: "Low tuned drum (synthesised, not a real ravann)", role: "pitch (data): tuned to the data note, a few octaves down" },
     ],
     arrangement:
-      "A ternary (compound, 6/8-style) groove: each data step is one beat divided in three; the low thump accents the first beat of every two steps. " +
-      "In the forest it is replaced by soft wooden taps so the regional accent stays subtle. The regional layer is mixed below the natural soundscape. " +
+      "Each data step is one 6/8 bar of six subdivisions, filled in a fixed order (1, 4, 6, 3, 5, 2) as the data rises: calm data plays only the downbeat, " +
+      "busy data fills all six. A missing measurement silences the groove. Same data → same rhythm (no randomness, no loop). " +
       "This metre is our design choice for an original interpretation and should be reviewed with Mauritian musicians.",
     references: [
       { label: "National Heritage Fund (Mauritius) — Sega Tipik Morisien: main instruments ravan, maravan and triang", url: "https://nhf.govmu.org/nhf/?page_id=723" },

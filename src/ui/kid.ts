@@ -55,7 +55,7 @@ export const KID = {
       kicker: "Welcome to EARTHSONA",
       title: "Listen to planet Earth!",
       fact: "Choose a world (🌊 ocean, 🌳 forest or 💓 weather), pick a place, then press <strong>▶ Play</strong>.",
-      data: `<ol class="disc-steps"><li>🌿 First you hear the place: waves, wind, rain or birds.</li><li>📈 On top, a sound made from real measurements taken by NASA satellites and models.</li><li>✦ Press <strong>Try this out</strong> to compare two different years.</li></ol>`,
+      data: `<ol class="disc-steps"><li>📈 Every sound is made from real measurements taken by satellites and NASA models.</li><li>🎵 Higher numbers make higher notes; no recordings, no background music.</li><li>✦ Press <strong>Try this out</strong> to compare two different years.</li></ol>`,
       sound: "Sounds are made by EARTHSONA from the numbers. They are not recordings from space.",
     };
   },
@@ -67,7 +67,7 @@ export const KID = {
         kicker,
         title: "No measurements here yet",
         fact: esc(region.kidIntro ?? ""),
-        data: `<p class="small">There is no real data downloaded for this place, so you only hear its nature sounds. EARTHSONA never makes up numbers.</p>`,
+        data: `<p class="small">There is no real data downloaded for this place, so there is nothing to hear. EARTHSONA never makes up numbers.</p>`,
         sound: "Try another place to hear the data sound too.",
       };
     }

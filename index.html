@@ -47,15 +47,20 @@
         </nav>
         <div class="top-right">
           <button class="pill badges" id="btn-badges" aria-haspopup="dialog"><svg class="star" aria-hidden="true"><use href="#i-star" /></svg><span><span id="badge-count">0</span>/3<span class="pill-word"> badges</span></span></button>
-          <button class="pill quiet" id="btn-tour" title="See Luna's short tour again">❓<span class="pill-word"> Tour</span></button>
+          <button class="try-btn" id="btn-lab" title="Open the Earth Sound Lab (L)"><span class="spark s1" aria-hidden="true">✦</span> TRY THIS OUT <span class="spark s2" aria-hidden="true">✦</span><span class="sr-only">: open the Earth Sound Lab</span></button>
+          <button class="pill quiet" id="btn-tour" title="Luna's guided tour">❓<span class="pill-word"> Tour with Luna</span></button>
           <button class="pill quiet" id="btn-grownups" aria-haspopup="dialog">Grown-ups</button>
         </div>
       </header>
       <div id="notice" class="notice" role="status" aria-live="polite" aria-atomic="true"></div>
 
-      <!-- ============ GLOBE + LUNA ============ -->
+      <!-- ============ LEFT: the Earth, the place and Luna ============ -->
       <main class="stage" aria-labelledby="stage-h">
         <h2 id="stage-h" class="sr-only">The Earth and Luna</h2>
+        <nav class="place-bar" aria-labelledby="places-h">
+          <h2 class="place-bar-h" id="places-h" tabindex="-1"><span aria-hidden="true">📍</span> Place</h2>
+          <ul id="place-list" class="places"></ul>
+        </nav>
         <div class="space" id="space">
           <div id="globe" class="globe-host"></div>
           <canvas id="scene" class="scene-canvas" hidden aria-label="Simulated environment for the current experiment" role="img"></canvas>
@@ -79,7 +84,7 @@
             <p class="luna-status" id="luna-status" aria-live="polite"></p>
             <form class="ask" id="luna-form" autocomplete="off">
               <label for="luna-input" class="sr-only">Ask Luna</label>
-              <input id="luna-input" type="text" maxlength="2000" placeholder="Ask Luna anything about this mission or experiment…" />
+              <input id="luna-input" type="text" maxlength="2000" placeholder="Ask Luna about this measurement…" />
               <button class="pill primary small" type="submit" id="luna-send">Ask</button>
             </form>
           </div>
@@ -93,109 +98,110 @@
         <p class="caption-line" id="stage-caption"></p>
       </main>
 
-      <!-- ============ SIDE ============ -->
-      <aside class="side" id="side">
-        <section id="real-panel" class="panel-inner">
-          <section id="fv-panel" class="fv-panel" hidden aria-labelledby="fv-h"></section>
-          <h2 class="side-h" id="places-h" tabindex="-1">Pick a place</h2>
-          <ul id="place-list" class="places"></ul>
-
-          <div class="years" id="years-wrap">
-            <h2 class="side-h" id="years-h">Pick a time</h2>
-            <div class="chips" id="period-chips" role="radiogroup" aria-label="Every month or every day"></div>
-            <div class="chips" id="year-chips" role="radiogroup" aria-labelledby="years-h"></div>
+      <!-- ============ RIGHT: the scientific graph, the sound and what it means ============ -->
+      <aside class="side data-panel" id="side" aria-label="Measurements and sound">
+        <section id="real-panel" class="panel-inner data-inner">
+          <div class="data-head">
+            <h2 class="data-title" id="j2-h"><span id="j2-title">How it changed</span></h2>
+            <span class="j-trend" id="j-trend"></span>
           </div>
 
-          <figure class="eic" id="eic" hidden>
-            <div class="eic-img"><img id="eic-img" alt="" decoding="async" /><p class="eic-offline small" id="eic-offline" hidden></p></div>
-            <figcaption>
-              <span class="eic-kicker" id="eic-gallery">A real NASA picture</span>
-              <strong id="eic-title"></strong>
-              <span class="eic-nav" id="eic-nav"></span>
-              <details class="eic-more"><summary>About this picture</summary><span class="small" id="eic-relation"></span> <span class="small muted" id="eic-meta"></span></details>
-            </figcaption>
-          </figure>
+          <div class="obs-strip" id="now-card">
+            <div class="obs-main">
+              <p class="now-label" id="now-label">Press play to hear this place</p>
+              <p class="now-value" id="now-value">—</p>
+              <p class="now-date" id="now-date"></p>
+            </div>
+            <p class="graph-explain" id="graph-explain"></p>
+          </div>
+
+          <div class="graph-box j-graph">
+            <div class="graph-modes" role="radiogroup" aria-label="How to explore the graph">
+              <button class="mode-chip" role="radio" aria-checked="true" id="gm-journey">🚀 Journey</button>
+              <button class="mode-chip" role="radio" aria-checked="false" id="gm-explore">🔍 Explore</button>
+              <span class="small muted" id="gm-note">Go forward, one real date at a time.</span>
+            </div>
+            <div class="chips small-chips" id="graph-sources" role="radiogroup" aria-label="Which real data to draw"></div>
+            <div class="years" id="years-wrap">
+              <span class="sr-only" id="years-h">Pick a time</span>
+              <div class="chips small-chips" id="period-chips" role="radiogroup" aria-label="Every month or every day"></div>
+              <div class="chips small-chips" id="year-chips" role="radiogroup" aria-labelledby="years-h"></div>
+            </div>
+            <div class="hg" id="history-graph" tabindex="0"></div>
+            <p class="hg-legend small" aria-label="Graph key"><span><b class="lg-dot" aria-hidden="true">●</b> measured</span> <span><b aria-hidden="true">☁</b> no measurement</span> <span id="legend-smooth" hidden><b aria-hidden="true">~</b> in-between whisper (not measured)</span></p>
+            <div class="j-graph-foot">
+              <span class="journey-ctls" id="journey-ctls">
+                <button class="pill small primary" id="btn-next" title="Next date (J)">Next date ▶</button>
+                <button class="pill small" id="btn-restart">↺ Start again</button>
+                <span class="small" id="journey-pos" aria-live="polite"></span>
+              </span>
+              <button class="pill small" id="btn-gis-all" hidden>▶ Hear every year</button>
+              <button class="pill small" id="btn-compare" aria-pressed="false" hidden>⚖️ Compare two dates</button>
+              <span class="small muted" id="graph-hint" aria-live="polite">Press Next date to hear each real measurement in order.</span>
+            </div>
+            <div class="j-compare" id="j-compare" hidden></div>
+          </div>
+
+          <div class="player-box j-music" aria-labelledby="j3-h">
+            <h3 class="sr-only" id="j3-h" tabindex="-1">What you hear</h3>
+            <div class="j-music-row">
+              <div class="transport" role="group" aria-label="Playback">
+                <button class="play" id="btn-play" aria-label="Play (Space)"><svg aria-hidden="true"><use href="#i-play" id="play-icon" /></svg></button>
+                <button class="round big" id="btn-stop" title="Stop"><svg aria-hidden="true"><use href="#i-stop" /></svg><span class="sr-only">Stop</span></button>
+                <button class="round big" id="btn-replay" title="Play from the start"><svg aria-hidden="true"><use href="#i-replay" /></svg><span class="sr-only">Play from the start</span></button>
+              </div>
+              <div class="timeline">
+                <div class="timeline-top"><span class="np-title" id="player-title">—</span><span class="small" id="player-time">0:00 / 0:00</span></div>
+                <label for="progress" class="sr-only">Position in time</label>
+                <input type="range" id="progress" min="0" max="0" step="1" value="0" />
+                <div class="timeline-bottom"><span class="small" id="player-date">—</span><span class="status" id="audio-status">STOPPED</span></div>
+              </div>
+            </div>
+            <div class="j-music-row small-row">
+              <ul class="hear-list" id="hear-list"></ul>
+              <fieldset class="mix" id="mix">
+                <legend class="sr-only">What you hear</legend>
+                <button class="mix-btn" id="mix-nature" aria-pressed="true">🥁 Sega rhythm</button>
+                <button class="mix-btn" id="mix-music" aria-pressed="true"><span id="mix-music-label">Data music</span></button>
+              </fieldset>
+              <label class="vol">🔊 <span class="sr-only">Volume</span><input type="range" id="volume" min="0" max="1" step="0.01" value="0.7" /></label>
+            </div>
+            <p class="j-change" id="j-change"></p>
+            <p class="j-desc small" id="audio-desc" aria-live="off"></p>
+          </div>
+
+          <div class="explain-box j-meaning" aria-labelledby="j4-h">
+            <h3 class="explain-h" id="j4-h">About this graph</h3>
+            <p class="graph-meta small" id="graph-meta"></p>
+            <p class="j-src small" id="j-src"></p>
+            <p class="j-meaning-text small" id="j-meaning"></p>
+            <div class="explain-btns">
+              <button class="pill small" id="btn-explain-point">🌙 Luna, explain this point</button>
+              <button class="why" id="btn-why">Why does it sound like this?</button>
+            </div>
+          </div>
+
+          <details class="more-box">
+            <summary>More to explore: the numbers, our team's forest file and NASA pictures</summary>
+            <details class="table-view graph-numbers"><summary>Show the numbers</summary><div id="graph-table" class="table-scroll"></div></details>
+            <section id="fv-panel" class="fv-panel" hidden aria-labelledby="fv-h"></section>
+            <figure class="eic" id="eic" hidden>
+              <div class="eic-img"><img id="eic-img" alt="" decoding="async" /><p class="eic-offline small" id="eic-offline" hidden></p></div>
+              <figcaption>
+                <span class="eic-kicker" id="eic-gallery">A real NASA picture</span>
+                <strong id="eic-title"></strong>
+                <span class="eic-nav" id="eic-nav"></span>
+                <details class="eic-more"><summary>About this picture</summary><span class="small" id="eic-relation"></span> <span class="small muted" id="eic-meta"></span></details>
+              </figcaption>
+            </figure>
+          </details>
         </section>
 
         <section id="playground" class="panel-inner playground" hidden aria-labelledby="pg-title"></section>
       </aside>
-
-      <!-- ============ JOURNEY: observation → graph → musical change → meaning ============ -->
-      <section class="journey" id="journey" aria-label="From measurement to music">
-        <article class="j-card j-obs" aria-labelledby="j1-h">
-          <h2 class="j-h" id="j1-h"><span class="j-step" aria-hidden="true">1</span> What the satellite saw</h2>
-          <div class="now-card" id="now-card">
-            <p class="now-label" id="now-label">Press play to hear this place</p>
-            <p class="now-value" id="now-value">—</p>
-            <p class="now-date" id="now-date"></p>
-          </div>
-          <p class="j-src small" id="j-src"></p>
-        </article>
-
-        <article class="j-card j-graph" aria-labelledby="j2-h">
-          <div class="j-graph-head">
-            <h2 class="j-h" id="j2-h"><span class="j-step" aria-hidden="true">2</span> <span id="j2-title">How it changed</span></h2>
-            <span class="j-trend" id="j-trend"></span>
-          </div>
-          <div class="graph-modes" role="radiogroup" aria-label="How to explore the graph">
-            <button class="mode-chip" role="radio" aria-checked="true" id="gm-journey">🚀 Journey</button>
-            <button class="mode-chip" role="radio" aria-checked="false" id="gm-explore">🔍 Explore</button>
-            <span class="small muted" id="gm-note">Go forward, one real date at a time.</span>
-          </div>
-          <div class="chips small-chips" id="graph-sources" role="radiogroup" aria-label="Which real data to draw"></div>
-          <div class="hg" id="history-graph" tabindex="0"></div>
-          <p class="hg-legend small" aria-label="Graph key"><span><b class="lg-dot" aria-hidden="true">●</b> measured</span> <span><b aria-hidden="true">☁</b> no measurement</span> <span id="legend-smooth" hidden><b aria-hidden="true">~</b> in-between whisper (not measured)</span></p>
-          <div class="j-graph-foot">
-            <span class="journey-ctls" id="journey-ctls">
-              <button class="pill small primary" id="btn-next" title="Next date (J)">Next date ▶</button>
-              <button class="pill small" id="btn-restart">↺ Start again</button>
-              <span class="small" id="journey-pos" aria-live="polite"></span>
-            </span>
-            <button class="pill small" id="btn-gis-all" hidden>▶ Hear every year</button>
-            <button class="pill small" id="btn-compare" aria-pressed="false" hidden>⚖️ Compare two dates</button>
-            <span class="small muted" id="graph-hint" aria-live="polite">Press Next date to hear each real measurement in order.</span>
-          </div>
-          <details class="table-view graph-numbers"><summary>Show the numbers</summary><div id="graph-table" class="table-scroll"></div></details>
-          <div class="j-compare" id="j-compare" hidden></div>
-        </article>
-
-        <article class="j-card j-music" aria-labelledby="j3-h">
-          <h2 class="j-h" id="j3-h" tabindex="-1"><span class="j-step" aria-hidden="true">3</span> What you hear</h2>
-          <div class="j-music-row">
-            <div class="transport" role="group" aria-label="Playback">
-              <button class="play" id="btn-play" aria-label="Play (Space)"><svg aria-hidden="true"><use href="#i-play" id="play-icon" /></svg></button>
-              <button class="round big" id="btn-stop" title="Stop"><svg aria-hidden="true"><use href="#i-stop" /></svg><span class="sr-only">Stop</span></button>
-              <button class="round big" id="btn-replay" title="Play from the start"><svg aria-hidden="true"><use href="#i-replay" /></svg><span class="sr-only">Play from the start</span></button>
-            </div>
-            <div class="timeline">
-              <div class="timeline-top"><span class="np-title" id="player-title">—</span><span class="small" id="player-time">0:00 / 0:00</span></div>
-              <label for="progress" class="sr-only">Position in time</label>
-              <input type="range" id="progress" min="0" max="0" step="1" value="0" />
-              <div class="timeline-bottom"><span class="small" id="player-date">—</span><span class="status" id="audio-status">STOPPED</span></div>
-            </div>
-          </div>
-          <ul class="hear-list" id="hear-list"></ul>
-          <p class="j-change" id="j-change"></p>
-          <p class="j-desc small" id="audio-desc" aria-live="off"></p>
-          <div class="j-music-row small-row">
-            <fieldset class="mix" id="mix">
-              <legend class="sr-only">What you hear</legend>
-              <button class="mix-btn" id="mix-nature" aria-pressed="true">Nature</button>
-              <button class="mix-btn" id="mix-music" aria-pressed="true"><span id="mix-music-label">Music</span></button>
-            </fieldset>
-            <label class="vol">Volume <input type="range" id="volume" min="0" max="1" step="0.01" value="0.7" /></label>
-          </div>
-        </article>
-
-        <article class="j-card j-meaning" aria-labelledby="j4-h">
-          <h2 class="j-h" id="j4-h"><span class="j-step" aria-hidden="true">4</span> What it means</h2>
-          <p class="j-meaning-text" id="j-meaning"></p>
-          <button class="why" id="btn-why">Why does it sound like this?</button>
-          <button class="lab-cta" id="btn-lab"><span class="lab-cta-icon" aria-hidden="true">🧪</span><span><strong>Earth Sound Lab</strong><small>Real data or "What if?" Change the rain, the sun and more</small></span></button>
-        </article>
-      </section>
     </div>
 
+    <button class="jump-btn" id="jump-btn" type="button">📈 Graph &amp; sound</button>
     <div id="sr-status" class="sr-only" aria-live="polite" aria-atomic="true"></div>
 
     <!-- ============ GROWN-UPS CORNER ============ -->
@@ -235,11 +241,11 @@
         <h3>How the measurements make the sound</h3>
         <div class="table-scroll flat"><table class="mapping" id="mapping-table"></table></div>
         <details class="table-view"><summary>Full mapping specification: every variable, unit, range, direction and how change over time sounds</summary><div id="mapping-spec" class="table-scroll"></div></details>
-        <h3>Nature and music</h3>
+        <h3>Sound layers (all from the data)</h3>
         <div id="layers-explain" class="layers-explain"></div>
         <section class="understand" aria-labelledby="understand-h"><h3 id="understand-h">What your child heard</h3><div id="understand-text"></div></section>
         <fieldset class="layers" id="layer-toggles"><legend>Fine control of the music</legend></fieldset>
-        <button class="pill small" id="btn-wav"><svg aria-hidden="true"><use href="#i-download" /></svg> Download the music as WAV (no nature sounds)</button>
+        <button class="pill small" id="btn-wav"><svg aria-hidden="true"><use href="#i-download" /></svg> Download the music as WAV</button>
       </section>
 
       <section id="pane-settings" role="tabpanel" aria-labelledby="tab-settings" hidden>
@@ -248,7 +254,7 @@
           <ul class="small">
             <li><kbd>Space</kbd> play / pause · <kbd>J</kbd> next date (Journey) · <kbd>W</kbd> why does it sound like this?</li>
             <li><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> choose a world · <kbd>[</kbd> <kbd>]</kbd> previous / next place · <kbd>V</kbd> NASA video / globe</li>
-            <li><kbd>L</kbd> Earth Sound Lab · <kbd>N</kbd> / <kbd>M</kbd> nature / music on or off · <kbd>R</kbd> turn the Earth back · arrows turn the Earth</li>
+            <li><kbd>L</kbd> Earth Sound Lab · <kbd>N</kbd> / <kbd>M</kbd> Sega rhythm / data music on or off · <kbd>R</kbd> turn the Earth back · arrows turn the Earth</li>
             <li>On the graph: <kbd>←</kbd> <kbd>→</kbd> move between dates (read aloud by screen readers), <kbd>Enter</kbd> listen · <kbd>Esc</kbd> quiets Luna, closes things, skips the tour</li>
           </ul>
         </details>

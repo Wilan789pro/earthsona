@@ -86,7 +86,7 @@ Not used for the sound: NASA/JPL MUR SST point data. It needs an Earthdata token
   - Kokoro-82M model and voices (Apache-2.0): https://huggingface.co/hexgrad/Kokoro-82M
 - **SuperCollider:** the team's own instrument scripts and design, ported to the browser: https://supercollider.github.io/
 - **Fonts:** Fredoka and Nunito (SIL Open Font License), bundled.
-- **Audio:** the team's four WAV recordings in `supercollider/cultural_sound/` (**☐ TEAM:** confirm they are the team's own or licensed). The nature sounds are synthesised in code; no third-party recordings are used.
+- **Audio:** all sound is synthesised from the data in the browser (Web Audio). No recordings, no third-party audio and no background music are played. The team's four WAV recordings in `supercollider/cultural_sound/` are kept in the repository but are not used in the app.
 - **Intro film:** the team's (see D).
 - **Icons:** emoji and hand-drawn inline SVG; no icon libraries.
 
@@ -96,7 +96,7 @@ Not used for the sound: NASA/JPL MUR SST point data. It needs an Earthdata token
 - [ ] Test the public URL on a phone and a laptop without logging in.
 - [ ] Record the 30-second video or make ≤ 7 slides (B). No minors' names, voices or likenesses.
 - [ ] Confirm the intro film's production details and AI tools (D).
-- [ ] Confirm the licence or ownership of the four WAV samples and the intro film (F).
+- [ ] Confirm the licence or ownership of the intro film (F). The WAV samples are no longer played.
 - [ ] Decide where Copernicus Marine is listed (F).
 - [ ] Paste the summary (A), details (C), AI disclosure (D) and data lists (E, F) into the submission form.
 - [ ] Keep `.env` and the Gemini key out of everything (already git-ignored; the key is only a host secret).

@@ -6,11 +6,20 @@ EARTHSONA is an interactive adventure for children aged 6–8.
 - **Explore with Luna:** they explore the Earth with **Luna**, a friendly Moon who guides them, and **hear real NASA Earth observations turned into music**.
 - **The story:** it begins with a short film. The Commander reports strange sounds from Earth, and the young astronaut (the explorer, that is, the child) opens her tablet… which becomes the app.
 
-When the measurements change, the nature sounds and the music change too. The sounds are artistic interpretations generated from observations, not recordings made by satellites.
+**Every sound you hear is generated from real measurements:** no recordings, no nature ambience, no background music (see [`SONIFICATION.md`](SONIFICATION.md)). When the measurements change, the music changes; when they don't, it doesn't. The sounds are artistic interpretations generated from observations, not recordings made by satellites.
 
 **Try it:** `npm run dev` (see Quick start). For a public deployment, see [`deploy/DEPLOYMENT.md`](deploy/DEPLOYMENT.md); for the NASA Space Apps submission notes, see [`SUBMISSION.md`](SUBMISSION.md).
 
 ### In this version
+- **All sound comes from the data:**
+  - the synthesised nature ambience and the team's WAV recordings were removed from playback (both are kept in the repository);
+  - the Sega-inspired rhythm for Mauritius is now generated from the data: its density, strength, brightness and drum tuning all follow the measurements.
+- **Earth and graph together:**
+  - the globe is on the left; the measurement, graph, player and a child-friendly "what this graph means" are on the right, on one screen without scrolling;
+  - selecting a point updates the value, the globe label and the sound together;
+  - "🌙 Luna, explain this point" explains the selected measurement.
+- **Luna's introduction and tour** run right after the film: a welcome, then globe → missions → measurements → sound → lab, with Back, Next, Skip and ❓ replay.
+- **✦ TRY THIS OUT ✦** is back in the header with its shimmering, sparkling look, and opens the Earth Sound Lab.
 - **Sound integrity:**
   - continuous pitch on one global range: the same value is the same pitch everywhere, and every real change is audible;
   - each note glides from the last real measurement;
@@ -69,9 +78,9 @@ Luna sits beside her speech bubble and is always visible: the old orbit, which h
 
 She speaks with Kokoro (`af_heart`), and you can ask her anything (Gemini, tuned for children aged 6–8).
 
-## The journey band: observation → graph → musical change → meaning
+## Earth + graph: observation → graph → musical change → meaning
 
-Under the globe, four cards tell one story, from left to right:
+On a computer, the Earth is on the left and its scientific graph is on the right, on one screen. On phones they are stacked, and a floating "📈 Graph & sound" button jumps between them. The right-hand panel tells one story:
 1. **What the satellite saw:** the current real value, its date and its source.
 2. **How it changed:** an interactive history graph (`src/ui/historyGraph.ts`).
    - **Axes:** x = date, y = the real measured value.
@@ -172,7 +181,7 @@ Earth's Pulse has a separate graph source, **🌍 Whole planet · NASA GISTEMP**
 
 ## Luna's guided tour
 
-On the first visit, after the intro film and the welcome, Luna shows a **five-step tour**: globe → three worlds → sound player → graph → Earth Sound Lab.
+Right after the intro film, Luna welcomes the explorer ("Welcome to EARTHSONA! I'm Luna, and I'll be your guide…") and shows a **six-step tour**: welcome → Earth globe → three missions → graph and measurements → sound player → Earth Sound Lab. **◀ Back**, **Next ▶**, **Skip tour** and Esc work at every step; **❓ Tour with Luna** in the header replays it.
 - Each step has a spotlight, one short spoken line (pre-generated, so it starts instantly) and Next / Skip.
 - `Esc` skips it at any time. **❓ Tour** in the header replays it.
 - It never blocks the app, keeps keyboard focus inside its card, and docks at the bottom of the screen on phones (`src/ui/tour.ts`).
@@ -227,25 +236,25 @@ Press **Earth Sound Lab** (or `L`) to open the current mission's laboratory (see
 
 ## The nine featured experiences
 
-| World | Place | Nature sounds | Regional music identity |
+| World | Place | What you hear | Regional music identity |
 |---|---|---|---|
-| 🌊 Ocean | Indian Ocean off **Mauritius** | gentle waves, lapping water, underwater hum | the team's recordings (`ocean2beat`, `triangle-sound`), pitched by the data |
-| 🌊 Ocean | Pacific off Oʻahu, **Hawaiʻi** | strong surf, rolling waves, coastal wind | not added yet: needs collaboration with Native Hawaiian musicians |
-| 🌊 Ocean | **Open Central Pacific** | deep swell, deep-water rumble, wind | none by design |
-| 🌳 Forest | **Black River Gorges**, Mauritius | wind in trees, leaves, birds, insects | the team's `forest2beat` recording (Forest Voices) |
-| 🌳 Forest | **Amazon**, Brazil | dense insects, many birds, light rain, distant thunder | not added yet: needs Indigenous and Brazilian musicians |
-| 🌳 Forest | **Boreal forest**, Wood Buffalo, Canada | wind in needles, few birds, distant animal calls | none by design |
-| 💓 Pulse | **Port Louis**, Mauritius | tropical showers, warm wind, thunder | the team's `triangle-sound` recording + a 6/8 swing from synthesised stand-in sounds |
-| 💓 Pulse | **Kyoto**, Japan | steady rain, drops on roofs, light wind | the team's `yoooo-pulse` recording (from `EarthPulseJapan.scd`); no Japanese traditional music is claimed |
-| 💓 Pulse | **Ross Island**, Antarctica | strong polar wind, whistling gusts, creaking ice | none by design |
+| 🌊 Ocean | Indian Ocean off **Mauritius** | data music only (melody, harmony, rhythm from the measurements) | Sega-inspired 6/8 groove generated from the data |
+| 🌊 Ocean | Pacific off Oʻahu, **Hawaiʻi** | data music only (melody, harmony, rhythm from the measurements) | not added yet: needs collaboration with Native Hawaiian musicians |
+| 🌊 Ocean | **Open Central Pacific** | data music only (melody, harmony, rhythm from the measurements) | none by design |
+| 🌳 Forest | **Black River Gorges**, Mauritius | data music only (melody, harmony, rhythm from the measurements) | Sega-inspired 6/8 groove generated from the data |
+| 🌳 Forest | **Amazon**, Brazil | data music only (melody, harmony, rhythm from the measurements) | not added yet: needs Indigenous and Brazilian musicians |
+| 🌳 Forest | **Boreal forest**, Wood Buffalo, Canada | data music only (melody, harmony, rhythm from the measurements) | none by design |
+| 💓 Pulse | **Port Louis**, Mauritius | data music only (melody, harmony, rhythm from the measurements) | Sega-inspired 6/8 groove generated from the data |
+| 💓 Pulse | **Kyoto**, Japan | data music only (melody, harmony, rhythm from the measurements) | none yet: needs research with Japanese musicians |
+| 💓 Pulse | **Ross Island**, Antarctica | data music only (melody, harmony, rhythm from the measurements) | none by design |
 
 **How the measurements shape the sound** (the same rules for every place in a world):
 
-| World | Data → music · Data → nature | Dataset | Kind of data |
+| World | Data → music | Dataset | Kind of data |
 |---|---|---|---|
-| 🌊 Ocean | SST → melody pitch · SST anomaly → harmony (calm ↔ tense) · warmer sea → brighter waves | NASA/JPL **MUR SST v4.1** (preferred). Fallback: **NOAA Coral Reef Watch CoralTemp v3.1** SST + anomaly | Level 4 analysis (gap-free blend of satellite and in-situ data) |
-| 🌳 Forest | NDVI → pitch and pad · EVI → harmony · greener → more birds, insects, rustling leaves (none at NDVI ≈ 0.1) | **MODIS MOD13Q1.061**, 250 m, 16-day, with pixel-reliability QA | Satellite-derived index |
-| 💓 Weather | T2M → pitch · PRECTOTCORR → rhythm density · ALLSKY_SFC_SW_DWN → brightness · more rain → heavier rain and thunder · more sun → more birds | **NASA POWER** daily and monthly | Model-based estimates (MERRA-2); solar is satellite-derived (CERES) |
+| 🌊 Ocean | SST → melody pitch · SST anomaly → harmony (calm ↔ tense) · Mauritius: |anomaly| → busier Sega groove, SST → stronger groove | NASA/JPL **MUR SST v4.1** (preferred). Fallback: **NOAA Coral Reef Watch CoralTemp v3.1** SST + anomaly | Level 4 analysis (gap-free blend of satellite and in-situ data) |
+| 🌳 Forest | NDVI → pitch and pad · EVI → harmony · Mauritius: EVI → busier Sega groove, NDVI → stronger groove | **MODIS MOD13Q1.061**, 250 m, 16-day, with pixel-reliability QA | Satellite-derived index |
+| 💓 Weather | T2M → pitch · PRECTOTCORR → rhythm density · ALLSKY_SFC_SW_DWN → brightness · Mauritius: rain → busier Sega groove, sun → stronger groove | **NASA POWER** daily and monthly | Model-based estimates (MERRA-2); solar is satellite-derived (CERES) |
 
 The kind of each value is shown in the app ("Science behind the sound" and the source dialog). A model value is never presented as a satellite reading.
 
@@ -275,9 +284,9 @@ Node 18+ and Python 3.11+ are required. The frontend needs no keys; Luna's backe
 
 ## Honesty rules built into the code
 
-- **No invented data in the experience.** If a layer has no real data, it stays silent and a notice says so. With no data at all, only the nature sound plays. The registry's simulated fallback is never played (it remains only for developer tests).
+- **No invented data in the experience.** If a layer has no real data, it stays silent and a notice says so. With no data at all, nothing plays. The registry's simulated fallback is never played (it remains only for developer tests).
 - Missing, cloudy or snowy dates are a soft "no data" tick; a single gap between two values is bridged and labelled "interpolated".
-- The nature sounds and the music are shaped by the documented rules above, using **absolute** values, so the same number always sounds the same (unit-tested). The regional profile changes instruments and arrangement only, never what a value sounds like.
+- The music is shaped only by the documented rules above, using **absolute** values, so the same number always sounds the same (unit-tested and checked by rendering the same data twice). There is no ambience, recording or fixed loop.
 - **Laboratory outputs are simulations:** they are labelled "Simulation" on the globe and in the lab, start from documented relationships (not fitted to any dataset), and never change or replace the real data shown next to them.
 - **Luna (Gemini)** is instructed to use only the app context she is given, never invent numbers, datasets or citations, and say whether something is an observation, derived data or a simulation.
 - **No forest-loss claims:** NDVI/EVI measure greenness, not trees.
@@ -342,9 +351,10 @@ CORS allows the Vite dev server (`localhost:5173`); change it with `CORS_ORIGINS
 
 ## Sega: what the app does and does not claim
 
-- **Recordings:** the team's four WAV files. Their instruments are not identified in the team's files, so they are named only by file name.
-- **Synthesised:** the melody, harmony, pads, and the shaker-style noise, low thump and ting used as stand-ins. These are labelled "not a real maravann / ravann / triangle".
-- **Generic effects:** all nature sounds, also synthesised.
+- **Recordings:** the team's four WAV files (instruments not identified in the team's files) are **no longer played**.
+- **Synthesised:** the melody, harmony, pads, and a data-driven 6/8 groove of a tuned drum and shaker-style noise. These are labelled "not a real maravann / ravann".
+- **Not played any more:** the team's WAV recordings and the old synthesised nature sounds are kept in the repository but removed from playback.
+- **The Sega-inspired rhythm** is now generated from the data (see [`SONIFICATION.md`](SONIFICATION.md)).
 
 EARTHSONA does **not** play Sega Tipik. Representing it respectfully would need:
 - recordings of real **ravann**, **maravann** and **triang** by Mauritian musicians, with written permission, licence and credit;
@@ -360,8 +370,8 @@ src/data/parsers.js             URL building + parsing (POWER, MODIS, ERDDAP MUR
 src/data/registry.ts            bundled → live → (simulated, never played by the app)
 src/data/eic.ts                 EIC visuals (several per world)
 src/sonification/*              documented data → sound mapping, frames, palettes
-src/audio/ambience.ts           synthesised nature soundscapes, one preset per place, shaped by the data (natureModFor)
-src/audio/engine.ts             music from the data (StepRenderer), nature shaping, buses, ducking, WAV export
+src/audio/ambience.ts           old synthesised nature soundscapes, KEPT BUT NOT PLAYED (all sound now comes from the data)
+src/audio/engine.ts             all sound from the data (StepRenderer: melody, harmony, pad, rhythm, Sega groove), ducking, WAV export
 src/audio/player.ts             play / pause / stop / replay / seek
 src/ui/kid.ts                   child-friendly words and time windows
 src/ui/narrator.ts              Luna's short "Tell me more" tips
@@ -380,7 +390,7 @@ src/sonification/forestVoices.ts  NDVI/EVI → the SuperCollider instrument's pi
 src/audio/cultural.ts           browser port of supercollider/cultural_sound/*.scd (samples + granular PitchShift + scheduler)
 src/ui/forestVoices.ts          Forest Voices panel (two real dates, A/B, Luna's explanation, science)
 src/ui/intro.ts                 introduction film → the app grows out of the explorer's tablet
-src/ui/tour.ts                  Luna's five-step guided tour (skippable, replayable)
+src/ui/tour.ts                  Luna's introduction + six-step guided tour (back/next, skippable, replayable)
 src/ui/eicVideo.ts              NASA SVS context video view (lazy, credited, not synchronised)
 src/data/eicVideos.ts           the three videos: files, SVS ids, products, coverage, credits, descriptions
 src/data/gistemp.ts             NASA GISTEMP global anomaly: parse + validate the team's CSV (read-only)
@@ -403,11 +413,11 @@ src/main.ts                     layout and wiring
 
 ## Layout and accessibility
 
-- **Layout:** one CSS grid; the regions never overlap. The globe is the hero (about 70 % of the screen), with the journey band below. Checked at 1920, 1366, 820 and 400 px with no sideways scrolling.
+- **Layout:** one CSS grid; the regions never overlap. The Earth (left) and its graph, sound player and explanation (right) share one screen on computers; phones stack them, with a jump button. Checked at 1920, 1366, 820 and 400 px with no sideways scrolling.
 - **Keyboard:** every action works from the keyboard. Grown-ups → Settings lists them all:
   - Space plays; `J` goes to the next date (Journey); `V` switches between the NASA video and the globe;
   - `1`–`3` choose a world; `[` / `]` change place;
-  - `L` opens the Earth Sound Lab; `W` asks why it sounds like this; `N` / `M` toggle nature / music;
+  - `L` opens the Earth Sound Lab; `W` asks why it sounds like this; `N` / `M` toggle the Sega rhythm / data music;
   - arrows move on the graph; Esc quiets Luna, closes things and skips the tour.
 
   A **skip link** jumps to the sound player, and every control has a visible focus ring.
@@ -436,9 +446,9 @@ See [`deploy/DEPLOYMENT.md`](deploy/DEPLOYMENT.md).
 
 ## Tests
 
-- **Unit tests:** `npm test` runs 116 Vitest tests covering mappings, interpolation, pitch resolution, the lab and its rules, the combined explanations, GISTEMP, speech chunking, the sun position and the data parsers.
+- **Unit tests:** `npm test` runs 119 Vitest tests covering the data-only sound rules (Sega groove from the data, no recordings or ambience wired in), mappings, interpolation, pitch resolution, the lab and its rules, the combined explanations, GISTEMP, speech chunking, the sun position and the data parsers.
 - **Browser checks:** the Playwright scripts used during development check every stage in Chrome:
-  - the intro and Luna (34 checks);
+  - the main experience (25): film → Luna's tour, Earth + graph on one screen, data-only sound in all three missions (silence when paused, identical renders for identical data, no .wav ever loaded), graph ↔ value ↔ globe ↔ sound, ✦ TRY THIS OUT ✦ → lab, phone layout;
   - the lab with measured audio output (30);
   - the graph Journey and Explore modes (15);
   - the tour at 1440 and 400 px (12);
@@ -459,4 +469,4 @@ See [`deploy/DEPLOYMENT.md`](deploy/DEPLOYMENT.md).
 - **Boreal forest gaps:** about half of the boreal composites are snow- or cloud-flagged, and you hear them as ticks.
 - **Regional music:** only Mauritius has a Sega-inspired swing, played with synthesised stand-ins; real Sega Tipik needs licensed recordings and review by Mauritian practitioners (see "Sega: what the app does and does not claim"). Hawaiʻi, the Amazon and Japan intentionally have none until it can be developed with musicians from those communities.
 - **EIC timing:** the near-real-time EIC visuals and videos show recent days or years, while the sound plays historical years; each caption says so.
-- **Synthesised nature sounds** are naturalistic, not field recordings.
+- **No nature sounds:** the app deliberately has no ambience. The ocean, forest and weather are heard only through their measurements. Ocean depth is not sonified (no depth values at our places; see SONIFICATION.md).

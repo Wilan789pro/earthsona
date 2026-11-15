@@ -14,11 +14,12 @@ export interface TourStep {
 }
 
 export const TOUR_STEPS: TourStep[] = [
-  { target: "#space", title: "Our Earth", text: "This is our Earth! Drag it to turn it, and tap a dot to visit a place.", mood: "happy" },
-  { target: "#experience-list", title: "Three worlds", text: "Pick a world to explore: the ocean, the forest or the weather.", mood: "curious" },
-  { target: ".j-music", title: "Listen", text: "Press play to hear real measurements turned into music.", mood: "happy" },
-  { target: ".j-graph", title: "The graph", text: "Each dot is a real measurement. Press Next date to hear them in order.", mood: "thoughtful" },
-  { target: "#btn-lab", title: "Earth Sound Lab", text: "In the lab you can try What if? and hear what could change.", mood: "surprised" },
+  { target: "#bubble", title: "Hello, explorer!", text: "Welcome to EARTHSONA! I'm Luna, and I'll be your guide. Together, we'll explore our planet, discover its secrets and listen to the changes happening all around us!", mood: "happy" },
+  { target: "#space", title: "Our Earth", text: "Over here, you can explore Earth! Drag it to turn it, and tap a dot to visit a place.", mood: "happy" },
+  { target: "#experience-list", title: "Three missions", text: "These are our three missions. Each one lets you discover a different part of our planet.", mood: "curious" },
+  { target: ".graph-box", title: "Real measurements", text: "Here, you can see the scientific measurements. Each dot is a real measurement from space.", mood: "thoughtful" },
+  { target: ".player-box", title: "Data becomes music", text: "Press play, and the measurements turn into music. Higher numbers make higher notes!", mood: "happy" },
+  { target: "#btn-lab", title: "Earth Sound Lab", text: "And this is our Earth Sound Lab, where you can experiment with different conditions!", mood: "surprised" },
 ];
 export const TOUR_LINES = TOUR_STEPS.map((s) => s.text);
 const SEEN_KEY = "earthsona:tourSeen";
@@ -70,21 +71,32 @@ export class Tour {
         <p class="tour-text" id="tour-text"></p>
         <div class="tour-btns">
           <button class="pill quiet small" id="tour-skip">Skip tour</button>
-          <button class="pill primary" id="tour-next">Next ▶</button>
+          <span class="tour-nav">
+            <button class="pill small" id="tour-back">◀ Back</button>
+            <button class="pill primary" id="tour-next">Next ▶</button>
+          </span>
         </div>
       </div>`;
     document.body.appendChild(this.root);
     this.root.querySelector<HTMLButtonElement>("#tour-skip")!.onclick = () => this.end(true);
     this.root.querySelector<HTMLButtonElement>("#tour-next")!.onclick = () => this.next();
+    this.root.querySelector<HTMLButtonElement>("#tour-back")!.onclick = () => this.back();
     window.addEventListener("resize", this.onResize);
     document.addEventListener("keydown", this.onKey, true);
     this.i = -1;
     this.next();
   }
 
+  private back(): void {
+    if (this.i <= 0) return;
+    this.i -= 2;
+    this.next();
+  }
+
   private next(): void {
     this.i++;
     if (this.i >= TOUR_STEPS.length) return this.end(false);
+    this.root!.querySelector<HTMLButtonElement>("#tour-back")!.hidden = this.i === 0;
     const s = TOUR_STEPS[this.i];
     const el = document.querySelector<HTMLElement>(s.target);
     el?.scrollIntoView({ block: "center", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
@@ -141,6 +153,9 @@ export class Tour {
     document.querySelectorAll(".tour-target").forEach((x) => x.classList.remove("tour-target"));
     this.root?.remove();
     this.root = null;
+    // the spotlights scrolled panels to their targets: put everything back where the explorer starts
+    document.querySelectorAll<HTMLElement>(".side").forEach((el) => (el.scrollTop = 0));
+    window.scrollTo({ top: 0 });
     this.luna.say(skipped ? "Okay! You can see the tour again with the Tour button." : "Have fun exploring! Pick a world and press play.", { mood: "happy" });
     announce(skipped ? "Tour skipped." : "Tour finished.");
     this.returnFocus?.focus?.();
