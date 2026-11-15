@@ -21,6 +21,7 @@ import { TIPS } from "./ui/narrator";
 import { Luna, LunaVoice, bubbleList, prewarmSpeech } from "./ui/luna";
 import { RULES } from "./lab/scenarios";
 import { runIntro } from "./ui/intro";
+import { TOUR_LINES, Tour } from "./ui/tour";
 import { FOREST_DATA, ForestVoices } from "./ui/forestVoices";
 import { HistoryGraph, longDate, trendOf, type GraphSource } from "./ui/historyGraph";
 import type { VegetationObservation } from "./data/forestCsv";
@@ -985,10 +986,18 @@ const story = new Story({
   voice,
   start: () => {
     voice.unlocked = true;
+    // First visit: Luna's short tour right after the welcome (skippable); otherwise the usual hello.
+    if (!Tour.seen()) return void window.setTimeout(() => tour.start(), 300);
     luna.say("Hooray, you're here! Pick a mission: Ocean Symphony, Forest Voices or Earth's Pulse. I'll show you each one on the Earth!", { mood: "happy" });
     document.querySelector<HTMLElement>("#experience-list [aria-checked='true']")?.focus();
   },
 });
+const tour = new Tour(luna);
+$("btn-tour").onclick = () => {
+  voice.unlocked = true;
+  if (playground.open) playground.close();
+  tour.start();
+};
 
 const playground = new Playground({
   state: () => ({ experience: state.experience, region: state.region, track: state.track, palette: palette(), layers: state.layers }),
@@ -1408,6 +1417,7 @@ void (async () => {
     prewarmSpeech([
       ...Object.values(MISSIONS).map((m) => m.lines[0]),
       ...LAB_LINES,
+      ...TOUR_LINES,
       ...RULES.map((r) => r.kid),
       "Back to the real Earth! Everything on the globe is real NASA data again.",
       "Hooray, you're here! Pick a mission: Ocean Symphony, Forest Voices or Earth's Pulse. I'll show you each one on the Earth!",
@@ -1727,4 +1737,4 @@ $("gm-explore").onclick = () => setGraphMode("explore");
 $("btn-next").onclick = () => void journeyNext();
 $("btn-restart").onclick = () => journeyRestart();
 
-(window as unknown as { __earthsona: unknown }).__earthsona = { state, player, registry, engine, settings, voice, luna, playground, progress: () => progress, buildContext, backend: () => backend, forestVoices, graph, globe };
+(window as unknown as { __earthsona: unknown }).__earthsona = { state, player, registry, engine, settings, voice, luna, playground, progress: () => progress, buildContext, backend: () => backend, forestVoices, graph, globe, tour };

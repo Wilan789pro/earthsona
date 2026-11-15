@@ -663,3 +663,13 @@ kbd { font-family: var(--mono); font-size: 0.8rem; border: 2px solid var(--line)
 .stage-play svg { width: 1.5rem; height: 1.5rem; }
 body.playing .stage-play { background: var(--grad); }
 .lab-summary { margin: 6px 0; padding: 10px 12px; border-radius: 16px; background: #f3e6ff; border: 2px dashed #b56cff; font-weight: 700; }
+
+/* ---------- Luna's guided tour ---------- */
+.tour { position: fixed; inset: 0; z-index: 90; pointer-events: none; }
+.tour-spot { position: fixed; border-radius: 24px; box-shadow: 0 0 0 9999px rgba(11, 23, 51, 0.55); outline: 4px solid var(--sun); transition: all 0.35s ease; }
+.tour-card { position: fixed; pointer-events: auto; background: #fff; border-radius: 22px; padding: 14px 18px 16px; box-shadow: 0 14px 40px rgba(0, 0, 0, 0.35); border: 4px solid var(--sun); transition: top 0.3s, left 0.3s; }
+.tour-count { margin: 0; color: var(--muted); font-weight: 700; }
+.tour-title { margin: 2px 0 4px; font: 600 1.3rem var(--head); }
+.tour-text { margin: 0 0 12px; font-size: 1.05rem; }
+.tour-btns { display: flex; justify-content: space-between; gap: 10px; }
+@media (prefers-reduced-motion: reduce) { .tour-spot, .tour-card { transition: none; } }
