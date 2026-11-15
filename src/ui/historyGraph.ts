@@ -10,6 +10,8 @@ export interface GraphPoint {
   time: string;
   value: number | null;
   quality?: string;
+  /** Optional display label instead of the date (e.g. "2024 (yearly average)"). */
+  label?: string;
 }
 
 export interface GraphSource {
@@ -59,7 +61,8 @@ export class HistoryGraph {
   /** Text read to screen readers when a point is reached with the keyboard (date, value, change, sound). */
   describe: (i: number, src: GraphSource) => string = (i, src) => {
     const p = src.points[i];
-    return p.value === null ? `${longDate(p.time)}: no measurement.` : `${longDate(p.time)}: ${src.name} ${p.value.toFixed(src.digits)}.`;
+    const when = p.label ?? longDate(p.time);
+    return p.value === null ? `${when}: no measurement.` : `${when}: ${src.name} ${p.value.toFixed(src.digits)}.`;
   };
 
   constructor(private host: HTMLElement) {
@@ -246,7 +249,7 @@ export class HistoryGraph {
       }
     const diff = prev ? p.value - (prev.value as number) : null;
     const arrow = diff === null ? "" : Math.abs(diff) < 10 ** -this.src.digits ? " ➡" : diff > 0 ? " ⬆" : " ⬇";
-    tip.innerHTML = `<strong>${esc(longDate(p.time))}</strong><span>${esc(this.src.name)}: <b>${this.fmt(p.value)}</b>${esc(arrow)}</span>${p.quality && p.quality !== "good" ? `<span class="small">quality: ${esc(p.quality)}</span>` : ""}`;
+    tip.innerHTML = `<strong>${esc(p.label ?? longDate(p.time))}</strong><span>${esc(this.src.name)}: <b>${this.fmt(p.value)}</b>${esc(arrow)}</span>${p.quality && p.quality !== "good" ? `<span class="small">quality: ${esc(p.quality)}</span>` : ""}`;
     const svg = this.host.querySelector("svg")!;
     const box = svg.getBoundingClientRect();
     const hostBox = this.host.getBoundingClientRect();

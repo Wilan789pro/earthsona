@@ -129,6 +129,21 @@ export const MAPPING_SPEC: MappingRow[] = [
   },
 ];
 
+MAPPING_SPEC.push({
+  mission: "pulse",
+  dataset: "NASA GISTEMP v4 (Datasets/GLB.Ts+dSST.csv): yearly (Jan–Dec) mean of the whole planet's land + ocean surface temperature — a separate track, not this place's weather",
+  variable: "GISTEMP",
+  label: "Whole-planet temperature anomaly",
+  unit: "°C vs 1951–1980 average",
+  normalisation: "Fixed range −1…+2 °C (anomaly, not a temperature).",
+  range: ABSOLUTE_RANGE.GISTEMP,
+  parameter: "Melody pitch of the 'Whole planet' graph source in Earth's Pulse (continuous, three octaves)",
+  minSound: "low note: cooler than the 1951–1980 average",
+  maxSound: "high note: much warmer than the 1951–1980 average",
+  direction: "up",
+  overTime: "One year per step from 1880: the planet's long warming is heard as a melody that climbs over time. Incomplete years are skipped.",
+});
+
 /** Map a value to 0..1 exactly as the spec says (used by the tests and the lab). */
 export function normaliseBySpec(variable: string, value: number): number {
   const row = MAPPING_SPEC.find((r) => r.variable === variable);

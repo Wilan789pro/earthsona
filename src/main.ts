@@ -23,6 +23,8 @@ import { RULES } from "./lab/scenarios";
 import { runIntro } from "./ui/intro";
 import { TOUR_LINES, Tour } from "./ui/tour";
 import { EicVideoView } from "./ui/eicVideo";
+import { GISTEMP, GISTEMP_BASELINE } from "./data/gistemp";
+import { ABSOLUTE_RANGE } from "./sonification/mappings";
 import { FOREST_DATA, ForestVoices } from "./ui/forestVoices";
 import { HistoryGraph, longDate, trendOf, type GraphSource } from "./ui/historyGraph";
 import type { VegetationObservation } from "./data/forestCsv";
@@ -70,6 +72,8 @@ const state = {
   journeyAt: -1,
   /** Journey position on the team CSV (two dates). */
   csvAt: -1,
+  /** Journey position on the whole-planet (GISTEMP) track. */
+  gisAt: -1,
   eic: [] as EicFrame[],
   eicIndex: 0,
   soundOn: false,
@@ -935,6 +939,7 @@ function pause() {
 function stopAll() {
   state.soundOn = false;
   state.journeyAt = -1;
+  gisTimers.splice(0).forEach((t) => window.clearTimeout(t));
   if (player.playing || player.index < state.frames.length) player.stop();
   engine.stopNature();
   setPlayingUi();
@@ -1450,7 +1455,7 @@ booted = true;
 // Journey band: 1 observation → 2 history graph → 3 musical change → 4 meaning
 // ---------------------------------------------------------------------------
 /** Change below which a trend counts as "about the same" (in the variable's unit). */
-const FLAT: Record<string, number> = { NDVI: 0.03, EVI: 0.03, SST: 0.3, T2M: 0.5 };
+const FLAT: Record<string, number> = { NDVI: 0.03, EVI: 0.03, SST: 0.3, T2M: 0.5, GISTEMP: 0.1 };
 const DIGITS: Record<string, number> = { NDVI: 2, EVI: 2, SST: 1, SSTA: 2, T2M: 1, PRECTOTCORR: 1, ALLSKY_SFC_SW_DWN: 1 };
 
 function graphSources(): GraphSource[] {
@@ -1471,6 +1476,20 @@ function graphSources(): GraphSource[] {
       theme: state.experience,
       // only real observations: interpolated (bridged) points are drawn as gaps
       points: pts.map((p) => ({ time: p.time, value: p.bridged ? null : p.value, quality: p.bridged ? "cloudy" : p.quality })),
+    });
+  }
+  if (state.experience === "pulse" && GISTEMP.years.length) {
+    const ys = GISTEMP.years;
+    out.push({
+      id: "gistemp",
+      label: `🌍 Whole planet · NASA GISTEMP · ${ys[0].year}–${ys[ys.length - 1].year}`,
+      note: `NASA GISTEMP v4: the WHOLE planet's average surface temperature each year (land and ocean), compared with its ${GISTEMP_BASELINE} average, in °C. It is not this place's weather: the local sound uses NASA POWER.`,
+      variable: "GISTEMP",
+      name: "Planet temperature anomaly",
+      unit: "°C vs 1951–1980",
+      digits: 2,
+      theme: "pulse",
+      points: ys.map((y) => ({ time: `${y.year}-01-01`, value: y.anomaly, quality: "good", label: `${y.year} (yearly average)` })),
     });
   }
   if (state.experience === "forest" && FOREST_DATA.observations.length) {
@@ -1511,7 +1530,14 @@ function renderJourney() {
   const tr = $("j-trend");
   tr.className = `j-trend ${t?.dir ?? ""}`;
   tr.textContent = !t ? "" : t.dir === "flat" ? "➡ about the same overall" : `${t.dir === "up" ? "⬆ going up" : "⬇ going down"} overall (${t.change > 0 ? "+" : ""}${t.change.toFixed(src!.digits)})`;
-  $("j-meaning").innerHTML = meaningText(src, t);
+  $("j-meaning").innerHTML = src?.id === "gistemp" ? gisMeaning() : meaningText(src, t);
+  $("btn-gis-all").hidden = src?.id !== "gistemp";
+  state.gisAt = -1;
+  stopGis();
+  // the value card and the sound description always show the source currently drawn
+  $("audio-desc").textContent = "";
+  if (src?.id !== "gistemp") updateNow(state.frames[Math.min(player.index, state.frames.length - 1)]);
+  else gisCard(gisYears.length - 1);
   $("j-change").textContent = "";
 }
 
@@ -1535,6 +1561,13 @@ const MEANING: Record<ExperienceId, { up: string; down: string; flat: string; no
     none: "Touch a dot on the graph to hear the weather on that date.",
   },
 };
+
+function gisMeaning(): string {
+  const ys = GISTEMP.years;
+  const early = ys.slice(0, 20).reduce((s, y) => s + y.anomaly, 0) / Math.min(20, ys.length);
+  const late = ys.slice(-10).reduce((s, y) => s + y.anomaly, 0) / Math.min(10, ys.length);
+  return `The <strong>whole planet</strong> has warmed by about <strong>${(late - early).toFixed(1)} °C</strong> from the first twenty years (${ys[0].year}–${ys[Math.min(19, ys.length - 1)].year}) to the last ten (${ys[Math.max(0, ys.length - 10)].year}–${ys[ys.length - 1].year}). Scientists measure this on land and at sea all over the world. <span class="small muted">This is the whole planet, not the place you chose: its own weather can be warmer or cooler.</span>`;
+}
 
 function meaningText(src: GraphSource | null, t: ReturnType<typeof trendOf>): string {
   const m = MEANING[state.experience];
@@ -1593,17 +1626,18 @@ graph.onSelect = (sel, src) => {
   const pts = sel.map((i) => src.points[i]);
   const cmp = $("j-compare");
   if (sel.length === 2) {
-    const [a, b] = pts as { time: string; value: number }[];
+    const [a, b] = pts as { time: string; value: number; label?: string }[];
     const d = b.value - a.value;
     const word = Math.abs(d) < (FLAT[src.variable] ?? 0) / 2 ? "about the same" : d > 0 ? "higher" : "lower";
     cmp.hidden = false;
-    cmp.innerHTML = `<div><b>A</b> ${esc(longDate(a.time))}<br/><strong>${a.value.toFixed(src.digits)}</strong></div><span class="jc-arrow" aria-hidden="true">${d > 0 ? "⬆" : d < 0 ? "⬇" : "➡"}</span><div><b>B</b> ${esc(longDate(b.time))}<br/><strong>${b.value.toFixed(src.digits)}</strong></div><p>${esc(src.name)} is <strong>${word}</strong> on B (${d > 0 ? "+" : ""}${d.toFixed(src.digits)}), so B's note is ${word}. Listen: A, then B!</p>`;
+    cmp.innerHTML = `<div><b>A</b> ${esc(a.label ?? longDate(a.time))}<br/><strong>${a.value.toFixed(src.digits)}</strong></div><span class="jc-arrow" aria-hidden="true">${d > 0 ? "⬆" : d < 0 ? "⬇" : "➡"}</span><div><b>B</b> ${esc(b.label ?? longDate(b.time))}<br/><strong>${b.value.toFixed(src.digits)}</strong></div><p>${esc(src.name)} is <strong>${word}</strong> on B (${d > 0 ? "+" : ""}${d.toFixed(src.digits)}), so B's note is ${word}. Listen: A, then B!</p>`;
   } else cmp.hidden = true;
   $("graph-hint").textContent = graph.compare ? (sel.length === 1 ? "Now touch a second date (B)." : "Touch a dot to start again.") : "Touch a dot to hear that date.";
   if (src.id === "csv") {
     void forestVoices.play(sel);
     return;
   }
+  if (src.id === "gistemp") return void playGis(sel);
   // the real track: move the player there and preview the sound of the date(s)
   const find = (t: string) => state.frames.findIndex((f) => f.time === t);
   if (pts.some((p) => find(p.time) < 0) && state.window !== "all") {
@@ -1621,6 +1655,63 @@ graph.onSelect = (sel, src) => {
     const obs = frames.map(frameToObservation).filter((o): o is VegetationObservation => !!o);
     if (obs.length) void forestVoices.playObservations(obs, placeShort(state.region));
   } else void previewFrames(frames);
+};
+
+
+// ---------------------------------------------------------------------------
+// 🌍 Whole planet: NASA GISTEMP global temperature anomaly (Earth's Pulse, separate from local NASA POWER)
+// ---------------------------------------------------------------------------
+const gisYears = GISTEMP.years;
+function gisFrame(i: number): SoundFrame {
+  const y = gisYears[i];
+  const lvl = (a: number) => Math.min(1, Math.max(0, (a - ABSOLUTE_RANGE.GISTEMP.min) / (ABSOLUTE_RANGE.GISTEMP.max - ABSOLUTE_RANGE.GISTEMP.min)));
+  return {
+    index: i, time: `${y.year}-01-01`, pitch: lvl(y.anomaly), harmony: null, density: null, brightness: null, texture: null,
+    delta: 0, pan: 0, values: { GISTEMP: { value: y.anomaly, unit: "°C vs 1951–1980" } }, prevPitch: i > 0 ? lvl(gisYears[i - 1].anomaly) : null, estimate: null,
+  };
+}
+function gisCard(i: number) {
+  const y = gisYears[i];
+  $("now-label").textContent = "Whole planet: warmer or cooler than 1951–1980";
+  $("now-value").textContent = `${y.anomaly > 0 ? "+" : ""}${y.anomaly.toFixed(2)} °C`;
+  $("now-date").textContent = `${y.year} · yearly average · NASA GISTEMP`;
+  const f = gisFrame(i);
+  const d = i > 0 ? y.anomaly - gisYears[i - 1].anomaly : 0;
+  const text = `${y.year}: the whole planet was ${Math.abs(y.anomaly).toFixed(2)} °C ${y.anomaly >= 0 ? "warmer" : "cooler"} than its 1951–1980 average${i > 0 ? `, ${Math.abs(d) < 0.01 ? "about the same as" : d > 0 ? "warmer than" : "cooler than"} the year before` : ""}. You hear note ${noteName(pitchFrequency("pulse", f.pitch!))}.`;
+  $("audio-desc").textContent = text;
+  return text;
+}
+const gisTimers: number[] = [];
+function stopGis() {
+  gisTimers.splice(0).forEach((t) => window.clearTimeout(t));
+}
+/** Play years (in order) on the planet track; `step` seconds per year. */
+async function playGis(indices: number[], step = 1.2) {
+  stopGis();
+  previewTimers.splice(0).forEach((t) => window.clearTimeout(t));
+  if (state.soundOn) pause();
+  playground.stop();
+  forestVoices.stop(false);
+  await engine.start();
+  indices.forEach((i, k) =>
+    gisTimers.push(
+      window.setTimeout(() => {
+        const f = gisFrame(i);
+        engine.play(f, step, { ...renderOpts(), cultural: null, experience: "pulse" });
+        graph.setPlayhead(f.time);
+        state.gisAt = Math.max(state.gisAt, i);
+        renderJourneyPos();
+        const text = gisCard(i);
+        if (indices.length < 4) graph.announce(text);
+        if (k === indices.length - 1 && indices.length > 3) graph.announce(`Finished at ${text}`);
+      }, k * step * 1000),
+    ),
+  );
+}
+$("btn-gis-all").onclick = () => {
+  const from = state.graphMode === "journey" ? state.gisAt + 1 : 0;
+  if (from >= gisYears.length) return void ($("graph-hint").textContent = "That was the last year! Press ↺ Start again.");
+  void playGis(gisYears.map((_, i) => i).slice(from), 0.2);
 };
 
 $("btn-compare").onclick = () => {
@@ -1660,6 +1751,10 @@ function describeFrame(f: SoundFrame, prev: SoundFrame | undefined): string {
 }
 
 function renderJourneyPos() {
+  if (graph.source?.id === "gistemp") {
+    $("journey-pos").textContent = state.graphMode === "journey" ? (state.gisAt < 0 ? `${gisYears.length} years to go` : `Year ${gisYears[state.gisAt].year}`) : "";
+    return;
+  }
   const n = state.frames.length;
   $("journey-pos").textContent = state.graphMode === "journey" && n ? (state.journeyAt < 0 ? `${n} dates to go` : `Date ${state.journeyAt + 1} of ${n}`) : "";
 }
@@ -1684,6 +1779,14 @@ function setGraphMode(m: "journey" | "explore") {
 /** Next real date in Journey mode: graph, date, value, note and sound all move together. */
 async function journeyNext() {
   if (state.graphMode !== "journey") setGraphMode("journey");
+  if (graph.source?.id === "gistemp") {
+    const j = state.gisAt + 1;
+    if (j >= gisYears.length) return void ($("graph-hint").textContent = "That was the last year! Press ↺ Start again.");
+    graph.select(j, false);
+    await playGis([j]);
+    $("graph-hint").textContent = `${gisYears[j].year}: ${gisYears[j].anomaly > 0 ? "+" : ""}${gisYears[j].anomaly.toFixed(2)} °C compared with 1951–1980.`;
+    return;
+  }
   if (!state.frames.length) return;
   const j = Math.max(state.journeyAt + 1, 0);
   if (j >= state.frames.length) {
@@ -1703,7 +1806,9 @@ async function journeyNext() {
 
 function journeyRestart() {
   stopAll();
+  stopGis();
   state.journeyAt = -1;
+  state.gisAt = -1;
   graph.setPlayhead(null);
   graph.clearSelection();
   renderJourneyPos();
@@ -1713,6 +1818,13 @@ function journeyRestart() {
 
 /** Touching a dot in Journey mode: only dates ahead are allowed. */
 function journeyPick(i: number, src: GraphSource) {
+  if (src.id === "gistemp") {
+    if (i <= state.gisAt) {
+      graph.clearSelection();
+      return void journeyAllows(-1);
+    }
+    return void playGis([i]);
+  }
   if (src.id === "csv") {
     // our team file: two dates, played through the team's instrument, in order
     if (i < state.csvAt) return void journeyAllows(-1);
@@ -1737,8 +1849,9 @@ function renderGraphTable(src: GraphSource | null) {
   const rows = src.points
     .map((p) => {
       const f = src.id === "track" ? frameAt.get(p.time) : undefined;
-      const sound = p.value === null ? "soft tick (no data)" : f && f.pitch !== null ? `note ${noteName(pitchFrequency(state.experience, f.pitch))}` : src.id === "csv" ? "team forest sound" : "—";
-      return `<tr><th scope="row">${esc(longDate(p.time))}</th><td>${p.value === null ? "no measurement" : esc(p.value.toFixed(src.digits))}</td><td>${esc(p.value === null ? "missing" : p.quality ?? "measured")}</td><td>${esc(sound)}</td></tr>`;
+      const gis = src.id === "gistemp" ? gisFrame(src.points.indexOf(p)) : null;
+      const sound = p.value === null ? "soft tick (no data)" : f && f.pitch !== null ? `note ${noteName(pitchFrequency(state.experience, f.pitch))}` : gis ? `note ${noteName(pitchFrequency("pulse", gis.pitch!))}` : src.id === "csv" ? "team forest sound" : "—";
+      return `<tr><th scope="row">${esc(p.label ?? longDate(p.time))}</th><td>${p.value === null ? "no measurement" : esc(p.value.toFixed(src.digits))}</td><td>${esc(p.value === null ? "missing" : p.quality ?? "measured")}</td><td>${esc(sound)}</td></tr>`;
     })
     .join("");
   box.innerHTML = `<table class="mapping small"><caption class="sr-only">${esc(src.name)}, ${esc(src.unit)}: every date, its real value and the sound it makes</caption><thead><tr><th scope="col">Date</th><th scope="col">${esc(src.name)} (${esc(src.unit)})</th><th scope="col">Quality</th><th scope="col">Sound</th></tr></thead><tbody>${rows}</tbody></table>`;
@@ -1748,7 +1861,8 @@ graph.describe = (i, src) => {
   const p = src.points[i];
   const f = src.id === "track" ? state.frames.find((x) => x.time === p.time) : undefined;
   if (f) return describeFrame(f, undefined);
-  return p.value === null ? `${longDate(p.time)}: no measurement.` : `${longDate(p.time)}: ${src.name} ${p.value.toFixed(src.digits)}.`;
+  const when = p.label ?? longDate(p.time);
+  return p.value === null ? `${when}: no measurement.` : `${when}: ${src.name} ${p.value.toFixed(src.digits)}.`;
 };
 $("gm-journey").onclick = () => setGraphMode("journey");
 $("gm-explore").onclick = () => setGraphMode("explore");

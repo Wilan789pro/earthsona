@@ -23,6 +23,8 @@ export const ABSOLUTE_RANGE: Record<string, { min: number; max: number }> = {
   EVI: { min: -0.2, max: 1 },
   SST: { min: -2, max: 32 },
   SSTA: { min: -3, max: 3 },
+  /** NASA GISTEMP global annual anomaly (°C vs 1951–1980): the separate "whole planet" track. */
+  GISTEMP: { min: -1, max: 2 },
 };
 
 /** Scale per experience: shared by every palette so a value always lands on the same note. */
