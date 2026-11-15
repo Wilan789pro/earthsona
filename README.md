@@ -8,6 +8,24 @@ EARTHSONA is an interactive adventure for children aged 6–8.
 
 When the measurements change, the nature sounds and the music change too. The sounds are artistic interpretations generated from observations, not recordings made by satellites.
 
+**Try it:** `npm run dev` (see Quick start). For a public deployment, see [`deploy/DEPLOYMENT.md`](deploy/DEPLOYMENT.md); for the NASA Space Apps submission notes, see [`SUBMISSION.md`](SUBMISSION.md).
+
+### In this version
+- **Sound integrity:**
+  - continuous pitch on one global range: the same value is the same pitch everywhere, and every real change is audible;
+  - each note glides from the last real measurement;
+  - dates without a measurement are never played as notes, interpolated values included.
+- **Graph:**
+  - 🚀 Journey moves forward only, one real date at a time;
+  - 🔍 Explore allows free exploration and comparison;
+  - screen-reader readouts and a numbers table.
+- **Hero globe:** about 70 % of the screen, with a camera that flies around the Earth.
+- **Earth Sound Lab:** Luna explains **every** slider change together, with the combined effect and sound.
+- **Luna's tour:** a short, skippable, replayable guided tour.
+- **NASA EIC videos** (SVS 5101, 5544, 4285): context only, credited, never claimed to be synchronised.
+- **🌍 Whole planet:** a separate NASA GISTEMP global-temperature track in Earth's Pulse.
+- **Accessibility:** AA contrast, a skip link, focus rings, audio and picture descriptions, and a list of keyboard shortcuts.
+
 ## Forest Voices: our own vegetation data + our own SuperCollider sounds
 
 **The data:** `Datasets/EARTHSONA_Mauritius_Vegetation.csv`, read-only (never modified).
@@ -61,7 +79,17 @@ Under the globe, four cards tell one story, from left to right:
    - **Interaction:** hover (or use the arrow keys) to read a date. Touch (or Enter) to **hear** it. **Compare two dates** selects A and B, shades the period between them and shows the change.
    - **Trend badge:** ⬆ / ⬇ / ➡, from a least-squares trend with a "flat" threshold.
    - **Forest Voices sources:** a switch between NASA MODIS (Black River Gorges 2020–2024, about 104 dates) and **our team file** (the 2 CSV dates). Both are labelled and real.
-3. **What you hear:** the player, with "⬆ higher note than the last date", "⬇ big drop!" and similar notes as it plays.
+3. **What you hear:** the player, with "⬆ higher than the last measurement (+2.1 semitones)", "⬇ big drop!" and similar notes as it plays, plus a text description of the sound for every step.
+
+**Two ways to use the graph:**
+- **🚀 Journey** (default):
+  - "Next date ▶" (or `J`) and ▶ Play move **forward only** through the real observations;
+  - the slider, graph taps and the Grown-ups chart cannot go back; "↺ Start again" restarts from the first date;
+  - each step updates the dot, date, value, note name, sound and description together.
+- **🔍 Explore:**
+  - tap any date, or **compare two dates** (A/B);
+  - "Show the numbers" lists every date, its value, its quality and the sound it makes;
+  - arrow keys on the graph are read aloud by screen readers.
 4. **What it means:** a plain-language, hedged explanation of the trend, plus the Earth Sound Lab.
 
 ## Earth Sound Lab: REAL EARTH DATA and WHAT IF?
@@ -87,6 +115,7 @@ Under the globe, four cards tell one story, from left to right:
 
   Several rules can fire together; the strongest three are shown.
 - **Luna in the lab:**
+  - She explains **all** changed sliders together (`src/lab/explain.ts`), for example: "You picked much less rain, more heat and much more CO₂. Together, … So the tune goes lower, sounds brighter and gets a tense chord. This is a pretend world." The same summary appears on a card, and Gemini receives every changed slider with its real starting value.
   - Her face reacts at once.
   - She speaks about 0.9 s after the child stops moving a slider (debounced), and only when the situation changes.
   - She never interrupts herself: a new line waits until the current one ends, and only the latest waiting line is kept.
@@ -107,8 +136,46 @@ Under the globe, four cards tell one story, from left to right:
 
 The tests check that every range matches the code and that every mapping increases monotonically.
 
-- **Global pitch scale by default:** one fixed range per variable, so **lower vegetation is always a lower note**, at every place and on every date. The relative "this place" scale is still available in Settings.
+- **Global pitch scale by default:**
+  - one fixed range per variable, so **lower vegetation is always a lower note**, at every place and on every date;
+  - pitch is **continuous over three octaves** (`pitchFrequency`), so even small real changes move it (0.01 NDVI or 0.1 °C is audible);
+  - each note **glides from the previous real measurement**, so direction and size of change are heard;
+  - the pad follows the melody so continuous pitch never clashes;
+  - the relative "this place" scale is still available in Settings.
+- **Missing and interpolated dates:**
+  - a date without a usable measurement (clouds, snow), **including** single gaps the cleaning step bridged by interpolation, plays only a soft "no data" tick and shows "no measurement";
+  - Settings has an optional **"Smooth between measurements"** (off by default): a breathy whisper at the estimated height, clearly not a note, labelled "~ in between, not measured".
 - **Significant drops change the arrangement:** a fall of ≥ 0.05 NDVI/EVI, ≥ 1 °C SST or ≥ 3 °C T2M since the previous date adds a falling two-note figure under the melody.
+
+## NASA Earth Information Center videos (context)
+
+**🎬 NASA video** in the stage (or `V`) plays the mission's NASA Scientific Visualization Studio movie.
+
+| Mission | NASA SVS | What it shows | And the sound? |
+|---|---|---|---|
+| Ocean Symphony | [5101](https://svs.gsfc.nasa.gov/5101/), MUR SST (NASA/JPL) | the whole ocean, about 2½ years, date in the corner | sound uses NOAA CoralTemp at one point: **not synchronised** |
+| Forest Voices | [5544](https://svs.gsfc.nasa.gov/5544/), near-real-time NDVI | all land, about 2½ years, no dates in this version (the page names no data product) | sound uses MODIS MOD13Q1 at one point: **not synchronised** |
+| Earth's Pulse | [4285](https://svs.gsfc.nasa.gov/4285/), GPM IMERG | rain and snow storms over a few days, UTC time in the corner | sound uses NASA POWER at one place: **not synchronised** |
+
+- **Files:** optimised copies in `public/media/eic/` (H.264, 1920 px, fast start, no audio track, 5–14 MB, with posters). The team's original downloads (181 MB) are kept untouched in `public/media/Visualisation/`, which is git-ignored and removed from the build output. Original checksums were verified before and after conversion.
+- **Loading:** a video is requested only when its view is opened. While it plays, the 3D globe stops drawing.
+- **Captions:** each caption says "NASA context visualisation", "not synchronised", and gives the SVS credit. "About this video" has a text description for screen readers, the data product, coverage and credits.
+- **Optional:** "Also play this place's data sound" plays the sonification alongside (labelled as a different dataset).
+
+## Whole planet: NASA GISTEMP (Earth's Pulse)
+
+Earth's Pulse has a separate graph source, **🌍 Whole planet · NASA GISTEMP**, from the team's file `Datasets/GLB.Ts+dSST.csv` (read-only).
+- **What it is:** NASA GISS Surface Temperature Analysis v4, the **global** mean land + ocean surface temperature **anomaly** in °C, relative to the **1951–1980** average.
+- **Processing:** EARTHSONA uses the yearly (Jan–Dec) means, 1880 to the last complete year. `***` (months not yet published) are skipped; an incomplete year is never averaged or filled in (`src/data/gistemp.ts`, tests in `tests/gistemp.test.ts`).
+- **Sound:** −1 … +2 °C → continuous pitch (three octaves), one year per step. Journey, Explore and "▶ Hear every year" (about 0.2 s per year) work as for the local data.
+- **Not local weather:** it is always labelled "whole planet". The local sound and graph keep using NASA POWER for one place. The value card, description and meaning text say which one you are looking at.
+
+## Luna's guided tour
+
+On the first visit, after the intro film and the welcome, Luna shows a **five-step tour**: globe → three worlds → sound player → graph → Earth Sound Lab.
+- Each step has a spotlight, one short spoken line (pre-generated, so it starts instantly) and Next / Skip.
+- `Esc` skips it at any time. **❓ Tour** in the header replays it.
+- It never blocks the app, keeps keyboard focus inside its card, and docks at the bottom of the screen on phones (`src/ui/tour.ts`).
 
 ## The three missions
 
@@ -313,6 +380,15 @@ src/sonification/forestVoices.ts  NDVI/EVI → the SuperCollider instrument's pi
 src/audio/cultural.ts           browser port of supercollider/cultural_sound/*.scd (samples + granular PitchShift + scheduler)
 src/ui/forestVoices.ts          Forest Voices panel (two real dates, A/B, Luna's explanation, science)
 src/ui/intro.ts                 introduction film → the app grows out of the explorer's tablet
+src/ui/tour.ts                  Luna's five-step guided tour (skippable, replayable)
+src/ui/eicVideo.ts              NASA SVS context video view (lazy, credited, not synchronised)
+src/data/eicVideos.ts           the three videos: files, SVS ids, products, coverage, credits, descriptions
+src/data/gistemp.ts             NASA GISTEMP global anomaly: parse + validate the team's CSV (read-only)
+src/lab/explain.ts              Luna's combined explanation of all changed lab sliders
+public/media/eic/               optimised NASA SVS videos + posters (originals stay outside git/build)
+deploy/                         public deployment plan (GitHub Pages + Hugging Face Docker Space)
+backend/Dockerfile              backend container (Kokoro downloaded at build; key only as a host secret)
+.github/workflows/pages.yml     manual GitHub Pages deployment of the frontend
 src/ui/historyGraph.ts          interactive real-data history graph (hover, select, compare, trend)
 src/sonification/mappingSpec.ts documented mapping specification (one row per variable)
 src/lab/scenarios.ts            WHAT IF? rule engine (conditions, consequences, kid text, visual/sound response, source)
@@ -327,8 +403,20 @@ src/main.ts                     layout and wiring
 
 ## Layout and accessibility
 
-- **Layout:** one CSS grid; the regions never overlap (checked at 1440 and 400 px). Kids see only worlds, places, the globe with Luna, her bubble, a year picker and the player; everything technical is in the Grown-ups' corner.
-- **Keyboard:** every action works from the keyboard. Space plays, `1`–`3` choose a world, `[`/`]` change place, `L` opens Luna's playground, `W` asks why it sounds like this, `N`/`M` toggle nature/music, Esc quiets Luna and closes things.
+- **Layout:** one CSS grid; the regions never overlap. The globe is the hero (about 70 % of the screen), with the journey band below. Checked at 1920, 1366, 820 and 400 px with no sideways scrolling.
+- **Keyboard:** every action works from the keyboard. Grown-ups → Settings lists them all:
+  - Space plays; `J` goes to the next date (Journey); `V` switches between the NASA video and the globe;
+  - `1`–`3` choose a world; `[` / `]` change place;
+  - `L` opens the Earth Sound Lab; `W` asks why it sounds like this; `N` / `M` toggle nature / music;
+  - arrows move on the graph; Esc quiets Luna, closes things and skips the tour.
+
+  A **skip link** jumps to the sound player, and every control has a visible focus ring.
+- **Screen readers:**
+  - graph positions are announced as date, value, change and note;
+  - every playback step has a text description of the sound, announced when paused;
+  - the lab picture's label describes what it shows; videos have text descriptions;
+  - the numbers table lists every date.
+- **Contrast:** text meets WCAG AA (checked automatically in all three worlds and the lab).
 - **Feedback:** Luna's words are always on screen (and in a live region) while she speaks; visible playback state.
 - **Fonts:** Fredoka and Nunito (SIL Open Font License), bundled in `src/fonts`, so it works offline.
 - **Visual:** large controls, adjustable text size, and nothing conveyed by colour alone.
@@ -338,14 +426,37 @@ src/main.ts                     layout and wiring
 
 Feature branches are merged into `master` through pull requests: `feature/nasa-data` → `feature/sonification-ui` → `feature/earthsona-2`. Never commit `.env` files or credentials.
 
+## Deployment
+
+See [`deploy/DEPLOYMENT.md`](deploy/DEPLOYMENT.md).
+- **Frontend:** GitHub Pages, deployed by `.github/workflows/pages.yml`, which only runs when started by hand.
+- **Backend:** a free Hugging Face Docker Space, built from `backend/Dockerfile`.
+- **Key:** the Gemini key is only a host secret, protected by CORS, a per-IP rate limit and a daily cap (`LUNA_DAILY_CHAT_LIMIT`).
+- **Without the backend:** the whole app works except Luna's AI chat; she then uses the device's voice.
+
+## Tests
+
+- **Unit tests:** `npm test` runs 116 Vitest tests covering mappings, interpolation, pitch resolution, the lab and its rules, the combined explanations, GISTEMP, speech chunking, the sun position and the data parsers.
+- **Browser checks:** the Playwright scripts used during development check every stage in Chrome:
+  - the intro and Luna (34 checks);
+  - the lab with measured audio output (30);
+  - the graph Journey and Explore modes (15);
+  - the tour at 1440 and 400 px (12);
+  - the videos (20);
+  - accessibility (9);
+  - GISTEMP (7);
+  - a production-like deployment with a separate backend origin (4).
+
 ## Known limitations
 
 - **Ocean data** in this build comes from NOAA CoralTemp: no Earthdata token was available and the public MUR ERDDAP was unreachable (see above).
 - **Regional music for Hawaiʻi and Japan** was requested, but it is deliberately not invented. It needs research and collaboration with musicians from those communities.
+- **NASA videos** are context only: their products, regions and dates differ from the sonified point data (MUR vs CoralTemp, near-real-time NDVI vs MOD13Q1, IMERG vs POWER), so the app never synchronises them.
+- **GISTEMP** is a global average; it says nothing about a single place.
 - **Voice speed:** Kokoro runs at about real time on the CPU, so a brand-new long reply still takes a few seconds before speech starts (her face and the words appear immediately). Pre-generated and repeated lines start in about 0.2 s.
 - **Ocean CSV:** the team's global ocean file is one month (June 2025) of scattered points; the nearest point to each place is 70–180 km away, and the lab says so.
 - **Points, not areas:** values are for one point or grid cell (POWER ≈ 0.5° × 0.625°, MODIS 250 m, CoralTemp 5 km, MUR ≈ 1 km).
 - **Boreal forest gaps:** about half of the boreal composites are snow- or cloud-flagged, and you hear them as ticks.
 - **Regional music:** only Mauritius has a Sega-inspired swing, played with synthesised stand-ins; real Sega Tipik needs licensed recordings and review by Mauritian practitioners (see "Sega: what the app does and does not claim"). Hawaiʻi, the Amazon and Japan intentionally have none until it can be developed with musicians from those communities.
-- **EIC timing:** the near-real-time EIC visuals show recent days, while the sound plays historical years; each caption says so.
+- **EIC timing:** the near-real-time EIC visuals and videos show recent days or years, while the sound plays historical years; each caption says so.
 - **Synthesised nature sounds** are naturalistic, not field recordings.
