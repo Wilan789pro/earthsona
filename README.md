@@ -106,7 +106,11 @@ On a computer, the Earth is on the left and its scientific graph is on the right
 - **🛰️ REAL EARTH DATA:**
   - The sliders show this place's latest real measurements and are locked.
   - The real starting values are listed with their date and source, for example: POWER T2M, rain and sunshine for Earth's Pulse; NOAA SST and anomaly plus the nearest point of the team's ocean CSV for the ocean; MODIS NDVI/EVI plus the team's CSV for the forest.
-  - The sound plays the real values.
+  - The sound plays this place's **latest 24 real measurements in order**, and the **lab graph** draws them with a playhead on the dot being heard.
+- **Lab graph:** in WHAT IF?, a dashed purple line shows the same dates changed by the sliders (labelled "simulation"), beside the solid real line (`src/lab/series.ts`):
+  - Ocean: 🌡️ Sea warmth shifts the measured sea temperature; the other ocean sliders change the reef and the sound rules, not the temperature.
+  - Forest: the simplified forest model's greenness (all sliders) scales the measured NDVI/EVI, i.e. how thick and green the forest is.
+  - Earth's Pulse: Heat shifts the measured temperature; Rain/Storms and Sunshine scale the rain and sunlight.
 - **🪄 WHAT IF?:**
   - The sliders start from the real values (the tick marks "real start").
   - Moving them runs the simplified model (`src/lab/simulation.ts`) and the **scenario rules** (`src/lab/scenarios.ts`).

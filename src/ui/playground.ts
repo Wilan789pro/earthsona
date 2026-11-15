@@ -10,6 +10,7 @@ import { PRESETS, VARS, baselineOf, changesFromBaseline, fmt, simulate, type Sim
 import { activeRules, combinedSound, type Rule } from "../lab/scenarios";
 import { explainCombination } from "../lab/explain";
 import { semitonesBetween } from "../sonification/mappings";
+import { LINE_NOTE, NO_CHANGE, PITCH_VAR, applyChange, applyToRows, realRows, whatIfChange, type LabRow, type RealVar, type Vals, type WhatIfChange } from "../lab/series";
 import oceanSnapshot from "../data/oceanSnapshot.json";
 import { FOREST_DATA } from "./forestVoices";
 import { $, announce, esc } from "./dom";
@@ -25,8 +26,6 @@ import { lunaSvg, type Luna } from "./luna";
  *  Luna respond in real time. Everything in WHAT IF? is labelled as a simulation.
  *  Two real years: plays two real periods with the same rules and describes the difference (not the cause).
  */
-type RealVar = "SST" | "SSTA" | "NDVI" | "EVI" | "T2M" | "PRECTOTCORR" | "ALLSKY_SFC_SW_DWN";
-type Vals = Partial<Record<RealVar, number>>;
 type Mode = "real" | "whatif";
 
 export interface LabSnapshot {
@@ -58,7 +57,6 @@ export interface PlaygroundHost {
   onClose: () => void;
 }
 
-const PITCH_VAR: Record<ExperienceId, RealVar> = { ocean: "SST", forest: "NDVI", pulse: "T2M" };
 const TITLE: Record<ExperienceId, string> = { forest: "Forest", ocean: "Ocean", pulse: "Earth's Pulse" };
 /** Child-friendly label + icon for every lab variable (the scientific name stays in Grown-up details). */
 const FRIENDLY: Record<string, { icon: string; name: string }> = {
@@ -105,6 +103,10 @@ export class Playground {
   private base: Values = {};
   private real: Vals = {};
   private realDates: Partial<Record<RealVar, string>> = {};
+  /** The latest real measurements of this place, played and drawn by the lab. */
+  private rows: LabRow[] = [];
+  private unit = "";
+  private playIdx = -1;
   private tab: "lab" | "years" = "lab";
   private view: "scene" | "globe" = "scene";
   private comparing = false;
@@ -121,7 +123,11 @@ export class Playground {
 
   constructor(private host: PlaygroundHost) {
     this.loop = new LabLoop(host.engine, () => this.loopSource(), () => void host.beforePlay(), () => host.afterPlay());
-    this.loop.onState = (s) => this.renderTransport(s);
+    this.loop.onState = (s) => {
+      this.renderTransport(s);
+      if (s === "stopped") this.movePlayhead(-1);
+    };
+    this.loop.onStep = (_s, _f, i) => this.movePlayhead(i);
   }
 
   /** Current experiment, for Luna's context (null when the lab is closed). */
@@ -190,6 +196,9 @@ export class Playground {
     const { track } = this.host.state();
     this.real = {};
     this.realDates = {};
+    this.rows = realRows(track?.layers ?? [], PITCH_VAR[this.exp]);
+    this.unit = track?.layers.find((l) => l.def.variable === PITCH_VAR[this.exp])?.result.series.unit ?? "";
+    this.playIdx = -1;
     for (const l of track?.layers ?? []) {
       const pts = (l.result.series.points as CleanPoint[]).filter((p) => p.value !== null && !p.bridged);
       const last = pts[pts.length - 1];
@@ -286,6 +295,10 @@ export class Playground {
           <label class="vol small">🔊 <input type="range" id="lab-vol" min="0" max="1" step="0.01" value="${this.host.volume()}" aria-label="Lab volume" /></label>
           <span class="status" id="lab-loop-status">STOPPED</span>
         </div>
+        <figure class="lab-graph" aria-labelledby="lab-graph-cap">
+          <div id="lab-graph-svg"></div>
+          <figcaption id="lab-graph-cap" class="small"></figcaption>
+        </figure>
         <div class="kid-vars ${real ? "locked" : ""}">${sliders}</div>
         <div class="feel-card" aria-live="polite">
           <span class="feel-face" id="lab-face" aria-hidden="true">😄</span>
@@ -437,6 +450,7 @@ export class Playground {
       .join("");
     const rules = this.mode === "whatif" && !this.comparing ? activeRules(exp, r) : [];
     this.renderRules(rules);
+    this.renderGraph();
     const whatif = this.mode === "whatif" && !this.comparing;
     $("pretend-tag").hidden = false;
     $("pretend-tag").textContent = whatif ? "WHAT IF? · simulation" : "Drawing of real data";
@@ -555,24 +569,87 @@ export class Playground {
   // ---------------------------------------------------------------------------
   /** WHAT IF? values for the sound: the simulation shifts the REAL starting measurements. */
   private experimentValues(): Vals {
-    const exp = this.exp;
-    const r = simulate(exp, this.v, this.base);
-    const rb = simulate(exp, this.base, this.base);
-    const v: Vals = { ...this.real };
-    if (exp === "forest") {
-      const f = Math.min(1.2, r.visual.green / Math.max(0.05, rb.visual.green));
-      if (v.NDVI !== undefined) v.NDVI *= f;
-      if (v.EVI !== undefined) v.EVI *= f;
-    } else if (exp === "ocean") {
-      const d = this.v.sst - this.base.sst;
-      if (v.SST !== undefined) v.SST += d;
-      if (v.SSTA !== undefined) v.SSTA += d;
-    } else {
-      v.T2M = this.v.temp;
-      v.PRECTOTCORR = this.v.rain * (0.6 + 0.4 * this.v.storms);
-      v.ALLSKY_SFC_SW_DWN = this.v.sun;
+    return applyChange(this.real, this.change(true));
+  }
+
+  /** The sliders' change, applied to real measurements (see src/lab/series.ts). */
+  private change(force = false): WhatIfChange {
+    if (!force && (this.mode !== "whatif" || this.comparing)) return NO_CHANGE(this.exp);
+    const r = simulate(this.exp, this.v, this.base);
+    const rb = simulate(this.exp, this.base, this.base);
+    return whatIfChange(this.exp, this.v, this.base, r.visual.green / Math.max(0.05, rb.visual.green));
+  }
+
+  /** Real measurements (and, in WHAT IF?, the same dates changed by the sliders) as a small line graph. */
+  private renderGraph() {
+    const host = document.getElementById("lab-graph-svg");
+    const cap = document.getElementById("lab-graph-cap");
+    if (!host || !cap) return;
+    const k = PITCH_VAR[this.exp];
+    const name = KID.label(k);
+    if (this.rows.length < 2) {
+      host.innerHTML = "";
+      cap.textContent = "No real measurements are loaded for this place, so there is nothing to draw.";
+      return;
     }
-    return v;
+    const whatif = this.mode === "whatif" && !this.comparing;
+    const real = this.rows.map((r) => r.vals[k] as number);
+    const sim = whatif ? applyToRows(this.rows, this.change()).map((r) => r.vals[k] as number) : null;
+    const all = sim ? real.concat(sim) : real;
+    let lo = Math.min(...all);
+    let hi = Math.max(...all);
+    if (hi - lo < 1e-6) {
+      lo -= 1;
+      hi += 1;
+    }
+    const pad = (hi - lo) * 0.12;
+    const W = 600, H = 190, L = 52, R = 12, T = 12, B = 30;
+    const x = (i: number) => L + (i / (this.rows.length - 1)) * (W - L - R);
+    const y = (v: number) => T + (1 - (v - lo + pad) / (hi - lo + 2 * pad)) * (H - T - B);
+    const line = (vs: number[]) => vs.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join("");
+    const u = this.unit && this.unit !== "1" && !/unitless/i.test(this.unit) ? ` ${this.unit}` : "";
+    const f = (v: number) => (hi - lo < 2 ? v.toFixed(2) : v.toFixed(1));
+    const day = (i: number) => this.rows[i].time.slice(0, 10);
+    const d0 = day(0), d1 = day(this.rows.length - 1);
+    const dots = (vs: number[], cls: string, what: string) =>
+      vs.map((v, i) => `<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="3.4" class="${cls}"><title>${esc(day(i))}: ${f(v)}${esc(u)} (${what})</title></circle>`).join("");
+    host.innerHTML = `<svg viewBox="0 0 ${W} ${H}" class="lab-svg" role="img" aria-label="${esc(`${name}: ${this.rows.length} real measurements from ${d0} to ${d1}${sim ? ", and the same dates in the WHAT IF? simulation (dashed)" : ""}`)}">
+      <text x="${L - 6}" y="${y(hi) + 4}" text-anchor="end" class="ax">${f(hi)}</text>
+      <text x="${L - 6}" y="${y(lo) + 4}" text-anchor="end" class="ax">${f(lo)}</text>
+      <line x1="${L}" x2="${W - R}" y1="${H - B}" y2="${H - B}" class="axis"/>
+      <text x="${L}" y="${H - 8}" class="ax">${esc(d0)}</text>
+      <text x="${W - R}" y="${H - 8}" text-anchor="end" class="ax">${esc(d1)}</text>
+      <path d="${line(real)}" class="ln-real${sim ? " faded" : ""}"/>${dots(real, "pt-real", "real")}
+      ${sim ? `<path d="${line(sim)}" class="ln-sim"/>${dots(sim, "pt-sim", "WHAT IF? simulation")}` : ""}
+      <g id="lab-head" class="lab-head" style="display:none"><line y1="${T}" y2="${H - B}"/><circle r="7"/></g>
+    </svg>`;
+    const lastR = real[real.length - 1];
+    const lastS = sim ? sim[sim.length - 1] : undefined;
+    const moved = lastS !== undefined && Math.abs(lastS - lastR) > 1e-9;
+    cap.innerHTML = `<span class="lg real">● Real ${esc(name.toLowerCase())}</span>${sim ? ` <span class="lg sim">● WHAT IF? (simulation)</span>` : ""} · ${moved ? `latest date: real ${f(lastR)}${esc(u)} → pretend ${f(lastS!)}${esc(u)}` : `latest: ${f(lastR)}${esc(u)}`}<br>${whatif ? esc(LINE_NOTE[this.exp]) : "Press play: the sound follows the line, one dot at a time. Higher values make higher notes."}`;
+    this.movePlayhead(this.playIdx);
+  }
+
+  /** Move the graph's playhead to the dot being heard (-1 hides it). */
+  private movePlayhead(i: number) {
+    this.playIdx = i;
+    const g = document.getElementById("lab-head");
+    if (!g) return;
+    const sel = this.mode === "whatif" && !this.comparing ? "#lab-graph-svg .pt-sim" : "#lab-graph-svg .pt-real";
+    const d = i >= 0 ? document.querySelectorAll<SVGCircleElement>(sel)[i] : undefined;
+    if (!d) {
+      g.style.display = "none";
+      return;
+    }
+    const cx = d.getAttribute("cx")!;
+    const cy = d.getAttribute("cy")!;
+    g.style.display = "";
+    const ln = g.querySelector("line")!;
+    ln.setAttribute("x1", cx);
+    ln.setAttribute("x2", cx);
+    const c = g.querySelector("circle")!;
+    c.setAttribute("cx", cx);
+    c.setAttribute("cy", cy);
   }
 
   private loopSource(): LoopSource | null {
@@ -585,7 +662,9 @@ export class Playground {
     const vals = whatif ? this.experimentValues() : this.real;
     const frame = labFrames(vals, PITCH_VAR[this.exp], 1)[0];
     const fx = whatif ? combinedSound(activeRules(this.exp, simulate(this.exp, this.v, this.base))) : NO_FX;
-    return { frame, opts: { experience: this.exp, palette, layers }, fx };
+    // The run of real measurements (changed by the sliders in WHAT IF?), played in order and drawn on the lab graph.
+    const run = (whatif ? applyToRows(this.rows, this.change()) : this.rows).map((r, i) => ({ ...labFrames(r.vals, PITCH_VAR[this.exp], 1)[0], index: i, time: r.time }));
+    return { frame, frames: run.length >= 2 ? run : undefined, opts: { experience: this.exp, palette, layers }, fx };
   }
 
   // --- Two real years -------------------------------------------------------

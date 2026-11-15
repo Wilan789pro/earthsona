@@ -155,7 +155,7 @@ button { font: inherit; color: inherit; }
 .notice svg { display: none; }
 
 /* ---------- Stage: spaceship window + Luna ---------- */
-.stage { min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto; gap: 10px; }
+.stage { min-height: 0; display: grid; grid-template-rows: auto minmax(220px, 1fr) auto auto; gap: 10px; }
 .space {
   position: relative; min-height: 0; border-radius: 34px; overflow: hidden;
   border: 7px solid #fff; box-shadow: 0 0 0 3px var(--a1), var(--shadow);
@@ -201,6 +201,10 @@ button { font: inherit; color: inherit; }
 .bubble.thinking .luna-dock svg { animation: think 1.6s ease-in-out infinite; }
 @keyframes think { 50% { transform: translateY(-4px) rotate(-5deg); } }
 .bubble-text { margin: 0.15rem 0 0; font: 500 1.12rem/1.5 var(--head); max-height: 9.5em; overflow-y: auto; }
+/* Luna's bubble never grows over the Earth: long content (badges, help lists, questions) scrolls inside it. */
+.bubble-body { min-height: 0; max-height: min(30dvh, 260px); overflow-y: auto; overscroll-behavior: contain; padding-right: 4px; scrollbar-width: thin; scrollbar-color: var(--a1) transparent; }
+.bubble-body .bubble-text { max-height: none; overflow: visible; }
+.bubble-body .ask { position: sticky; bottom: 0; background: #fff; padding-top: 6px; }
 .bubble-extra:empty { display: none; }
 .bubble-extra { margin-top: 8px; color: var(--ink-2); }
 .bubble-list { margin: 0; padding-left: 1.2rem; font-size: 0.95rem; }
@@ -806,3 +810,20 @@ kbd { font: 700 0.8rem var(--body); background: var(--sky-2); border: 1px solid 
 @media (max-width: 820px) {
   .jump-btn { display: block; position: fixed; right: 12px; bottom: 14px; z-index: 40; font: 700 0.95rem var(--head); color: #fff; background: var(--grad); border: 3px solid #fff; border-radius: 999px; padding: 10px 16px; box-shadow: var(--shadow); cursor: pointer; }
 }
+
+/* ---------- Earth Sound Lab graph: real line (solid) and WHAT IF? line (dashed) with a playhead ---------- */
+.lab-graph { margin: 8px 0; padding: 8px 10px; background: var(--sky-2, #f2f8ff); border-radius: 18px; border: 2px solid var(--line); }
+.lab-graph figcaption { margin-top: 4px; color: var(--ink-2); }
+.lab-svg { width: 100%; height: auto; max-height: 190px; display: block; }
+.lab-svg .ax { font: 600 11px var(--body); fill: var(--ink-2); }
+.lab-svg .axis { stroke: var(--line); stroke-width: 1.5; }
+.lab-svg .ln-real { fill: none; stroke: #1b7fc4; stroke-width: 2.5; }
+.lab-svg .ln-real.faded { stroke-opacity: 0.55; }
+.lab-svg .pt-real { fill: #fff; stroke: #1b7fc4; stroke-width: 2; }
+.lab-svg .ln-sim { fill: none; stroke: #9b3fe0; stroke-width: 2.5; stroke-dasharray: 7 5; }
+.lab-svg .pt-sim { fill: #f3e6ff; stroke: #9b3fe0; stroke-width: 2; }
+.lab-svg .lab-head line { stroke: var(--ink); stroke-opacity: 0.35; stroke-width: 2; }
+.lab-svg .lab-head circle { fill: var(--sun, #ffc93c); stroke: var(--ink); stroke-width: 2; }
+.lab-graph .lg { font-weight: 700; white-space: nowrap; }
+.lab-graph .lg.real { color: #1b6fa8; }
+.lab-graph .lg.sim { color: #7d2bc0; }

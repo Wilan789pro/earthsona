@@ -4,7 +4,8 @@ import { MELODY_OCTAVES } from "../sonification/mappings";
 import type { SoundResponse } from "../lab/scenarios";
 
 /**
- * The Earth Sound Lab's continuous, real-time sound: an endless 8-step phrase built around the data note.
+ * The Earth Sound Lab's continuous, real-time sound: the latest real measurements of this place played in order
+ * (REAL), or the same measurements changed by the WHAT IF? sliders. (Without a run it falls back to an 8-step phrase.)
  * Every step asks `source()` for the CURRENT values, so moving a slider is heard on the next beat (≈0.4 s).
  * Play / pause / resume / stop / restart; the AudioContext is resumed on every play (browsers suspend it).
  */
@@ -12,6 +13,8 @@ export type LoopState = "stopped" | "playing" | "paused";
 
 export interface LoopSource {
   frame: SoundFrame;
+  /** A run of real (or WHAT IF?) measurements played in order; when given, it replaces the phrase around `frame`. */
+  frames?: SoundFrame[];
   opts: RenderOptions;
   /** Combined sound responses of the active WHAT IF? rules (identity in REAL mode). */
   fx: Required<Omit<SoundResponse, "text">>;
@@ -23,12 +26,12 @@ export const BASE_STEP = 0.42;
 export const NO_FX: LoopSource["fx"] = { notes: 0, busy: 1, bright: 1, tension: 0, fall: false, tempo: 1 };
 
 /** Apply the phrase position and the rules' sound responses to a data frame (pure: unit-tested). */
-export function shapeFrame(f: SoundFrame, step: number, fx: LoopSource["fx"]): SoundFrame {
+export function shapeFrame(f: SoundFrame, step: number, fx: LoopSource["fx"], phrase = true): SoundFrame {
   const k = step % PHRASE.length;
   let pitch = f.pitch;
   if (pitch !== null) {
     // fx.notes is in scale steps (≈ 2 semitones each); the result stays on the continuous pitch line.
-    const semis = PHRASE[k] + fx.notes * 2;
+    const semis = (phrase ? PHRASE[k] : 0) + fx.notes * 2;
     pitch = Math.max(0, Math.min(1, pitch + semis / (12 * MELODY_OCTAVES)));
   }
   const clamp01 = (x: number | null) => (x === null ? null : Math.max(0, Math.min(1, x)));
@@ -42,7 +45,7 @@ export function shapeFrame(f: SoundFrame, step: number, fx: LoopSource["fx"]): S
     harmony,
     density: f.density === null ? (fx.busy !== 1 ? clamp01(0.25 * fx.busy) : null) : clamp01(f.density * fx.busy),
     brightness: clamp01((f.brightness ?? 0.45) * fx.bright),
-    drop: fx.fall && k === 0,
+    drop: fx.fall && (phrase ? k === 0 : step === 0),
     pan: Math.sin(step * 0.7) * 0.4,
   };
 }
@@ -52,7 +55,8 @@ export class LabLoop {
   step = 0;
   private timer: number | null = null;
   onState: (s: LoopState) => void = () => {};
-  onStep: (step: number, f: SoundFrame) => void = () => {};
+  /** step, the shaped frame, and the index in `frames` that was played (or -1 for the phrase). */
+  onStep: (step: number, f: SoundFrame, index: number) => void = () => {};
 
   constructor(private engine: SonificationEngine, private source: () => LoopSource | null, private startNature: () => void, private stopNature: () => void) {}
 
@@ -102,9 +106,11 @@ export class LabLoop {
     const dur = BASE_STEP / src.fx.tempo;
     // If the browser suspended audio (tab hidden, device sleep), resume it before scheduling.
     if (!this.engine.running) void this.engine.start();
-    const f = shapeFrame(src.frame, this.step, src.fx);
-    this.engine.play(f, dur, src.opts);
-    this.onStep(this.step, f);
+    const run = src.frames?.length ? src.frames : null;
+    const index = run ? this.step % run.length : -1;
+    const f = shapeFrame(run ? run[index] : src.frame, this.step, src.fx, !run);
+    if (f.pitch !== null) this.engine.play(f, dur, src.opts);
+    this.onStep(this.step, f, index);
     this.step++;
     this.timer = window.setTimeout(this.tick, dur * 1000);
   };

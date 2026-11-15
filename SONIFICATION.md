@@ -11,7 +11,7 @@ These rules are implemented in `src/sonification/mappings.ts`, `src/sonification
 | Kind | What | Where |
 |---|---|---|
 | **1. Data sonification** | everything in the missions, the graph's Journey and Explore modes, Forest Voices, and the 🌍 Whole planet track | `engine.ts` (StepRenderer), `forestVoices.ts` |
-| **2. WHAT IF? simulation** | the Earth Sound Lab's WHAT IF? mode: the **same rules** fed by the simplified model's values, plus the documented rule responses (`src/lab/scenarios.ts`). Always labelled "simulation". | `labLoop.ts`, `playground.ts` |
+| **2. WHAT IF? simulation** | the Earth Sound Lab's WHAT IF? mode: the **same rules** applied to the place's latest 24 real measurements, changed by the sliders (`src/lab/series.ts`: ocean Sea warmth shifts SST; forest model greenness scales NDVI/EVI; Pulse heat/rain/sun shift or scale T2M/rain/sunlight), plus the documented rule responses (`src/lab/scenarios.ts`). The lab graph draws the real line and the WHAT IF? line, with a playhead on the dot being heard. Always labelled "simulation". | `labLoop.ts`, `playground.ts` |
 | **3. Not data** | **Luna's voice** (speech that explains; ducks the music while she talks) and the **intro film's own soundtrack**. There are no decorative interface sound effects. | `luna.ts`, `public/media/intro.mp4` |
 
 **Missing data:** a date without a usable measurement plays a short, dull "no data" tick. That tick is the only sound for missing data, and it is the same everywhere.
