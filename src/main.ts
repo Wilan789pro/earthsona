@@ -881,6 +881,8 @@ player.onStep((i, f) => {
   updateMusicalChange(f, state.frames[i - 1]);
   state.journeyAt = i;
   renderJourneyPos();
+  // Text equivalent of the sound (read on pause, or by Journey steps): what the data is and what you hear
+  $("audio-desc").textContent = describeFrame(f, state.frames[i - 1]);
 });
 
 player.onState((s) => {
@@ -895,6 +897,8 @@ player.onState((s) => {
     chart.hidePlayhead();
     graph.setPlayhead(null);
   }
+  // At a pause, tell screen-reader users where the music is (during playback it changes too fast to read).
+  if (s === "paused" && $("audio-desc").textContent) announce(`Paused. ${$("audio-desc").textContent}`);
   setPlayingUi();
 });
 
@@ -1054,7 +1058,8 @@ function showScene(visual: Record<string, number> | null, instant = false, label
     return;
   }
   canvas.hidden = false;
-  canvas.setAttribute("aria-label", label === "Real data" ? "Illustration drawn from the real starting measurements" : "Illustration of a simulation (WHAT IF?), not an observation");
+  // the lab sets a detailed description of what the picture shows (playground.renderRules); only a fallback here
+  if (!canvas.getAttribute("aria-label")?.startsWith("P")) canvas.setAttribute("aria-label", label === "Real data" ? "Picture drawn from the real starting measurements." : "Pretend picture (simulation).");
   $("globe").style.visibility = "hidden";
   $("legend").hidden = true;
   labScene.set(state.experience, visual, instant);

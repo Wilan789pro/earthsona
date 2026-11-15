@@ -34,6 +34,7 @@
 
     <a class="skip" href="#places-h">Skip to the places</a>
 
+    <a class="skip-link" href="#j3-h" id="skip-player">Skip to the sound player</a>
     <div class="app">
       <!-- ============ TOP ============ -->
       <header class="top">
@@ -158,7 +159,7 @@
         </article>
 
         <article class="j-card j-music" aria-labelledby="j3-h">
-          <h2 class="j-h" id="j3-h"><span class="j-step" aria-hidden="true">3</span> What you hear</h2>
+          <h2 class="j-h" id="j3-h" tabindex="-1"><span class="j-step" aria-hidden="true">3</span> What you hear</h2>
           <div class="j-music-row">
             <div class="transport" role="group" aria-label="Playback">
               <button class="play" id="btn-play" aria-label="Play (Space)"><svg aria-hidden="true"><use href="#i-play" id="play-icon" /></svg></button>
@@ -174,6 +175,7 @@
           </div>
           <ul class="hear-list" id="hear-list"></ul>
           <p class="j-change" id="j-change"></p>
+          <p class="j-desc small" id="audio-desc" aria-live="off"></p>
           <div class="j-music-row small-row">
             <fieldset class="mix" id="mix">
               <legend class="sr-only">What you hear</legend>
@@ -240,6 +242,15 @@
       </section>
 
       <section id="pane-settings" role="tabpanel" aria-labelledby="tab-settings" hidden>
+        <details class="shortcuts" open>
+          <summary><strong>Keyboard shortcuts</strong></summary>
+          <ul class="small">
+            <li><kbd>Space</kbd> play / pause · <kbd>J</kbd> next date (Journey) · <kbd>W</kbd> why does it sound like this?</li>
+            <li><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> choose a world · <kbd>[</kbd> <kbd>]</kbd> previous / next place · <kbd>V</kbd> NASA video / globe</li>
+            <li><kbd>L</kbd> Earth Sound Lab · <kbd>N</kbd> / <kbd>M</kbd> nature / music on or off · <kbd>R</kbd> turn the Earth back · arrows turn the Earth</li>
+            <li>On the graph: <kbd>←</kbd> <kbd>→</kbd> move between dates (read aloud by screen readers), <kbd>Enter</kbd> listen · <kbd>Esc</kbd> quiets Luna, closes things, skips the tour</li>
+          </ul>
+        </details>
         <div class="settings">
           <label class="switch"><input type="checkbox" id="set-voice" /><span><strong>Luna talks out loud</strong><br /><span class="muted small">Luna's voice is generated on the EARTHSONA server with Kokoro-82M (voice af_heart). Her words are always shown as captions. Esc or the stop button silences her.</span></span></label>
           <label class="ctl">Luna's voice <select id="voice-pick"></select></label>

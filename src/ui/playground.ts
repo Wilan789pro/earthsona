@@ -454,6 +454,9 @@ export class Playground {
   private renderRules(rules: Rule[]) {
     const box = document.getElementById("lab-rules");
     if (!box) return;
+    // Text alternative of the animated picture: what it shows right now (from the active rules' visuals)
+    const pic = this.mode === "real" ? "Picture drawn from the real starting measurements." : rules.length ? `Pretend picture (simulation): ${rules.map((r) => r.visual).join(" ")}` : "Pretend picture (simulation): close to normal.";
+    document.getElementById("scene")?.setAttribute("aria-label", pic);
     if (this.mode === "real") {
       box.innerHTML = `<p class="small rule-hint">🛰️ Real data: nothing is changed. Switch to <strong>WHAT IF?</strong> to experiment.</p>`;
       $("lab-rule-details").innerHTML = "";
